@@ -23,6 +23,7 @@ import (
 	"github.com/getmentor/getmentor-api/pkg/azure"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -45,8 +46,8 @@ func main() {
 	defer logger.Sync()
 
 	logger.Info("Starting GetMentor API",
-		"version", "1.0.0",
-		"environment", cfg.Server.AppEnv,
+		zap.String("version", "1.0.0"),
+		zap.String("environment", cfg.Server.AppEnv),
 	)
 
 	// Start infrastructure metrics collection
@@ -59,7 +60,7 @@ func main() {
 		cfg.Airtable.WorkOffline,
 	)
 	if err != nil {
-		logger.Fatal("Failed to initialize Airtable client", "error", err)
+		logger.Fatal("Failed to initialize Airtable client", zap.Error(err))
 	}
 
 	// Initialize Azure Storage client
@@ -71,7 +72,7 @@ func main() {
 			cfg.Azure.StorageDomain,
 		)
 		if err != nil {
-			logger.Fatal("Failed to initialize Azure Storage client", "error", err)
+			logger.Fatal("Failed to initialize Azure Storage client", zap.Error(err))
 		}
 	}
 
@@ -155,9 +156,9 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		logger.Info("Server started", "port", cfg.Server.Port)
+		logger.Info("Server started", zap.String("port", cfg.Server.Port))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("Server failed to start", "error", err)
+			logger.Fatal("Server failed to start", zap.Error(err))
 		}
 	}()
 
@@ -172,7 +173,7 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Fatal("Server forced to shutdown", "error", err)
+		logger.Fatal("Server forced to shutdown", zap.Error(err))
 	}
 
 	logger.Info("Server exited")

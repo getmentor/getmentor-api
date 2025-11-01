@@ -1,7 +1,6 @@
 package azure
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
@@ -35,8 +35,9 @@ func NewStorageClient(connectionString, containerName, storageDomain string) (*S
 
 	// Create container if it doesn't exist
 	ctx := context.Background()
+	accessType := container.PublicAccessTypeBlob
 	_, err = containerClient.Create(ctx, &container.CreateOptions{
-		Access: container.PublicAccessTypeBlob.ToPtr(),
+		Access: &accessType,
 	})
 	if err != nil && !bloberror.HasCode(err, bloberror.ContainerAlreadyExists) {
 		return nil, fmt.Errorf("failed to create container: %w", err)
@@ -85,7 +86,7 @@ func (s *StorageClient) UploadImage(imageData, fileName, contentType string) (st
 	ctx := context.Background()
 
 	_, err = blobClient.UploadBuffer(ctx, imageBytes, &azblob.UploadBufferOptions{
-		HTTPHeaders: &azblob.BlobHTTPHeaders{
+		HTTPHeaders: &blob.HTTPHeaders{
 			BlobContentType: &contentType,
 		},
 	})

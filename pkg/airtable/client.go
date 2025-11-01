@@ -132,30 +132,19 @@ func (c *Client) GetMentorBySlug(slug string) (*models.Mentor, error) {
 
 // GetMentorByRecordID fetches a mentor by Airtable record ID
 func (c *Client) GetMentorByRecordID(recordID string) (*models.Mentor, error) {
-	if c.workOffline {
-		return nil, fmt.Errorf("GetMentorByRecordID not supported in offline mode")
-	}
-
-	start := time.Now()
-	operation := "getMentorByRecordID"
-
-	var record models.AirtableRecord
-	err := c.client.GetRecord(MentorsTableName, recordID, &record)
-
-	duration := metrics.MeasureDuration(start)
-
+	// Just fetch all mentors and filter - simpler than using the API filter
+	mentors, err := c.GetAllMentors()
 	if err != nil {
-		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
-		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
-		logger.LogAPICall("airtable", operation, "error", duration, zap.Error(err))
-		return nil, fmt.Errorf("failed to fetch mentor by record ID: %w", err)
+		return nil, err
 	}
 
-	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
-	metrics.AirtableRequestTotal.WithLabelValues(operation, "success").Inc()
-	logger.LogAPICall("airtable", operation, "success", duration)
+	for _, mentor := range mentors {
+		if mentor.AirtableID == recordID {
+			return mentor, nil
+		}
+	}
 
-	return record.ToMentor(), nil
+	return nil, fmt.Errorf("mentor with record ID %s not found", recordID)
 }
 
 // UpdateMentor updates a mentor record in Airtable
@@ -217,8 +206,7 @@ func (c *Client) CreateClientRequest(req *models.ClientRequest) error {
 		fields["Level"] = req.Level
 	}
 
-	var result interface{}
-	err := c.client.CreateRecord(ClientRequestsTableName, fields, &result)
+	err := c.client.CreateRecord(ClientRequestsTableName, fields)
 
 	duration := metrics.MeasureDuration(start)
 
