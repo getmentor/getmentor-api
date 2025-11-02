@@ -27,23 +27,24 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
 FROM grafana/alloy:latest AS alloy
 
 # Stage 3: Production runtime image
-FROM alpine:latest AS runner
+# Using Debian instead of Alpine for glibc compatibility with Grafana Alloy
+FROM debian:bookworm-slim AS runner
 WORKDIR /app
 
 # Install runtime dependencies
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     bash \
-    && rm -rf /var/cache/apk/*
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy Grafana Alloy binary from official image
 COPY --from=alloy /bin/alloy /usr/local/bin/alloy
 RUN chmod +x /usr/local/bin/alloy
 
 # Create non-root user for security
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -u 1001 -S appuser -G appgroup
+RUN groupadd -g 1001 appgroup && \
+    useradd -u 1001 -g appgroup -m -s /bin/bash appuser
 
 # Create necessary directories
 RUN mkdir -p /app/logs /var/lib/alloy/data && \
