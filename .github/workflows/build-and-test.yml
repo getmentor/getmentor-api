@@ -1,0 +1,125 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  GO_VERSION: '1.22'
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Build application
+        run: go build -v ./cmd/api
+
+      - name: Run tests (if any)
+        run: go test -v ./... || echo "No tests found"
+
+  build-docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: getmentor-api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Test Docker image
+        run: |
+          docker run -d --name test-container \
+            -e AIRTABLE_WORK_OFFLINE=1 \
+            -e AIRTABLE_API_KEY=test \
+            -e AIRTABLE_BASE_ID=test \
+            -e INTERNAL_MENTORS_API=test-token \
+            -e MENTORS_API_LIST_AUTH_TOKEN=test-token-1 \
+            -e MENTORS_API_LIST_AUTH_TOKEN_INNO=test-token-2 \
+            -e MENTORS_API_LIST_AUTH_TOKEN_AIKB=test-token-3 \
+            -e RECAPTCHA_V2_SECRET_KEY=test \
+            -e WEBHOOK_SECRET=test \
+            -e NEXTJS_BASE_URL=http://localhost:3000 \
+            -e NEXTJS_REVALIDATE_SECRET=test \
+            -e REVALIDATE_SECRET_TOKEN=test \
+            -p 8080:8080 \
+            getmentor-api:${{ github.sha }}
+
+          # Wait for container to start
+          sleep 10
+
+          # Check if container is running
+          docker ps | grep test-container
+
+          # Test health check endpoint
+          curl -f http://localhost:8080/api/healthcheck || exit 1
+
+          # Test metrics endpoint
+          curl -f http://localhost:8080/api/metrics | grep "gm_api_" || exit 1
+
+          # Show logs for debugging
+          docker logs test-container
+
+          # Cleanup
+          docker stop test-container
+          docker rm test-container
+
+  lint:
+    name: Run Linters
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m

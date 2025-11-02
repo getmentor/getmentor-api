@@ -1,0 +1,50 @@
+# Git
+.git
+.gitignore
+.github
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Documentation
+*.md
+!README.md
+IMPLEMENTATION_TODO.md
+PROJECT_STATUS.md
+
+# Build artifacts
+bin/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test files
+*_test.go
+testdata/
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Scripts (not needed in Docker)
+create_remaining_files.sh
+generate_services_handlers.sh
+
+# Temporary files
+tmp/
+temp/

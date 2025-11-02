@@ -1,0 +1,138 @@
+// Grafana Alloy Configuration for GetMentor API (Go)
+// This configuration handles metrics and logs collection for the Go API service
+
+// Logging configuration
+logging {
+  level  = coalesce(env("LOG_LEVEL"), "info")
+  format = "logfmt"
+}
+
+// Prometheus metrics scraping - Go API
+prometheus.scrape "go_api" {
+  targets = [
+    {
+      __address__ = string.format("localhost:%s", coalesce(env("PORT"), "8080")),
+      instance    = coalesce(env("HOSTNAME"), "localhost"),
+      environment = coalesce(env("APP_ENV"), "production"),
+      app         = "getmentor-api",
+      service     = "go-api",
+    },
+  ]
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+  scrape_interval = "60s"
+  metrics_path    = "/api/metrics"
+}
+
+// Self-monitoring: Grafana Alloy metrics
+prometheus.scrape "alloy_self_monitoring" {
+  targets = [
+    {
+      __address__ = "localhost:12345",
+      instance    = coalesce(env("HOSTNAME"), "localhost"),
+      environment = coalesce(env("APP_ENV"), "production"),
+      app         = "getmentor-api",
+      service     = "alloy",
+    },
+  ]
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+  scrape_interval = "60s"
+}
+
+// Prometheus remote write to Grafana Cloud
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = env("GRAFANA_CLOUD_METRICS_URL")
+
+    basic_auth {
+      username = env("GRAFANA_CLOUD_METRICS_USERNAME")
+      password = env("GRAFANA_CLOUD_API_KEY")
+    }
+  }
+}
+
+// Local file match for log files
+local.file_match "app_logs" {
+  path_targets = [
+    {
+      __path__    = "/app/logs/*.log",
+      job         = "go-api",
+      instance    = coalesce(env("HOSTNAME"), "localhost"),
+      environment = coalesce(env("APP_ENV"), "production"),
+      app         = "getmentor-api",
+      service     = "go-api",
+    },
+  ]
+}
+
+// Loki source file - tail application logs
+loki.source.file "app_logs" {
+  targets    = local.file_match.app_logs.targets
+  forward_to = [loki.process.parse_json.receiver]
+}
+
+// Loki process - parse JSON logs and extract fields
+loki.process "parse_json" {
+  forward_to = [loki.write.grafana_cloud.receiver]
+
+  // Parse JSON log format (Zap structured logs)
+  stage.json {
+    expressions = {
+      timestamp = "ts",
+      level     = "level",
+      message   = "msg",
+      caller    = "caller",
+      method    = "method",
+      path      = "path",
+      status    = "status",
+      duration  = "duration",
+      error     = "error",
+    }
+  }
+
+  // Use timestamp from log entry
+  stage.timestamp {
+    source = "timestamp"
+    format = "UnixMs"
+  }
+
+  // Add labels for level
+  stage.labels {
+    values = {
+      level = "level",
+    }
+  }
+
+  // Set message as output
+  stage.output {
+    source = "message"
+  }
+}
+
+// Loki write to Grafana Cloud
+loki.write "grafana_cloud" {
+  endpoint {
+    url = env("GRAFANA_CLOUD_LOGS_URL")
+
+    basic_auth {
+      username = env("GRAFANA_CLOUD_LOGS_USERNAME")
+      password = env("GRAFANA_CLOUD_API_KEY")
+    }
+  }
+}
+
+// OpenTelemetry receiver for traces (HTTP & gRPC)
+// Note: Traces are collected but not exported yet - configure GRAFANA_CLOUD_TRACES_URL to enable
+otelcol.receiver.otlp "default" {
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+
+  output {
+    // Traces are received but not forwarded - uncomment when traces endpoint is configured
+    // traces  = [otelcol.exporter.otlp.grafana_cloud.input]
+  }
+}
