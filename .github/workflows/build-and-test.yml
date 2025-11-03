@@ -40,11 +40,21 @@ jobs:
       - name: Run go vet
         run: go vet ./...
 
+      - name: Run tests with coverage
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+          go tool cover -func=coverage.out
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
+        continue-on-error: true
+
       - name: Build application
         run: go build -v ./cmd/api
-
-      - name: Run tests (if any)
-        run: go test -v ./... || echo "No tests found"
 
   build-docker:
     name: Build Docker Image

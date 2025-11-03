@@ -1,4 +1,4 @@
-.PHONY: help build run test lint docker-build docker-run clean
+.PHONY: help build run test test-coverage test-race lint docker-build docker-run clean
 
 # Default target
 help:
@@ -6,6 +6,8 @@ help:
 	@echo "  build          - Build the Go application"
 	@echo "  run            - Run the application locally"
 	@echo "  test           - Run tests"
+	@echo "  test-coverage  - Run tests with coverage report"
+	@echo "  test-race      - Run tests with race detection"
 	@echo "  lint           - Run linters"
 	@echo "  docker-build   - Build Docker image"
 	@echo "  docker-run     - Run Docker container"
@@ -26,6 +28,18 @@ run:
 test:
 	@echo "Running tests..."
 	@go test -v ./...
+
+# Run tests with coverage
+test-coverage:
+	@echo "Running tests with coverage..."
+	@go test -v -coverprofile=coverage.out -covermode=atomic ./...
+	@go tool cover -func=coverage.out
+	@echo "\nTo view HTML coverage report, run: go tool cover -html=coverage.out"
+
+# Run tests with race detection
+test-race:
+	@echo "Running tests with race detection..."
+	@go test -v -race ./...
 
 # Run linters
 lint:
