@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
@@ -12,6 +13,9 @@ import (
 func init() {
 	// Set Gin to test mode
 	gin.SetMode(gin.TestMode)
+
+	// Initialize logger for tests
+	logger.Init("test", "test")
 }
 
 func TestTokenAuthMiddleware_ValidToken(t *testing.T) {
