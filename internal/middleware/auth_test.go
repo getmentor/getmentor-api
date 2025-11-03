@@ -15,7 +15,10 @@ func init() {
 	gin.SetMode(gin.TestMode)
 
 	// Initialize logger for tests
-	logger.Init("test", "test")
+	_ = logger.Initialize(logger.Config{
+		Level:       "info",
+		Environment: "test",
+	})
 }
 
 func TestTokenAuthMiddleware_ValidToken(t *testing.T) {
