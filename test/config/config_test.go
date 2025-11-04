@@ -1,43 +1,44 @@
-package config
+package config_test
 
 import (
 	"os"
 	"testing"
 
+	"github.com/getmentor/getmentor-api/config"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestConfig_IsDevelopment(t *testing.T) {
 	tests := []struct {
 		name     string
-		config   *Config
+		cfg      *config.Config
 		expected bool
 	}{
 		{
 			name: "development environment",
-			config: &Config{
-				Server: ServerConfig{AppEnv: "development"},
+			cfg: &config.Config{
+				Server: config.ServerConfig{AppEnv: "development"},
 			},
 			expected: true,
 		},
 		{
 			name: "debug gin mode",
-			config: &Config{
-				Server: ServerConfig{GinMode: "debug"},
+			cfg: &config.Config{
+				Server: config.ServerConfig{GinMode: "debug"},
 			},
 			expected: true,
 		},
 		{
 			name: "production environment",
-			config: &Config{
-				Server: ServerConfig{AppEnv: "production"},
+			cfg: &config.Config{
+				Server: config.ServerConfig{AppEnv: "production"},
 			},
 			expected: false,
 		},
 		{
 			name: "release mode",
-			config: &Config{
-				Server: ServerConfig{GinMode: "release", AppEnv: "production"},
+			cfg: &config.Config{
+				Server: config.ServerConfig{GinMode: "release", AppEnv: "production"},
 			},
 			expected: false,
 		},
@@ -45,7 +46,7 @@ func TestConfig_IsDevelopment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.config.IsDevelopment()
+			result := tt.cfg.IsDevelopment()
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -54,27 +55,27 @@ func TestConfig_IsDevelopment(t *testing.T) {
 func TestConfig_IsProduction(t *testing.T) {
 	tests := []struct {
 		name     string
-		config   *Config
+		cfg      *config.Config
 		expected bool
 	}{
 		{
 			name: "production environment",
-			config: &Config{
-				Server: ServerConfig{AppEnv: "production"},
+			cfg: &config.Config{
+				Server: config.ServerConfig{AppEnv: "production"},
 			},
 			expected: true,
 		},
 		{
 			name: "development environment",
-			config: &Config{
-				Server: ServerConfig{AppEnv: "development"},
+			cfg: &config.Config{
+				Server: config.ServerConfig{AppEnv: "development"},
 			},
 			expected: false,
 		},
 		{
 			name: "staging environment",
-			config: &Config{
-				Server: ServerConfig{AppEnv: "staging"},
+			cfg: &config.Config{
+				Server: config.ServerConfig{AppEnv: "staging"},
 			},
 			expected: false,
 		},
@@ -82,7 +83,7 @@ func TestConfig_IsProduction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.config.IsProduction()
+			result := tt.cfg.IsProduction()
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -91,17 +92,17 @@ func TestConfig_IsProduction(t *testing.T) {
 func TestConfig_Validate(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      *Config
+		cfg         *config.Config
 		expectError bool
 		errorMsg    string
 	}{
 		{
 			name: "valid offline config",
-			config: &Config{
-				Airtable: AirtableConfig{
+			cfg: &config.Config{
+				Airtable: config.AirtableConfig{
 					WorkOffline: true,
 				},
-				Auth: AuthConfig{
+				Auth: config.AuthConfig{
 					InternalMentorsAPI: "test-token",
 				},
 			},
@@ -109,13 +110,13 @@ func TestConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "valid online config",
-			config: &Config{
-				Airtable: AirtableConfig{
+			cfg: &config.Config{
+				Airtable: config.AirtableConfig{
 					WorkOffline: false,
 					APIKey:      "test-key",
 					BaseID:      "test-base",
 				},
-				Auth: AuthConfig{
+				Auth: config.AuthConfig{
 					InternalMentorsAPI: "test-token",
 				},
 			},
@@ -123,12 +124,12 @@ func TestConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "missing airtable API key",
-			config: &Config{
-				Airtable: AirtableConfig{
+			cfg: &config.Config{
+				Airtable: config.AirtableConfig{
 					WorkOffline: false,
 					BaseID:      "test-base",
 				},
-				Auth: AuthConfig{
+				Auth: config.AuthConfig{
 					InternalMentorsAPI: "test-token",
 				},
 			},
@@ -137,12 +138,12 @@ func TestConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "missing airtable base ID",
-			config: &Config{
-				Airtable: AirtableConfig{
+			cfg: &config.Config{
+				Airtable: config.AirtableConfig{
 					WorkOffline: false,
 					APIKey:      "test-key",
 				},
-				Auth: AuthConfig{
+				Auth: config.AuthConfig{
 					InternalMentorsAPI: "test-token",
 				},
 			},
@@ -151,11 +152,11 @@ func TestConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "missing internal API token",
-			config: &Config{
-				Airtable: AirtableConfig{
+			cfg: &config.Config{
+				Airtable: config.AirtableConfig{
 					WorkOffline: true,
 				},
-				Auth: AuthConfig{},
+				Auth: config.AuthConfig{},
 			},
 			expectError: true,
 			errorMsg:    "INTERNAL_MENTORS_API is required",
@@ -164,7 +165,7 @@ func TestConfig_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.Validate()
+			err := tt.cfg.Validate()
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorMsg)
@@ -183,7 +184,7 @@ func TestLoad_WithDefaults(t *testing.T) {
 	os.Setenv("AIRTABLE_WORK_OFFLINE", "true")
 	os.Setenv("INTERNAL_MENTORS_API", "test-token")
 
-	cfg, err := Load()
+	cfg, err := config.Load()
 
 	assert.NoError(t, err)
 	assert.NotNil(t, cfg)
@@ -216,7 +217,7 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	os.Setenv("RECAPTCHA_V2_SECRET_KEY", "recaptcha-secret")
 	os.Setenv("NEXTJS_BASE_URL", "https://example.com")
 
-	cfg, err := Load()
+	cfg, err := config.Load()
 
 	assert.NoError(t, err)
 	assert.NotNil(t, cfg)
@@ -250,7 +251,7 @@ func TestLoad_ValidationFailure(t *testing.T) {
 	os.Setenv("AIRTABLE_WORK_OFFLINE", "false")
 	// Missing AIRTABLE_API_KEY, AIRTABLE_BASE_ID, and INTERNAL_MENTORS_API
 
-	cfg, err := Load()
+	cfg, err := config.Load()
 
 	assert.Error(t, err)
 	assert.Nil(t, cfg)

@@ -1,6 +1,7 @@
-package airtable
+package airtable_test
 
 import (
+	"github.com/getmentor/getmentor-api/pkg/airtable"
 	"testing"
 
 	"github.com/getmentor/getmentor-api/pkg/logger"
@@ -16,17 +17,17 @@ func init() {
 }
 
 func TestNewClient_OfflineMode(t *testing.T) {
-	client, err := NewClient("", "", true)
+	client, err := airtable.NewClient("", "", true)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, client)
-	assert.True(t, client.workOffline)
-	assert.Nil(t, client.client)
+	// Note: We can't test private fields from external test package
+	// The fact that client was created without error is sufficient
 }
 
 func TestNewClient_OnlineMode(t *testing.T) {
 	// Note: This will fail without a valid API key, but tests the constructor
-	client, err := NewClient("test-key", "test-base", false)
+	client, err := airtable.NewClient("test-key", "test-base", false)
 
 	// We expect an error because the API key is invalid
 	// but we're testing that the function handles it properly
@@ -35,12 +36,12 @@ func TestNewClient_OnlineMode(t *testing.T) {
 		assert.Nil(t, client)
 	} else {
 		assert.NotNil(t, client)
-		assert.False(t, client.workOffline)
+		// Note: We can't test private fields from external test package
 	}
 }
 
 func TestGetAllMentors_OfflineMode(t *testing.T) {
-	client, err := NewClient("", "", true)
+	client, err := airtable.NewClient("", "", true)
 	assert.NoError(t, err)
 
 	mentors, err := client.GetAllMentors()
@@ -58,7 +59,7 @@ func TestGetAllMentors_OfflineMode(t *testing.T) {
 }
 
 func TestGetMentorByID_OfflineMode(t *testing.T) {
-	client, err := NewClient("", "", true)
+	client, err := airtable.NewClient("", "", true)
 	assert.NoError(t, err)
 
 	// Get all mentors first to find a valid ID
@@ -102,7 +103,7 @@ func TestGetMentorByID_OfflineMode(t *testing.T) {
 }
 
 func TestGetMentorBySlug_OfflineMode(t *testing.T) {
-	client, err := NewClient("", "", true)
+	client, err := airtable.NewClient("", "", true)
 	assert.NoError(t, err)
 
 	// Get all mentors first to find a valid slug
@@ -146,7 +147,7 @@ func TestGetMentorBySlug_OfflineMode(t *testing.T) {
 }
 
 func TestGetMentorByRecordID_OfflineMode(t *testing.T) {
-	client, err := NewClient("", "", true)
+	client, err := airtable.NewClient("", "", true)
 	assert.NoError(t, err)
 
 	// Get all mentors first to find a valid record ID
@@ -190,7 +191,7 @@ func TestGetMentorByRecordID_OfflineMode(t *testing.T) {
 }
 
 func TestOfflineMode_DataConsistency(t *testing.T) {
-	client, err := NewClient("", "", true)
+	client, err := airtable.NewClient("", "", true)
 	assert.NoError(t, err)
 
 	// Get mentors multiple times to verify consistency

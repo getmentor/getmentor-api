@@ -1,6 +1,7 @@
-package azure
+package azure_test
 
 import (
+	"github.com/getmentor/getmentor-api/pkg/azure"
 	"encoding/base64"
 	"strings"
 	"testing"
@@ -10,7 +11,7 @@ import (
 
 func TestValidateImageType(t *testing.T) {
 	// Create a minimal storage client for testing (without actual Azure connection)
-	client := &StorageClient{}
+	client := &azure.StorageClient{}
 
 	tests := []struct {
 		name        string
@@ -77,7 +78,7 @@ func TestValidateImageType(t *testing.T) {
 }
 
 func TestValidateImageSize(t *testing.T) {
-	client := &StorageClient{}
+	client := &azure.StorageClient{}
 
 	// Helper function to create base64 data of specific size
 	createBase64Data := func(sizeBytes int) string {
@@ -150,7 +151,7 @@ func TestValidateImageSize(t *testing.T) {
 }
 
 func TestGenerateFileName(t *testing.T) {
-	client := &StorageClient{}
+	client := &azure.StorageClient{}
 
 	tests := []struct {
 		name             string
@@ -216,7 +217,7 @@ func TestGenerateFileName(t *testing.T) {
 }
 
 func TestGenerateFileName_Uniqueness(t *testing.T) {
-	client := &StorageClient{}
+	client := &azure.StorageClient{}
 	mentorID := 123
 	originalFileName := "profile.jpg"
 

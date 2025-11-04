@@ -128,10 +128,10 @@ func (ar *AirtableRecord) ToMentor() *Mentor {
 	}
 
 	// Determine calendar type
-	calendarType := getCalendarType(ar.Fields.CalendlyURL)
+	calendarType := GetCalendarType(ar.Fields.CalendlyURL)
 
 	// Get sponsor
-	sponsor := getMentorSponsor(tags)
+	sponsor := GetMentorSponsor(tags)
 
 	return &Mentor{
 		ID:           ar.Fields.Id,
@@ -158,8 +158,8 @@ func (ar *AirtableRecord) ToMentor() *Mentor {
 	}
 }
 
-// getCalendarType determines the calendar service type from URL
-func getCalendarType(url string) string {
+// GetCalendarType determines the calendar service type from URL
+func GetCalendarType(url string) string {
 	if url == "" {
 		return "none"
 	}
@@ -177,8 +177,8 @@ func getCalendarType(url string) string {
 	return "url"
 }
 
-// getMentorSponsor extracts sponsor information from tags
-func getMentorSponsor(tags []string) string {
+// GetMentorSponsor extracts sponsor information from tags
+func GetMentorSponsor(tags []string) string {
 	sponsorTags := map[string]bool{
 		"Ontico":    true,
 		"ТензорСофт": true,

@@ -1,6 +1,7 @@
-package handlers
+package handlers_test
 
 import (
+	"github.com/getmentor/getmentor-api/internal/handlers"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,7 +16,7 @@ func init() {
 
 func TestHealthHandler_Healthcheck(t *testing.T) {
 	// Setup
-	handler := NewHealthHandler()
+	handler := handlers.NewHealthHandler()
 	router := gin.New()
 	router.GET("/healthcheck", handler.Healthcheck)
 

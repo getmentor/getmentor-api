@@ -1,6 +1,7 @@
-package middleware
+package middleware_test
 
 import (
+	"github.com/getmentor/getmentor-api/internal/middleware"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -28,7 +29,7 @@ func TestTokenAuthMiddleware_ValidToken(t *testing.T) {
 
 	// Track if handler was called
 	handlerCalled := false
-	router.Use(TokenAuthMiddleware(validTokens...))
+	router.Use(middleware.TokenAuthMiddleware(validTokens...))
 	router.GET("/test", func(c *gin.Context) {
 		handlerCalled = true
 		c.Status(http.StatusOK)
@@ -54,7 +55,7 @@ func TestTokenAuthMiddleware_InvalidToken(t *testing.T) {
 
 	// Track if handler was called
 	handlerCalled := false
-	router.Use(TokenAuthMiddleware(validTokens...))
+	router.Use(middleware.TokenAuthMiddleware(validTokens...))
 	router.GET("/test", func(c *gin.Context) {
 		handlerCalled = true
 		c.Status(http.StatusOK)
@@ -80,7 +81,7 @@ func TestTokenAuthMiddleware_MissingToken(t *testing.T) {
 
 	// Track if handler was called
 	handlerCalled := false
-	router.Use(TokenAuthMiddleware(validTokens...))
+	router.Use(middleware.TokenAuthMiddleware(validTokens...))
 	router.GET("/test", func(c *gin.Context) {
 		handlerCalled = true
 		c.Status(http.StatusOK)
@@ -104,7 +105,7 @@ func TestTokenAuthMiddleware_EmptyTokenList(t *testing.T) {
 
 	// Track if handler was called
 	handlerCalled := false
-	router.Use(TokenAuthMiddleware())
+	router.Use(middleware.TokenAuthMiddleware())
 	router.GET("/test", func(c *gin.Context) {
 		handlerCalled = true
 		c.Status(http.StatusOK)
@@ -130,7 +131,7 @@ func TestInternalAPIAuthMiddleware_ValidToken(t *testing.T) {
 
 	// Track if handler was called
 	handlerCalled := false
-	router.Use(InternalAPIAuthMiddleware(validToken))
+	router.Use(middleware.InternalAPIAuthMiddleware(validToken))
 	router.GET("/test", func(c *gin.Context) {
 		handlerCalled = true
 		c.Status(http.StatusOK)
@@ -156,7 +157,7 @@ func TestInternalAPIAuthMiddleware_InvalidToken(t *testing.T) {
 
 	// Track if handler was called
 	handlerCalled := false
-	router.Use(InternalAPIAuthMiddleware(validToken))
+	router.Use(middleware.InternalAPIAuthMiddleware(validToken))
 	router.GET("/test", func(c *gin.Context) {
 		handlerCalled = true
 		c.Status(http.StatusOK)
@@ -182,7 +183,7 @@ func TestInternalAPIAuthMiddleware_MissingToken(t *testing.T) {
 
 	// Track if handler was called
 	handlerCalled := false
-	router.Use(InternalAPIAuthMiddleware(validToken))
+	router.Use(middleware.InternalAPIAuthMiddleware(validToken))
 	router.GET("/test", func(c *gin.Context) {
 		handlerCalled = true
 		c.Status(http.StatusOK)
@@ -207,7 +208,7 @@ func TestWebhookAuthMiddleware_ValidSecret(t *testing.T) {
 
 	// Track if handler was called
 	handlerCalled := false
-	router.Use(WebhookAuthMiddleware(validSecret))
+	router.Use(middleware.WebhookAuthMiddleware(validSecret))
 	router.POST("/webhook", func(c *gin.Context) {
 		handlerCalled = true
 		c.Status(http.StatusOK)
@@ -233,7 +234,7 @@ func TestWebhookAuthMiddleware_InvalidSecret(t *testing.T) {
 
 	// Track if handler was called
 	handlerCalled := false
-	router.Use(WebhookAuthMiddleware(validSecret))
+	router.Use(middleware.WebhookAuthMiddleware(validSecret))
 	router.POST("/webhook", func(c *gin.Context) {
 		handlerCalled = true
 		c.Status(http.StatusOK)
@@ -259,7 +260,7 @@ func TestWebhookAuthMiddleware_MissingSecret(t *testing.T) {
 
 	// Track if handler was called
 	handlerCalled := false
-	router.Use(WebhookAuthMiddleware(validSecret))
+	router.Use(middleware.WebhookAuthMiddleware(validSecret))
 	router.POST("/webhook", func(c *gin.Context) {
 		handlerCalled = true
 		c.Status(http.StatusOK)

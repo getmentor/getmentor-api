@@ -1,8 +1,9 @@
-package models
+package models_test
 
 import (
 	"testing"
 
+	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -51,7 +52,7 @@ func TestGetCalendarType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getCalendarType(tt.url)
+			result := models.GetCalendarType(tt.url)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -97,7 +98,7 @@ func TestGetMentorSponsor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getMentorSponsor(tt.tags)
+			result := models.GetMentorSponsor(tt.tags)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -106,12 +107,12 @@ func TestGetMentorSponsor(t *testing.T) {
 func TestAirtableRecordToMentor(t *testing.T) {
 	tests := []struct {
 		name     string
-		record   *AirtableRecord
-		expected *Mentor
+		record   *models.AirtableRecord
+		expected *models.Mentor
 	}{
 		{
 			name: "complete record conversion",
-			record: &AirtableRecord{
+			record: &models.AirtableRecord{
 				ID: "rec123",
 				Fields: struct {
 					Id                  int      `json:"Id"`
@@ -160,7 +161,7 @@ func TestAirtableRecordToMentor(t *testing.T) {
 					IsNew:             1,
 				},
 			},
-			expected: &Mentor{
+			expected: &models.Mentor{
 				ID:           1,
 				AirtableID:   "rec123",
 				Slug:         "john-doe",
@@ -186,7 +187,7 @@ func TestAirtableRecordToMentor(t *testing.T) {
 		},
 		{
 			name: "inactive mentor should not be visible",
-			record: &AirtableRecord{
+			record: &models.AirtableRecord{
 				ID: "rec456",
 				Fields: struct {
 					Id                  int      `json:"Id"`
@@ -222,7 +223,7 @@ func TestAirtableRecordToMentor(t *testing.T) {
 					SortOrder: 2,
 				},
 			},
-			expected: &Mentor{
+			expected: &models.Mentor{
 				ID:           2,
 				AirtableID:   "rec456",
 				Slug:         "jane-doe",
@@ -237,7 +238,7 @@ func TestAirtableRecordToMentor(t *testing.T) {
 		},
 		{
 			name: "photo from attachment when Image is empty",
-			record: &AirtableRecord{
+			record: &models.AirtableRecord{
 				ID: "rec789",
 				Fields: struct {
 					Id                  int      `json:"Id"`
@@ -279,7 +280,7 @@ func TestAirtableRecordToMentor(t *testing.T) {
 					SortOrder: 3,
 				},
 			},
-			expected: &Mentor{
+			expected: &models.Mentor{
 				ID:           3,
 				AirtableID:   "rec789",
 				Slug:         "bob-smith",
@@ -295,7 +296,7 @@ func TestAirtableRecordToMentor(t *testing.T) {
 		},
 		{
 			name: "tags with extra whitespace are trimmed",
-			record: &AirtableRecord{
+			record: &models.AirtableRecord{
 				ID: "rec101",
 				Fields: struct {
 					Id                  int      `json:"Id"`
@@ -331,7 +332,7 @@ func TestAirtableRecordToMentor(t *testing.T) {
 					SortOrder: 4,
 				},
 			},
-			expected: &Mentor{
+			expected: &models.Mentor{
 				ID:           4,
 				AirtableID:   "rec101",
 				Slug:         "alice",
@@ -355,7 +356,7 @@ func TestAirtableRecordToMentor(t *testing.T) {
 }
 
 func TestMentorToPublicResponse(t *testing.T) {
-	mentor := &Mentor{
+	mentor := &models.Mentor{
 		ID:           1,
 		AirtableID:   "rec123",
 		Slug:         "john-doe",
@@ -379,7 +380,7 @@ func TestMentorToPublicResponse(t *testing.T) {
 
 	baseURL := "https://getmentor.dev"
 
-	expected := PublicMentorResponse{
+	expected := models.PublicMentorResponse{
 		ID:           1,
 		Name:         "John Doe",
 		Title:        "Senior Engineer",
@@ -400,7 +401,7 @@ func TestMentorToPublicResponse(t *testing.T) {
 }
 
 func TestMentorToPublicResponseWithEmptyTags(t *testing.T) {
-	mentor := &Mentor{
+	mentor := &models.Mentor{
 		ID:           2,
 		Slug:         "jane-doe",
 		Name:         "Jane Doe",
