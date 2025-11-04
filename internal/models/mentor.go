@@ -166,15 +166,16 @@ func GetCalendarType(url string) string {
 
 	url = strings.ToLower(url)
 
-	if strings.Contains(url, "calendly.com") {
+	switch {
+	case strings.Contains(url, "calendly.com"):
 		return "calendly"
-	} else if strings.Contains(url, "koalendar.com") {
+	case strings.Contains(url, "koalendar.com"):
 		return "koalendar"
-	} else if strings.Contains(url, "calendlab.com") {
+	case strings.Contains(url, "calendlab.com"):
 		return "calendlab"
+	default:
+		return "url"
 	}
-
-	return "url"
 }
 
 // GetMentorSponsor extracts sponsor information from tags

@@ -38,12 +38,12 @@ type AzureConfig struct {
 }
 
 type AuthConfig struct {
-	MentorsAPIToken      string
-	MentorsAPITokenInno  string
-	MentorsAPITokenAIKB  string
-	InternalMentorsAPI   string
-	RevalidateSecret     string
-	WebhookSecret        string
+	MentorsAPIToken     string
+	MentorsAPITokenInno string
+	MentorsAPITokenAIKB string
+	InternalMentorsAPI  string
+	RevalidateSecret    string
+	WebhookSecret       string
 }
 
 type ReCAPTCHAConfig struct {
@@ -52,8 +52,8 @@ type ReCAPTCHAConfig struct {
 }
 
 type NextJSConfig struct {
-	BaseURL           string
-	RevalidateSecret  string
+	BaseURL          string
+	RevalidateSecret string
 }
 
 type GrafanaConfig struct {

@@ -90,8 +90,8 @@ func (c *Client) GetAllMentors() ([]*models.Mentor, error) {
 
 	// Convert to mentor models
 	mentors := make([]*models.Mentor, 0, len(records))
-	for _, record := range records {
-		mentor := record.ToMentor()
+	for i := range records {
+		mentor := records[i].ToMentor()
 		mentors = append(mentors, mentor)
 	}
 

@@ -2,7 +2,6 @@ package services
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
@@ -143,19 +142,4 @@ func (s *ProfileService) getSponsorTags() map[string]bool {
 		"Ontico":     true,
 		"ТензорСофт": true,
 	}
-}
-
-func getCalendarType(url string) string {
-	if url == "" {
-		return "none"
-	}
-	url = strings.ToLower(url)
-	if strings.Contains(url, "calendly.com") {
-		return "calendly"
-	} else if strings.Contains(url, "koalendar.com") {
-		return "koalendar"
-	} else if strings.Contains(url, "calendlab.com") {
-		return "calendlab"
-	}
-	return "url"
 }

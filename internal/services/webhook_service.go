@@ -51,6 +51,7 @@ func (s *WebhookService) revalidateNextJS(slug string) error {
 		s.config.NextJS.RevalidateSecret,
 		slug)
 
+	//nolint:gosec // URL is constructed from trusted configuration
 	resp, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("failed to call Next.js revalidate: %w", err)

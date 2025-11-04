@@ -44,7 +44,7 @@ func Initialize(cfg Config) error {
 	// Set output paths
 	if cfg.Environment == "production" && cfg.LogDir != "" {
 		// Ensure log directory exists
-		if err := os.MkdirAll(cfg.LogDir, 0755); err != nil {
+		if err := os.MkdirAll(cfg.LogDir, 0o755); err != nil {
 			return fmt.Errorf("failed to create log directory: %w", err)
 		}
 
@@ -119,11 +119,12 @@ func LogHTTPRequest(method, path string, statusCode int, duration float64, field
 	}
 	baseFields = append(baseFields, fields...)
 
-	if statusCode >= 500 {
+	switch {
+	case statusCode >= 500:
 		Error("HTTP request failed", baseFields...)
-	} else if statusCode >= 400 {
+	case statusCode >= 400:
 		Warn("HTTP request client error", baseFields...)
-	} else {
+	default:
 		Info("HTTP request", baseFields...)
 	}
 }

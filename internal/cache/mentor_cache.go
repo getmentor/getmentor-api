@@ -42,7 +42,11 @@ func NewMentorCache(airtableClient *airtable.Client) *MentorCache {
 	cache.OnEvicted(func(key string, value interface{}) {
 		if key == mentorsCacheKey {
 			logger.Info("Mentor cache expired, triggering refresh")
-			go mc.refresh()
+			go func() {
+				if _, err := mc.refresh(); err != nil {
+					logger.Error("Failed to refresh mentor cache", zap.Error(err))
+				}
+			}()
 		}
 	})
 

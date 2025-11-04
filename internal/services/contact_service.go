@@ -87,6 +87,7 @@ func (s *ContactService) verifyRecaptcha(token string) error {
 	url := fmt.Sprintf("https://www.google.com/recaptcha/api/siteverify?secret=%s&response=%s",
 		s.config.ReCAPTCHA.SecretKey, token)
 
+	//nolint:gosec // URL is Google's official reCAPTCHA verification endpoint
 	resp, err := http.Post(url, "application/x-www-form-urlencoded", nil)
 	if err != nil {
 		return fmt.Errorf("failed to verify recaptcha: %w", err)
