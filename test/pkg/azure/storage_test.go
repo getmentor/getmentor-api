@@ -1,8 +1,8 @@
 package azure_test
 
 import (
-	"github.com/getmentor/getmentor-api/pkg/azure"
 	"encoding/base64"
+	"github.com/getmentor/getmentor-api/pkg/azure"
 	"strings"
 	"testing"
 
