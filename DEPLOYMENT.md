@@ -172,11 +172,11 @@ NEXTJS_BASE_URL=https://your-nextjs-app.com
 NEXTJS_REVALIDATE_SECRET=your_secret
 
 # Grafana Cloud
-GRAFANA_CLOUD_METRICS_URL=your_metrics_url
-GRAFANA_CLOUD_METRICS_USERNAME=your_username
-GRAFANA_CLOUD_LOGS_URL=your_logs_url
-GRAFANA_CLOUD_LOGS_USERNAME=your_username
-GRAFANA_CLOUD_API_KEY=your_api_key
+GCLOUD_HOSTED_METRICS_URL=your_metrics_url
+GCLOUD_HOSTED_METRICS_ID=your_username
+GCLOUD_HOSTED_LOGS_URL=your_logs_url
+GCLOUD_HOSTED_LOGS_ID=your_username
+GCLOUD_RW_API_KEY=your_api_key
 
 # Logging
 LOG_LEVEL=info
@@ -236,7 +236,7 @@ curl -H "x-internal-mentors-api-auth-token: YOUR_TOKEN" \
 | `AIRTABLE_BASE_ID` | Airtable base ID | `app...` |
 | `INTERNAL_MENTORS_API` | Internal API token | UUID |
 | `AZURE_STORAGE_CONNECTION_STRING` | Azure connection string | `DefaultEndpoints...` |
-| `GRAFANA_CLOUD_API_KEY` | Grafana Cloud API key | `glc_...` |
+| `GCLOUD_RW_API_KEY` | Grafana Cloud API key | `glc_...` |
 
 ### Optional Variables
 
@@ -321,7 +321,7 @@ docker logs <container-name>
 - Alloy errors in logs
 
 **Solutions:**
-1. Verify `GRAFANA_CLOUD_*` environment variables are set
+1. Verify `GCLOUD_*` environment variables are set
 2. Check Grafana Cloud API key is valid
 3. Verify URLs are correct (metrics and logs)
 4. Check if Alloy is running: `ps aux | grep alloy` (in container)
