@@ -2,7 +2,7 @@ package models
 
 // WebhookPayload represents an Airtable webhook payload
 type WebhookPayload struct {
-	RecordID string            `json:"recordId"`
+	RecordID string                 `json:"recordId"`
 	Fields   map[string]interface{} `json:"fields"`
 }
 

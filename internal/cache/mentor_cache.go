@@ -5,18 +5,18 @@ import (
 	"sync"
 	"time"
 
-	gocache "github.com/patrickmn/go-cache"
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/pkg/airtable"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
+	gocache "github.com/patrickmn/go-cache"
 	"go.uber.org/zap"
 )
 
 const (
-	mentorsCacheKey = "mentors"
+	mentorsCacheKey  = "mentors"
 	mentorsCacheName = "mentors"
-	mentorsCacheTTL = 60 * time.Second
+	mentorsCacheTTL  = 60 * time.Second
 	cacheCheckPeriod = 10 * time.Second
 )
 

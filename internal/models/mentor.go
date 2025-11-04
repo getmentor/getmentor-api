@@ -6,25 +6,25 @@ import (
 
 // Mentor represents a mentor in the system
 type Mentor struct {
-	ID            int      `json:"id"`
-	AirtableID    string   `json:"airtableId"`
-	Slug          string   `json:"slug"`
-	Name          string   `json:"name"`
-	Job           string   `json:"job"`
-	Workplace     string   `json:"workplace"`
-	Description   string   `json:"description"`
-	About         string   `json:"about"`
-	Competencies  string   `json:"competencies"`
-	Experience    string   `json:"experience"`
-	Price         string   `json:"price"`
-	MenteeCount   int      `json:"menteeCount"`
-	PhotoURL      string   `json:"photo_url"`
-	Tags          []string `json:"tags"`
-	SortOrder     int      `json:"sortOrder"`
-	IsVisible     bool     `json:"isVisible"`
-	Sponsors      string   `json:"sponsors"`
-	CalendarType  string   `json:"calendarType"`
-	IsNew         bool     `json:"isNew"`
+	ID           int      `json:"id"`
+	AirtableID   string   `json:"airtableId"`
+	Slug         string   `json:"slug"`
+	Name         string   `json:"name"`
+	Job          string   `json:"job"`
+	Workplace    string   `json:"workplace"`
+	Description  string   `json:"description"`
+	About        string   `json:"about"`
+	Competencies string   `json:"competencies"`
+	Experience   string   `json:"experience"`
+	Price        string   `json:"price"`
+	MenteeCount  int      `json:"menteeCount"`
+	PhotoURL     string   `json:"photo_url"`
+	Tags         []string `json:"tags"`
+	SortOrder    int      `json:"sortOrder"`
+	IsVisible    bool     `json:"isVisible"`
+	Sponsors     string   `json:"sponsors"`
+	CalendarType string   `json:"calendarType"`
+	IsNew        bool     `json:"isNew"`
 
 	// Secure fields (not serialized by default)
 	AuthToken   string `json:"-"`
@@ -69,39 +69,39 @@ func (m *Mentor) ToPublicResponse(baseURL string) PublicMentorResponse {
 
 // FilterOptions represents options for filtering mentors
 type FilterOptions struct {
-	OnlyVisible     bool
-	ShowHidden      bool
-	DropLongFields  bool
-	ForceRefresh    bool
+	OnlyVisible    bool
+	ShowHidden     bool
+	DropLongFields bool
+	ForceRefresh   bool
 }
 
 // AirtableRecord represents the raw Airtable mentor record
 type AirtableRecord struct {
 	ID     string
 	Fields struct {
-		Id                  int      `json:"Id"`
-		Alias               string   `json:"Alias"`
-		Name                string   `json:"Name"`
-		Description         string   `json:"Description"`
-		JobTitle            string   `json:"JobTitle"`
-		Workplace           string   `json:"Workplace"`
-		Details             string   `json:"Details"`
-		About               string   `json:"About"`
-		Competencies        string   `json:"Competencies"`
-		Experience          string   `json:"Experience"`
-		Price               string   `json:"Price"`
-		DoneSessionsCount   int      `json:"Done Sessions Count"`
-		ImageAttachment     []struct {
+		Id                int    `json:"Id"`
+		Alias             string `json:"Alias"`
+		Name              string `json:"Name"`
+		Description       string `json:"Description"`
+		JobTitle          string `json:"JobTitle"`
+		Workplace         string `json:"Workplace"`
+		Details           string `json:"Details"`
+		About             string `json:"About"`
+		Competencies      string `json:"Competencies"`
+		Experience        string `json:"Experience"`
+		Price             string `json:"Price"`
+		DoneSessionsCount int    `json:"Done Sessions Count"`
+		ImageAttachment   []struct {
 			URL string `json:"url"`
 		} `json:"Image_Attachment"`
-		Image               string   `json:"Image"`
-		Tags                string   `json:"Tags"`
-		SortOrder           int      `json:"SortOrder"`
-		OnSite              int      `json:"OnSite"`
-		Status              string   `json:"Status"`
-		AuthToken           string   `json:"AuthToken"`
-		CalendlyURL         string   `json:"Calendly Url"`
-		IsNew               int      `json:"Is New"`
+		Image       string `json:"Image"`
+		Tags        string `json:"Tags"`
+		SortOrder   int    `json:"SortOrder"`
+		OnSite      int    `json:"OnSite"`
+		Status      string `json:"Status"`
+		AuthToken   string `json:"AuthToken"`
+		CalendlyURL string `json:"Calendly Url"`
+		IsNew       int    `json:"Is New"`
 	}
 }
 
@@ -181,7 +181,7 @@ func GetCalendarType(url string) string {
 // GetMentorSponsor extracts sponsor information from tags
 func GetMentorSponsor(tags []string) string {
 	sponsorTags := map[string]bool{
-		"Ontico":    true,
+		"Ontico":     true,
 		"ТензорСофт": true,
 	}
 

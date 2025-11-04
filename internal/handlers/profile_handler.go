@@ -39,11 +39,12 @@ func (h *ProfileHandler) SaveProfile(c *gin.Context) {
 	}
 
 	if err := h.service.SaveProfile(id, token, &req); err != nil {
-		if err.Error() == "mentor not found" {
+		switch err.Error() {
+		case "mentor not found":
 			c.JSON(http.StatusNotFound, gin.H{"error": "Mentor not found"})
-		} else if err.Error() == "access denied" {
+		case "access denied":
 			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
-		} else {
+		default:
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Failed to update profile"})
 		}
 		return
@@ -75,11 +76,12 @@ func (h *ProfileHandler) UploadProfilePicture(c *gin.Context) {
 
 	imageURL, err := h.service.UploadProfilePicture(id, token, &req)
 	if err != nil {
-		if err.Error() == "mentor not found" {
+		switch err.Error() {
+		case "mentor not found":
 			c.JSON(http.StatusNotFound, gin.H{"error": "Mentor not found"})
-		} else if err.Error() == "access denied" {
+		case "access denied":
 			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
-		} else {
+		default:
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		}
 		return

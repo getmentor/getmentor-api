@@ -37,7 +37,7 @@ func TestTokenAuthMiddleware_ValidToken(t *testing.T) {
 
 	// Create request with valid token
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest("GET", "/test", http.NoBody)
 	req.Header.Set("mentors_api_auth_token", "token2")
 
 	// Execute
@@ -63,7 +63,7 @@ func TestTokenAuthMiddleware_InvalidToken(t *testing.T) {
 
 	// Create request with invalid token
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest("GET", "/test", http.NoBody)
 	req.Header.Set("mentors_api_auth_token", "invalid-token")
 
 	// Execute
@@ -89,7 +89,7 @@ func TestTokenAuthMiddleware_MissingToken(t *testing.T) {
 
 	// Create request without token
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest("GET", "/test", http.NoBody)
 
 	// Execute
 	router.ServeHTTP(w, req)
@@ -113,7 +113,7 @@ func TestTokenAuthMiddleware_EmptyTokenList(t *testing.T) {
 
 	// Create request with a token
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest("GET", "/test", http.NoBody)
 	req.Header.Set("mentors_api_auth_token", "some-token")
 
 	// Execute
@@ -139,7 +139,7 @@ func TestInternalAPIAuthMiddleware_ValidToken(t *testing.T) {
 
 	// Create request with valid token
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest("GET", "/test", http.NoBody)
 	req.Header.Set("x-internal-mentors-api-auth-token", validToken)
 
 	// Execute
@@ -165,7 +165,7 @@ func TestInternalAPIAuthMiddleware_InvalidToken(t *testing.T) {
 
 	// Create request with invalid token
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest("GET", "/test", http.NoBody)
 	req.Header.Set("x-internal-mentors-api-auth-token", "wrong-token")
 
 	// Execute
@@ -191,7 +191,7 @@ func TestInternalAPIAuthMiddleware_MissingToken(t *testing.T) {
 
 	// Create request without token
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest("GET", "/test", http.NoBody)
 
 	// Execute
 	router.ServeHTTP(w, req)
@@ -216,7 +216,7 @@ func TestWebhookAuthMiddleware_ValidSecret(t *testing.T) {
 
 	// Create request with valid secret
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/webhook", nil)
+	req := httptest.NewRequest("POST", "/webhook", http.NoBody)
 	req.Header.Set("X-Webhook-Secret", validSecret)
 
 	// Execute
@@ -242,7 +242,7 @@ func TestWebhookAuthMiddleware_InvalidSecret(t *testing.T) {
 
 	// Create request with invalid secret
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/webhook", nil)
+	req := httptest.NewRequest("POST", "/webhook", http.NoBody)
 	req.Header.Set("X-Webhook-Secret", "wrong-secret")
 
 	// Execute
@@ -268,7 +268,7 @@ func TestWebhookAuthMiddleware_MissingSecret(t *testing.T) {
 
 	// Create request without secret
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/webhook", nil)
+	req := httptest.NewRequest("POST", "/webhook", http.NoBody)
 
 	// Execute
 	router.ServeHTTP(w, req)

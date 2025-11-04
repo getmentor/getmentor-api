@@ -51,7 +51,8 @@ func (s *ProfileService) SaveProfile(id int, token string, req *models.SaveProfi
 	}
 
 	// Merge user tags with preserved sponsor tags
-	allTags := append(req.Tags, preservedSponsors...)
+	allTags := req.Tags
+	allTags = append(allTags, preservedSponsors...)
 
 	// Get tag IDs
 	tagIDs := []string{}
