@@ -115,29 +115,29 @@ func TestAirtableRecordToMentor(t *testing.T) {
 			record: &models.AirtableRecord{
 				ID: "rec123",
 				Fields: struct {
-					Id                  int      `json:"Id"`
-					Alias               string   `json:"Alias"`
-					Name                string   `json:"Name"`
-					Description         string   `json:"Description"`
-					JobTitle            string   `json:"JobTitle"`
-					Workplace           string   `json:"Workplace"`
-					Details             string   `json:"Details"`
-					About               string   `json:"About"`
-					Competencies        string   `json:"Competencies"`
-					Experience          string   `json:"Experience"`
-					Price               string   `json:"Price"`
-					DoneSessionsCount   int      `json:"Done Sessions Count"`
-					ImageAttachment     []struct {
+					Id                int    `json:"Id"`
+					Alias             string `json:"Alias"`
+					Name              string `json:"Name"`
+					Description       string `json:"Description"`
+					JobTitle          string `json:"JobTitle"`
+					Workplace         string `json:"Workplace"`
+					Details           string `json:"Details"`
+					About             string `json:"About"`
+					Competencies      string `json:"Competencies"`
+					Experience        string `json:"Experience"`
+					Price             string `json:"Price"`
+					DoneSessionsCount int    `json:"Done Sessions Count"`
+					ImageAttachment   []struct {
 						URL string `json:"url"`
 					} `json:"Image_Attachment"`
-					Image               string   `json:"Image"`
-					Tags                string   `json:"Tags"`
-					SortOrder           int      `json:"SortOrder"`
-					OnSite              int      `json:"OnSite"`
-					Status              string   `json:"Status"`
-					AuthToken           string   `json:"AuthToken"`
-					CalendlyURL         string   `json:"Calendly Url"`
-					IsNew               int      `json:"Is New"`
+					Image       string `json:"Image"`
+					Tags        string `json:"Tags"`
+					SortOrder   int    `json:"SortOrder"`
+					OnSite      int    `json:"OnSite"`
+					Status      string `json:"Status"`
+					AuthToken   string `json:"AuthToken"`
+					CalendlyURL string `json:"Calendly Url"`
+					IsNew       int    `json:"Is New"`
 				}{
 					Id:                1,
 					Alias:             "john-doe",
@@ -190,29 +190,29 @@ func TestAirtableRecordToMentor(t *testing.T) {
 			record: &models.AirtableRecord{
 				ID: "rec456",
 				Fields: struct {
-					Id                  int      `json:"Id"`
-					Alias               string   `json:"Alias"`
-					Name                string   `json:"Name"`
-					Description         string   `json:"Description"`
-					JobTitle            string   `json:"JobTitle"`
-					Workplace           string   `json:"Workplace"`
-					Details             string   `json:"Details"`
-					About               string   `json:"About"`
-					Competencies        string   `json:"Competencies"`
-					Experience          string   `json:"Experience"`
-					Price               string   `json:"Price"`
-					DoneSessionsCount   int      `json:"Done Sessions Count"`
-					ImageAttachment     []struct {
+					Id                int    `json:"Id"`
+					Alias             string `json:"Alias"`
+					Name              string `json:"Name"`
+					Description       string `json:"Description"`
+					JobTitle          string `json:"JobTitle"`
+					Workplace         string `json:"Workplace"`
+					Details           string `json:"Details"`
+					About             string `json:"About"`
+					Competencies      string `json:"Competencies"`
+					Experience        string `json:"Experience"`
+					Price             string `json:"Price"`
+					DoneSessionsCount int    `json:"Done Sessions Count"`
+					ImageAttachment   []struct {
 						URL string `json:"url"`
 					} `json:"Image_Attachment"`
-					Image               string   `json:"Image"`
-					Tags                string   `json:"Tags"`
-					SortOrder           int      `json:"SortOrder"`
-					OnSite              int      `json:"OnSite"`
-					Status              string   `json:"Status"`
-					AuthToken           string   `json:"AuthToken"`
-					CalendlyURL         string   `json:"Calendly Url"`
-					IsNew               int      `json:"Is New"`
+					Image       string `json:"Image"`
+					Tags        string `json:"Tags"`
+					SortOrder   int    `json:"SortOrder"`
+					OnSite      int    `json:"OnSite"`
+					Status      string `json:"Status"`
+					AuthToken   string `json:"AuthToken"`
+					CalendlyURL string `json:"Calendly Url"`
+					IsNew       int    `json:"Is New"`
 				}{
 					Id:        2,
 					Alias:     "jane-doe",
@@ -241,29 +241,29 @@ func TestAirtableRecordToMentor(t *testing.T) {
 			record: &models.AirtableRecord{
 				ID: "rec789",
 				Fields: struct {
-					Id                  int      `json:"Id"`
-					Alias               string   `json:"Alias"`
-					Name                string   `json:"Name"`
-					Description         string   `json:"Description"`
-					JobTitle            string   `json:"JobTitle"`
-					Workplace           string   `json:"Workplace"`
-					Details             string   `json:"Details"`
-					About               string   `json:"About"`
-					Competencies        string   `json:"Competencies"`
-					Experience          string   `json:"Experience"`
-					Price               string   `json:"Price"`
-					DoneSessionsCount   int      `json:"Done Sessions Count"`
-					ImageAttachment     []struct {
+					Id                int    `json:"Id"`
+					Alias             string `json:"Alias"`
+					Name              string `json:"Name"`
+					Description       string `json:"Description"`
+					JobTitle          string `json:"JobTitle"`
+					Workplace         string `json:"Workplace"`
+					Details           string `json:"Details"`
+					About             string `json:"About"`
+					Competencies      string `json:"Competencies"`
+					Experience        string `json:"Experience"`
+					Price             string `json:"Price"`
+					DoneSessionsCount int    `json:"Done Sessions Count"`
+					ImageAttachment   []struct {
 						URL string `json:"url"`
 					} `json:"Image_Attachment"`
-					Image               string   `json:"Image"`
-					Tags                string   `json:"Tags"`
-					SortOrder           int      `json:"SortOrder"`
-					OnSite              int      `json:"OnSite"`
-					Status              string   `json:"Status"`
-					AuthToken           string   `json:"AuthToken"`
-					CalendlyURL         string   `json:"Calendly Url"`
-					IsNew               int      `json:"Is New"`
+					Image       string `json:"Image"`
+					Tags        string `json:"Tags"`
+					SortOrder   int    `json:"SortOrder"`
+					OnSite      int    `json:"OnSite"`
+					Status      string `json:"Status"`
+					AuthToken   string `json:"AuthToken"`
+					CalendlyURL string `json:"Calendly Url"`
+					IsNew       int    `json:"Is New"`
 				}{
 					Id:    3,
 					Alias: "bob-smith",
@@ -299,29 +299,29 @@ func TestAirtableRecordToMentor(t *testing.T) {
 			record: &models.AirtableRecord{
 				ID: "rec101",
 				Fields: struct {
-					Id                  int      `json:"Id"`
-					Alias               string   `json:"Alias"`
-					Name                string   `json:"Name"`
-					Description         string   `json:"Description"`
-					JobTitle            string   `json:"JobTitle"`
-					Workplace           string   `json:"Workplace"`
-					Details             string   `json:"Details"`
-					About               string   `json:"About"`
-					Competencies        string   `json:"Competencies"`
-					Experience          string   `json:"Experience"`
-					Price               string   `json:"Price"`
-					DoneSessionsCount   int      `json:"Done Sessions Count"`
-					ImageAttachment     []struct {
+					Id                int    `json:"Id"`
+					Alias             string `json:"Alias"`
+					Name              string `json:"Name"`
+					Description       string `json:"Description"`
+					JobTitle          string `json:"JobTitle"`
+					Workplace         string `json:"Workplace"`
+					Details           string `json:"Details"`
+					About             string `json:"About"`
+					Competencies      string `json:"Competencies"`
+					Experience        string `json:"Experience"`
+					Price             string `json:"Price"`
+					DoneSessionsCount int    `json:"Done Sessions Count"`
+					ImageAttachment   []struct {
 						URL string `json:"url"`
 					} `json:"Image_Attachment"`
-					Image               string   `json:"Image"`
-					Tags                string   `json:"Tags"`
-					SortOrder           int      `json:"SortOrder"`
-					OnSite              int      `json:"OnSite"`
-					Status              string   `json:"Status"`
-					AuthToken           string   `json:"AuthToken"`
-					CalendlyURL         string   `json:"Calendly Url"`
-					IsNew               int      `json:"Is New"`
+					Image       string `json:"Image"`
+					Tags        string `json:"Tags"`
+					SortOrder   int    `json:"SortOrder"`
+					OnSite      int    `json:"OnSite"`
+					Status      string `json:"Status"`
+					AuthToken   string `json:"AuthToken"`
+					CalendlyURL string `json:"Calendly Url"`
+					IsNew       int    `json:"Is New"`
 				}{
 					Id:        4,
 					Alias:     "alice",
@@ -402,12 +402,12 @@ func TestMentorToPublicResponse(t *testing.T) {
 
 func TestMentorToPublicResponseWithEmptyTags(t *testing.T) {
 	mentor := &models.Mentor{
-		ID:           2,
-		Slug:         "jane-doe",
-		Name:         "Jane Doe",
-		Job:          "Engineer",
-		Tags:         []string{},
-		MenteeCount:  5,
+		ID:          2,
+		Slug:        "jane-doe",
+		Name:        "Jane Doe",
+		Job:         "Engineer",
+		Tags:        []string{},
+		MenteeCount: 5,
 	}
 
 	baseURL := "https://getmentor.dev"

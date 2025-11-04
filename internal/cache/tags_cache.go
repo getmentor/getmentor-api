@@ -3,15 +3,15 @@ package cache
 import (
 	"time"
 
-	gocache "github.com/patrickmn/go-cache"
 	"github.com/getmentor/getmentor-api/pkg/airtable"
 	"github.com/getmentor/getmentor-api/pkg/logger"
+	gocache "github.com/patrickmn/go-cache"
 	"go.uber.org/zap"
 )
 
 const (
-	tagsCacheKey  = "tags"
-	tagsCacheTTL  = 24 * time.Hour
+	tagsCacheKey = "tags"
+	tagsCacheTTL = 24 * time.Hour
 )
 
 // TagsCache manages the in-memory cache for tags
