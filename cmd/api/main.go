@@ -125,14 +125,21 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
+	// SECURITY: Rate limiters to prevent abuse and DoS attacks
+	// Different limits for different endpoint types
+	generalRateLimiter := middleware.NewRateLimiter(100, 200)          // 100 req/sec, burst of 200
+	contactRateLimiter := middleware.NewRateLimiter(5, 10)             // 5 req/sec, burst of 10 (prevent spam)
+	profileRateLimiter := middleware.NewRateLimiter(10, 20)            // 10 req/sec, burst of 20
+	webhookRateLimiter := middleware.NewRateLimiter(10, 20)            // 10 req/sec, burst of 20
+
 	// API routes
 	// SECURITY: Apply body size limits to prevent DoS attacks
 	api := router.Group("/api")
 	api.Use(middleware.BodySizeLimitMiddleware(1 * 1024 * 1024)) // Default 1 MB limit
 	{
 		// Utility endpoints
-		api.GET("/healthcheck", healthHandler.Healthcheck)
-		api.GET("/metrics", gin.WrapH(promhttp.Handler()))
+		api.GET("/healthcheck", generalRateLimiter.Middleware(), healthHandler.Healthcheck)
+		api.GET("/metrics", generalRateLimiter.Middleware(), gin.WrapH(promhttp.Handler()))
 
 		// Public mentor endpoints
 		publicTokens := []string{
@@ -140,25 +147,25 @@ func main() {
 			cfg.Auth.MentorsAPITokenInno,
 			cfg.Auth.MentorsAPITokenAIKB,
 		}
-		api.GET("/mentors", middleware.TokenAuthMiddleware(publicTokens...), mentorHandler.GetPublicMentors)
-		api.GET("/mentor/:id", middleware.TokenAuthMiddleware(cfg.Auth.MentorsAPIToken, cfg.Auth.MentorsAPITokenInno), mentorHandler.GetPublicMentorByID)
+		api.GET("/mentors", generalRateLimiter.Middleware(), middleware.TokenAuthMiddleware(publicTokens...), mentorHandler.GetPublicMentors)
+		api.GET("/mentor/:id", generalRateLimiter.Middleware(), middleware.TokenAuthMiddleware(cfg.Auth.MentorsAPIToken, cfg.Auth.MentorsAPITokenInno), mentorHandler.GetPublicMentorByID)
 
 		// Internal mentor endpoint
-		api.POST("/internal/mentors", middleware.InternalAPIAuthMiddleware(cfg.Auth.InternalMentorsAPI), mentorHandler.GetInternalMentors)
+		api.POST("/internal/mentors", generalRateLimiter.Middleware(), middleware.InternalAPIAuthMiddleware(cfg.Auth.InternalMentorsAPI), mentorHandler.GetInternalMentors)
 
-		// Contact endpoint (smaller limit for forms)
-		api.POST("/contact-mentor", middleware.BodySizeLimitMiddleware(100*1024), contactHandler.ContactMentor)
+		// Contact endpoint (smaller limit for forms + stricter rate limit)
+		api.POST("/contact-mentor", contactRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(100*1024), contactHandler.ContactMentor)
 
-		// Profile endpoints
-		api.POST("/save-profile", profileHandler.SaveProfile)
+		// Profile endpoints (moderate rate limit)
+		api.POST("/save-profile", profileRateLimiter.Middleware(), profileHandler.SaveProfile)
 		// Profile picture upload needs larger limit for base64-encoded images (10 MB)
-		api.POST("/upload-profile-picture", middleware.BodySizeLimitMiddleware(10*1024*1024), profileHandler.UploadProfilePicture)
+		api.POST("/upload-profile-picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), profileHandler.UploadProfilePicture)
 
-		// Webhook endpoint
-		api.POST("/webhooks/airtable", middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
+		// Webhook endpoint (moderate rate limit)
+		api.POST("/webhooks/airtable", webhookRateLimiter.Middleware(), middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
 
 		// Revalidate Next.js endpoint
-		api.POST("/revalidate-nextjs", webhookHandler.RevalidateNextJS)
+		api.POST("/revalidate-nextjs", webhookRateLimiter.Middleware(), webhookHandler.RevalidateNextJS)
 	}
 
 	// Create HTTP server
