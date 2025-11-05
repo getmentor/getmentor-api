@@ -1,6 +1,7 @@
 package services
 
 import (
+	"crypto/subtle"
 	"fmt"
 
 	"github.com/getmentor/getmentor-api/config"
@@ -37,7 +38,9 @@ func (s *ProfileService) SaveProfile(id int, token string, req *models.SaveProfi
 		return fmt.Errorf("mentor not found")
 	}
 
-	if mentor.AuthToken != token {
+	// SECURITY: Use timing-safe comparison to prevent timing attacks
+	if subtle.ConstantTimeCompare([]byte(mentor.AuthToken), []byte(token)) != 1 {
+		logger.Warn("Access denied - invalid token", zap.Int("mentor_id", id))
 		return fmt.Errorf("access denied")
 	}
 
@@ -100,7 +103,9 @@ func (s *ProfileService) UploadProfilePicture(id int, token string, req *models.
 		return "", fmt.Errorf("mentor not found")
 	}
 
-	if mentor.AuthToken != token {
+	// SECURITY: Use timing-safe comparison to prevent timing attacks
+	if subtle.ConstantTimeCompare([]byte(mentor.AuthToken), []byte(token)) != 1 {
+		logger.Warn("Access denied - invalid token", zap.Int("mentor_id", id))
 		return "", fmt.Errorf("access denied")
 	}
 

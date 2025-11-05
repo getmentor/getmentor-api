@@ -1,17 +1,18 @@
 package models
 
 // SaveProfileRequest represents a mentor profile update request
+// SECURITY: Max length validation to prevent resource exhaustion attacks
 type SaveProfileRequest struct {
-	Name         string   `json:"name" binding:"required"`
-	Job          string   `json:"job" binding:"required"`
-	Workplace    string   `json:"workplace" binding:"required"`
-	Experience   string   `json:"experience" binding:"required"`
-	Price        string   `json:"price" binding:"required"`
-	Tags         []string `json:"tags" binding:"required"`
-	Description  string   `json:"description" binding:"required"`
-	About        string   `json:"about" binding:"required"`
-	Competencies string   `json:"competencies" binding:"required"`
-	CalendarURL  string   `json:"calendarUrl"`
+	Name         string   `json:"name" binding:"required,max=100"`
+	Job          string   `json:"job" binding:"required,max=200"`
+	Workplace    string   `json:"workplace" binding:"required,max=200"`
+	Experience   string   `json:"experience" binding:"required,max=50"`
+	Price        string   `json:"price" binding:"required,max=100"`
+	Tags         []string `json:"tags" binding:"required,max=10,dive,max=50"`
+	Description  string   `json:"description" binding:"required,max=5000"`
+	About        string   `json:"about" binding:"required,max=10000"`
+	Competencies string   `json:"competencies" binding:"required,max=5000"`
+	CalendarURL  string   `json:"calendarUrl" binding:"omitempty,url,max=500"`
 }
 
 // SaveProfileResponse represents the response after updating a profile

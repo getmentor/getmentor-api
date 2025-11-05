@@ -18,11 +18,13 @@ func NewProfileHandler(service *services.ProfileService) *ProfileHandler {
 }
 
 func (h *ProfileHandler) SaveProfile(c *gin.Context) {
-	idStr := c.Query("id")
-	token := c.Query("token")
+	// SECURITY: Read auth credentials from headers instead of URL query parameters
+	// This prevents credentials from being logged in access logs, browser history, referrer headers
+	idStr := c.GetHeader("X-Mentor-ID")
+	token := c.GetHeader("X-Auth-Token")
 
 	if idStr == "" || token == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing id or token"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing X-Mentor-ID or X-Auth-Token headers"})
 		return
 	}
 
@@ -54,11 +56,12 @@ func (h *ProfileHandler) SaveProfile(c *gin.Context) {
 }
 
 func (h *ProfileHandler) UploadProfilePicture(c *gin.Context) {
-	idStr := c.Query("id")
-	token := c.Query("token")
+	// SECURITY: Read auth credentials from headers instead of URL query parameters
+	idStr := c.GetHeader("X-Mentor-ID")
+	token := c.GetHeader("X-Auth-Token")
 
 	if idStr == "" || token == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing id or token"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing X-Mentor-ID or X-Auth-Token headers"})
 		return
 	}
 

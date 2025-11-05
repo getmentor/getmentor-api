@@ -105,11 +105,20 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(middleware.ObservabilityMiddleware())
 
-	// CORS configuration
+	// CORS configuration - SECURITY: Only allow specific origins
+	allowedOrigins := []string{
+		"https://getmentor.dev",
+		"https://www.getmentor.dev",
+	}
+	// Allow localhost in development
+	if cfg.Server.AppEnv == "development" {
+		allowedOrigins = append(allowedOrigins, "http://localhost:3000", "http://127.0.0.1:3000")
+	}
+
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
+		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "mentors_api_auth_token", "x-internal-mentors-api-auth-token", "X-Webhook-Secret"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "mentors_api_auth_token", "x-internal-mentors-api-auth-token", "X-Webhook-Secret", "X-Mentor-ID", "X-Auth-Token", "X-CSRF-Token"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: false,
 		MaxAge:           12 * time.Hour,
@@ -149,8 +158,10 @@ func main() {
 	}
 
 	// Create HTTP server
+	// SECURITY: Bind to localhost only - API should only be accessible from Next.js server
+	// DigitalOcean App Platform containers share localhost network
 	srv := &http.Server{
-		Addr:              ":" + cfg.Server.Port,
+		Addr:              "127.0.0.1:" + cfg.Server.Port,
 		Handler:           router,
 		ReadHeaderTimeout: 15 * time.Second,
 		ReadTimeout:       30 * time.Second,
