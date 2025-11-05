@@ -104,6 +104,7 @@ func main() {
 	// Global middleware
 	router.Use(gin.Recovery())
 	router.Use(middleware.ObservabilityMiddleware())
+	router.Use(middleware.SecurityHeadersMiddleware())
 
 	// CORS configuration - SECURITY: Only allow specific origins
 	allowedOrigins := []string{
@@ -125,7 +126,9 @@ func main() {
 	}))
 
 	// API routes
+	// SECURITY: Apply body size limits to prevent DoS attacks
 	api := router.Group("/api")
+	api.Use(middleware.BodySizeLimitMiddleware(1 * 1024 * 1024)) // Default 1 MB limit
 	{
 		// Utility endpoints
 		api.GET("/healthcheck", healthHandler.Healthcheck)
@@ -143,12 +146,13 @@ func main() {
 		// Internal mentor endpoint
 		api.POST("/internal/mentors", middleware.InternalAPIAuthMiddleware(cfg.Auth.InternalMentorsAPI), mentorHandler.GetInternalMentors)
 
-		// Contact endpoint
-		api.POST("/contact-mentor", contactHandler.ContactMentor)
+		// Contact endpoint (smaller limit for forms)
+		api.POST("/contact-mentor", middleware.BodySizeLimitMiddleware(100*1024), contactHandler.ContactMentor)
 
 		// Profile endpoints
 		api.POST("/save-profile", profileHandler.SaveProfile)
-		api.POST("/upload-profile-picture", profileHandler.UploadProfilePicture)
+		// Profile picture upload needs larger limit for base64-encoded images (10 MB)
+		api.POST("/upload-profile-picture", middleware.BodySizeLimitMiddleware(10*1024*1024), profileHandler.UploadProfilePicture)
 
 		// Webhook endpoint
 		api.POST("/webhooks/airtable", middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
@@ -167,6 +171,7 @@ func main() {
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20, // SECURITY: 1 MB max header size
 	}
 
 	// Start server in a goroutine
