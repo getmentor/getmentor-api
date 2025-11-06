@@ -66,16 +66,18 @@ RUN chown -R appuser:appgroup /app
 USER appuser
 
 # Expose application port and Alloy metrics port
-EXPOSE 8080 12345
+# 8081: Application HTTP server (internal port, not exposed to internet)
+# 12345: Grafana Alloy self-monitoring metrics
+EXPOSE 8081 12345
 
 # Set environment variables
-ENV PORT=8080
+ENV PORT=8081
 ENV GIN_MODE=release
 ENV LOG_DIR=/app/logs
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8080/api/healthcheck || exit 1
+    CMD curl -f http://localhost:8081/api/healthcheck || exit 1
 
 # Use the startup script that launches both Grafana Alloy and the Go app
 CMD ["/app/start-with-alloy.sh"]

@@ -74,7 +74,7 @@ func Load() (*Config, error) {
 	v := viper.New()
 
 	// Set defaults
-	v.SetDefault("PORT", "8080")
+	v.SetDefault("PORT", "8081")
 	v.SetDefault("GIN_MODE", "release")
 	v.SetDefault("APP_ENV", "production")
 	v.SetDefault("LOG_LEVEL", "info")

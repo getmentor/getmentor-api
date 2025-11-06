@@ -11,7 +11,7 @@ logging {
 prometheus.scrape "go_api" {
   targets = [
     {
-      __address__ = string.format("localhost:%s", coalesce(env("PORT"), "8080")),
+      __address__ = string.format("localhost:%s", coalesce(env("PORT"), "8081")),
       instance    = coalesce(env("HOSTNAME"), "localhost"),
       environment = coalesce(env("APP_ENV"), "production"),
       app         = "getmentor-api",
@@ -21,6 +21,25 @@ prometheus.scrape "go_api" {
   forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
   scrape_interval = "60s"
   metrics_path    = "/api/metrics"
+}
+
+// Prometheus metrics scraping - Next.js frontend
+prometheus.scrape "nextjs_frontend" {
+  targets = [
+    {
+      __address__ = "localhost:3000",
+      instance    = coalesce(env("HOSTNAME"), "localhost"),
+      environment = coalesce(env("APP_ENV"), "production"),
+      app         = "getmentor-frontend",
+      service     = "nextjs",
+    },
+  ]
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+  scrape_interval = "60s"
+  metrics_path    = "/api/metrics"
+
+  // SECURITY: Send bearer token to access frontend metrics
+  bearer_token = env("METRICS_AUTH_TOKEN")
 }
 
 // Self-monitoring: Grafana Alloy metrics

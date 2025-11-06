@@ -96,6 +96,7 @@ func main() {
 	profileHandler := handlers.NewProfileHandler(profileService)
 	webhookHandler := handlers.NewWebhookHandler(webhookService)
 	healthHandler := handlers.NewHealthHandler()
+	logsHandler := handlers.NewLogsHandler(cfg.Logging.Dir)
 
 	// Set up Gin router
 	gin.SetMode(cfg.Server.GinMode)
@@ -160,6 +161,9 @@ func main() {
 		api.POST("/save-profile", profileRateLimiter.Middleware(), profileHandler.SaveProfile)
 		// Profile picture upload needs larger limit for base64-encoded images (10 MB)
 		api.POST("/upload-profile-picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), profileHandler.UploadProfilePicture)
+
+		// Logs endpoint - receive logs from frontend for centralized collection (moderate rate limit, 1 MB max)
+		api.POST("/logs", generalRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(1*1024*1024), logsHandler.ReceiveFrontendLogs)
 
 		// Webhook endpoint (moderate rate limit)
 		api.POST("/webhooks/airtable", webhookRateLimiter.Middleware(), middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
