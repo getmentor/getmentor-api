@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fabioberger/airtable-go"
+	"github.com/mehanizm/airtable"
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
@@ -25,7 +25,7 @@ type Client struct {
 	workOffline bool
 }
 
-// NewClient creates a new Airtable client
+// NewClient creates a new Airtable client using mehanizm/airtable library
 func NewClient(apiKey, baseID string, workOffline bool) (*Client, error) {
 	if workOffline {
 		logger.Info("Airtable client initialized in offline mode")
@@ -36,12 +36,21 @@ func NewClient(apiKey, baseID string, workOffline bool) (*Client, error) {
 		}, nil
 	}
 
-	client, err := airtable.New(apiKey, baseID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Airtable client: %w", err)
+	// Validate credentials
+	if apiKey == "" {
+		return nil, fmt.Errorf("empty API key provided")
+	}
+	if baseID == "" {
+		return nil, fmt.Errorf("empty base ID provided")
 	}
 
-	logger.Info("Airtable client initialized", zap.String("base_id", baseID))
+	// Create client with modern airtable library (supports PAT tokens)
+	client := airtable.NewClient(apiKey)
+
+	logger.Info("Airtable client initialized",
+		zap.String("base_id", baseID),
+		zap.String("library", "mehanizm/airtable@v0.3.4"))
+
 	return &Client{
 		client:      client,
 		baseID:      baseID,
@@ -59,21 +68,18 @@ func (c *Client) GetAllMentors() ([]*models.Mentor, error) {
 	start := time.Now()
 	operation := "getAllMentors"
 
-	// Define fields to fetch
-	fields := []string{
-		"Id", "Alias", "Name", "Description", "JobTitle", "Workplace",
-		"Details", "About", "Competencies", "Experience", "Price",
-		"Done Sessions Count", "Image_Attachment", "Image", "Tags",
-		"SortOrder", "OnSite", "Status", "AuthToken", "Calendly Url", "Is New",
-	}
+	table := c.client.GetTable(c.baseID, MentorsTableName)
 
-	records := []models.AirtableRecord{}
-
-	// List records using the view
-	err := c.client.ListRecords(MentorsTableName, &records, airtable.ListParameters{
-		View:   MentorsViewName,
-		Fields: fields,
-	})
+	// Fetch records from the view
+	records, err := table.GetRecords().
+		FromView(MentorsViewName).
+		ReturnFields(
+			"Id", "Alias", "Name", "Description", "JobTitle", "Workplace",
+			"Details", "About", "Competencies", "Experience", "Price",
+			"Done Sessions Count", "Image_Attachment", "Image", "Tags",
+			"SortOrder", "OnSite", "Status", "AuthToken", "Calendly Url", "Is New",
+		).
+		Do()
 
 	duration := metrics.MeasureDuration(start)
 
@@ -86,12 +92,12 @@ func (c *Client) GetAllMentors() ([]*models.Mentor, error) {
 
 	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
 	metrics.AirtableRequestTotal.WithLabelValues(operation, "success").Inc()
-	logger.LogAPICall("airtable", operation, "success", duration, zap.Int("count", len(records)))
+	logger.LogAPICall("airtable", operation, "success", duration, zap.Int("count", len(records.Records)))
 
 	// Convert to mentor models
-	mentors := make([]*models.Mentor, 0, len(records))
-	for i := range records {
-		mentor := records[i].ToMentor()
+	mentors := make([]*models.Mentor, 0, len(records.Records))
+	for i := range records.Records {
+		mentor := models.AirtableRecordToMentor(records.Records[i])
 		mentors = append(mentors, mentor)
 	}
 
@@ -157,7 +163,18 @@ func (c *Client) UpdateMentor(recordID string, updates map[string]interface{}) e
 	start := time.Now()
 	operation := "updateMentor"
 
-	err := c.client.UpdateRecord(MentorsTableName, recordID, updates, nil)
+	table := c.client.GetTable(c.baseID, MentorsTableName)
+
+	records := &airtable.Records{
+		Records: []*airtable.Record{
+			{
+				ID:     recordID,
+				Fields: updates,
+			},
+		},
+	}
+
+	_, err := table.UpdateRecordsPartial(records)
 
 	duration := metrics.MeasureDuration(start)
 
@@ -194,6 +211,8 @@ func (c *Client) CreateClientRequest(req *models.ClientRequest) error {
 	start := time.Now()
 	operation := "createClientRequest"
 
+	table := c.client.GetTable(c.baseID, ClientRequestsTableName)
+
 	fields := map[string]interface{}{
 		"Email":       req.Email,
 		"Name":        req.Name,
@@ -206,7 +225,15 @@ func (c *Client) CreateClientRequest(req *models.ClientRequest) error {
 		fields["Level"] = req.Level
 	}
 
-	err := c.client.CreateRecord(ClientRequestsTableName, fields)
+	records := &airtable.Records{
+		Records: []*airtable.Record{
+			{
+				Fields: fields,
+			},
+		},
+	}
+
+	_, err := table.AddRecords(records)
 
 	duration := metrics.MeasureDuration(start)
 
@@ -233,15 +260,9 @@ func (c *Client) GetAllTags() (map[string]string, error) {
 	start := time.Now()
 	operation := "getAllTags"
 
-	type TagRecord struct {
-		ID     string
-		Fields struct {
-			Name string `json:"Name"`
-		}
-	}
+	table := c.client.GetTable(c.baseID, TagsTableName)
 
-	var records []TagRecord
-	err := c.client.ListRecords(TagsTableName, &records, airtable.ListParameters{})
+	records, err := table.GetRecords().Do()
 
 	duration := metrics.MeasureDuration(start)
 
@@ -254,12 +275,14 @@ func (c *Client) GetAllTags() (map[string]string, error) {
 
 	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
 	metrics.AirtableRequestTotal.WithLabelValues(operation, "success").Inc()
-	logger.LogAPICall("airtable", operation, "success", duration, zap.Int("count", len(records)))
+	logger.LogAPICall("airtable", operation, "success", duration, zap.Int("count", len(records.Records)))
 
 	// Convert to map: tag name -> record ID
-	tagsMap := make(map[string]string, len(records))
-	for _, record := range records {
-		tagsMap[record.Fields.Name] = record.ID
+	tagsMap := make(map[string]string, len(records.Records))
+	for _, record := range records.Records {
+		if name, ok := record.Fields["Name"].(string); ok {
+			tagsMap[name] = record.ID
+		}
 	}
 
 	return tagsMap, nil

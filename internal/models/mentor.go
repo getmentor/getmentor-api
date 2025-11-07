@@ -2,6 +2,8 @@ package models
 
 import (
 	"strings"
+
+	"github.com/mehanizm/airtable"
 )
 
 // Mentor represents a mentor in the system
@@ -197,4 +199,89 @@ func GetMentorSponsor(tags []string) string {
 	}
 
 	return strings.Join(sponsors, "|")
+}
+
+// AirtableRecordToMentor converts a mehanizm/airtable Record to a Mentor
+func AirtableRecordToMentor(record *airtable.Record) *Mentor {
+	// Helper function to safely get field values
+	getString := func(field string) string {
+		if v, ok := record.Fields[field].(string); ok {
+			return v
+		}
+		return ""
+	}
+
+	getInt := func(field string) int {
+		// Airtable may return numbers as float64
+		if v, ok := record.Fields[field].(float64); ok {
+			return int(v)
+		}
+		if v, ok := record.Fields[field].(int); ok {
+			return v
+		}
+		return 0
+	}
+
+	// Parse tags
+	tags := []string{}
+	tagsStr := getString("Tags")
+	if tagsStr != "" {
+		for _, tag := range strings.Split(tagsStr, ",") {
+			tag = strings.TrimSpace(tag)
+			if tag != "" {
+				tags = append(tags, tag)
+			}
+		}
+	}
+
+	// Determine visibility
+	onSite := getInt("OnSite")
+	status := getString("Status")
+	isVisible := onSite == 1 && status == "active"
+
+	// Get photo URL - try Image field first, then Image_Attachment
+	photoURL := getString("Image")
+	if photoURL == "" {
+		if attachments, ok := record.Fields["Image_Attachment"].([]interface{}); ok && len(attachments) > 0 {
+			if attachment, ok := attachments[0].(map[string]interface{}); ok {
+				if url, ok := attachment["url"].(string); ok {
+					photoURL = url
+				}
+			}
+		}
+	}
+
+	// Calendar URL
+	calendlyURL := getString("Calendly Url")
+	calendarType := GetCalendarType(calendlyURL)
+
+	// Get sponsor
+	sponsor := GetMentorSponsor(tags)
+
+	// Is New field
+	isNew := getInt("Is New") == 1
+
+	return &Mentor{
+		ID:           getInt("Id"),
+		AirtableID:   record.ID,
+		Slug:         getString("Alias"),
+		Name:         getString("Name"),
+		Job:          getString("JobTitle"),
+		Workplace:    getString("Workplace"),
+		Description:  getString("Details"),
+		About:        getString("About"),
+		Competencies: getString("Competencies"),
+		Experience:   getString("Experience"),
+		Price:        getString("Price"),
+		MenteeCount:  getInt("Done Sessions Count"),
+		PhotoURL:     photoURL,
+		Tags:         tags,
+		SortOrder:    getInt("SortOrder"),
+		IsVisible:    isVisible,
+		Sponsors:     sponsor,
+		CalendarType: calendarType,
+		IsNew:        isNew,
+		AuthToken:    getString("AuthToken"),
+		CalendarURL:  calendlyURL,
+	}
 }
