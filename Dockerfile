@@ -2,7 +2,7 @@
 # Creates a minimal final image by separating build and runtime stages
 
 # Stage 1: Build the Go application
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 WORKDIR /app
 
 # Install build dependencies
