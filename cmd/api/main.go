@@ -173,10 +173,11 @@ func main() {
 	}
 
 	// Create HTTP server
-	// SECURITY: Bind to localhost only - API should only be accessible from Next.js server
-	// DigitalOcean App Platform containers share localhost network
+	// SECURITY: Bind to all interfaces for Docker Compose networking
+	// Network isolation is enforced by Docker Compose (backend has no public ports)
+	// In Docker Compose, frontend container needs to access backend via service name
 	srv := &http.Server{
-		Addr:              "127.0.0.1:" + cfg.Server.Port,
+		Addr:              "0.0.0.0:" + cfg.Server.Port,
 		Handler:           router,
 		ReadHeaderTimeout: 15 * time.Second,
 		ReadTimeout:       30 * time.Second,
