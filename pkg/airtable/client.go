@@ -5,7 +5,9 @@ import (
 	"time"
 
 	"github.com/mehanizm/airtable"
+	"github.com/sony/gobreaker"
 	"github.com/getmentor/getmentor-api/internal/models"
+	"github.com/getmentor/getmentor-api/pkg/circuitbreaker"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
 	"go.uber.org/zap"
@@ -18,21 +20,27 @@ const (
 	TagsTableName           = "Tags"
 )
 
-// Client represents an Airtable client
+// Client represents an Airtable client with circuit breaker protection
 type Client struct {
-	client      *airtable.Client
-	baseID      string
-	workOffline bool
+	client         *airtable.Client
+	baseID         string
+	workOffline    bool
+	circuitBreaker *gobreaker.CircuitBreaker
 }
 
 // NewClient creates a new Airtable client using mehanizm/airtable library
 func NewClient(apiKey, baseID string, workOffline bool) (*Client, error) {
+	// Initialize circuit breaker with default config
+	cbConfig := circuitbreaker.DefaultConfig("airtable")
+	cb := circuitbreaker.NewCircuitBreaker(cbConfig)
+
 	if workOffline {
 		logger.Info("Airtable client initialized in offline mode")
 		return &Client{
-			client:      nil,
-			baseID:      baseID,
-			workOffline: true,
+			client:         nil,
+			baseID:         baseID,
+			workOffline:    true,
+			circuitBreaker: cb,
 		}, nil
 	}
 
@@ -52,19 +60,36 @@ func NewClient(apiKey, baseID string, workOffline bool) (*Client, error) {
 		zap.String("library", "mehanizm/airtable@v0.3.4"))
 
 	return &Client{
-		client:      client,
-		baseID:      baseID,
-		workOffline: workOffline,
+		client:         client,
+		baseID:         baseID,
+		workOffline:    workOffline,
+		circuitBreaker: cb,
 	}, nil
 }
 
-// GetAllMentors fetches all approved mentors from Airtable
+// GetAllMentors fetches all approved mentors from Airtable with circuit breaker protection
 func (c *Client) GetAllMentors() ([]*models.Mentor, error) {
 	if c.workOffline {
 		logger.Info("Returning test data in offline mode")
 		return c.getTestMentors(), nil
 	}
 
+	// Execute the request through the circuit breaker
+	return circuitbreaker.ExecuteWithFallback(
+		c.circuitBreaker,
+		func() ([]*models.Mentor, error) {
+			return c.fetchAllMentors()
+		},
+		func() ([]*models.Mentor, error) {
+			// Fallback: return empty list and log warning
+			logger.Warn("Circuit breaker open for Airtable, returning empty mentor list")
+			return []*models.Mentor{}, nil
+		},
+	)
+}
+
+// fetchAllMentors performs the actual Airtable API call
+func (c *Client) fetchAllMentors() ([]*models.Mentor, error) {
 	start := time.Now()
 	operation := "getAllMentors"
 
@@ -251,12 +276,28 @@ func (c *Client) CreateClientRequest(req *models.ClientRequest) error {
 	return nil
 }
 
-// GetAllTags fetches all tags from Airtable
+// GetAllTags fetches all tags from Airtable with circuit breaker protection
 func (c *Client) GetAllTags() (map[string]string, error) {
 	if c.workOffline {
 		return c.getTestTags(), nil
 	}
 
+	// Execute through circuit breaker with fallback
+	return circuitbreaker.ExecuteWithFallback(
+		c.circuitBreaker,
+		func() (map[string]string, error) {
+			return c.fetchAllTags()
+		},
+		func() (map[string]string, error) {
+			// Fallback: return empty map
+			logger.Warn("Circuit breaker open for Airtable, returning empty tags map")
+			return make(map[string]string), nil
+		},
+	)
+}
+
+// fetchAllTags performs the actual Airtable API call
+func (c *Client) fetchAllTags() (map[string]string, error) {
 	start := time.Now()
 	operation := "getAllTags"
 
