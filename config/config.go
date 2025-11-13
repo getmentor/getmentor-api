@@ -125,13 +125,6 @@ func Load() (*Config, error) {
 			BaseURL:          v.GetString("NEXTJS_BASE_URL"),
 			RevalidateSecret: v.GetString("NEXTJS_REVALIDATE_SECRET"),
 		},
-		Grafana: GrafanaConfig{
-			MetricsURL:      v.GetString("GCLOUD_HOSTED_METRICS_URL"),
-			MetricsUsername: v.GetString("GCLOUD_HOSTED_METRICS_ID"),
-			LogsURL:         v.GetString("GCLOUD_HOSTED_LOGS_URL"),
-			LogsUsername:    v.GetString("GCLOUD_HOSTED_LOGS_ID"),
-			APIKey:          v.GetString("GCLOUD_RW_API_KEY"),
-		},
 		Logging: LoggingConfig{
 			Level: v.GetString("LOG_LEVEL"),
 			Dir:   v.GetString("LOG_DIR"),
