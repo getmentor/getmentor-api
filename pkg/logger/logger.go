@@ -7,6 +7,7 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var (
@@ -41,33 +42,79 @@ func Initialize(cfg Config) error {
 
 	config.Level = zap.NewAtomicLevelAt(level)
 
-	// Set output paths
+	var logger *zap.Logger
+	var err error
+
+	// Configure logging with rotation in production
 	if cfg.Environment == "production" && cfg.LogDir != "" {
 		// Ensure log directory exists
 		if err := os.MkdirAll(cfg.LogDir, 0o755); err != nil {
 			return fmt.Errorf("failed to create log directory: %w", err)
 		}
 
-		config.OutputPaths = []string{
-			"stdout",
-			filepath.Join(cfg.LogDir, "app.log"),
+		// Configure log rotation with lumberjack
+		appLogWriter := &lumberjack.Logger{
+			Filename:   filepath.Join(cfg.LogDir, "app.log"),
+			MaxSize:    100, // MB
+			MaxBackups: 3,
+			MaxAge:     28, // days
+			Compress:   true,
 		}
-		config.ErrorOutputPaths = []string{
-			"stderr",
-			filepath.Join(cfg.LogDir, "error.log"),
+
+		errorLogWriter := &lumberjack.Logger{
+			Filename:   filepath.Join(cfg.LogDir, "error.log"),
+			MaxSize:    100, // MB
+			MaxBackups: 3,
+			MaxAge:     28, // days
+			Compress:   true,
 		}
+
+		// Create core with multiple outputs
+		encoder := zapcore.NewJSONEncoder(config.EncoderConfig)
+
+		// stdout for all logs
+		stdoutCore := zapcore.NewCore(
+			encoder,
+			zapcore.AddSync(os.Stdout),
+			level,
+		)
+
+		// File for all logs
+		appFileCore := zapcore.NewCore(
+			encoder,
+			zapcore.AddSync(appLogWriter),
+			level,
+		)
+
+		// File for errors only
+		errorFileCore := zapcore.NewCore(
+			encoder,
+			zapcore.AddSync(errorLogWriter),
+			zapcore.ErrorLevel,
+		)
+
+		// Combine all cores
+		core := zapcore.NewTee(stdoutCore, appFileCore, errorFileCore)
+
+		// Build logger
+		logger = zap.New(
+			core,
+			zap.AddCaller(),
+			zap.AddCallerSkip(1),
+			zap.AddStacktrace(zapcore.ErrorLevel),
+		)
 	} else {
+		// Development: just stdout/stderr
 		config.OutputPaths = []string{"stdout"}
 		config.ErrorOutputPaths = []string{"stderr"}
-	}
 
-	// Build logger
-	logger, err := config.Build(
-		zap.AddCallerSkip(1),
-		zap.AddStacktrace(zapcore.ErrorLevel),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to build logger: %w", err)
+		logger, err = config.Build(
+			zap.AddCallerSkip(1),
+			zap.AddStacktrace(zapcore.ErrorLevel),
+		)
+		if err != nil {
+			return fmt.Errorf("failed to build logger: %w", err)
+		}
 	}
 
 	Log = logger
