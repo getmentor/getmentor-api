@@ -1,6 +1,7 @@
 package airtable
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/getmentor/getmentor-api/pkg/circuitbreaker"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
+	"github.com/getmentor/getmentor-api/pkg/retry"
 	"go.uber.org/zap"
 )
 
@@ -88,23 +90,37 @@ func (c *Client) GetAllMentors() ([]*models.Mentor, error) {
 	)
 }
 
-// fetchAllMentors performs the actual Airtable API call
+// fetchAllMentors performs the actual Airtable API call with retry logic
 func (c *Client) fetchAllMentors() ([]*models.Mentor, error) {
 	start := time.Now()
 	operation := "getAllMentors"
 
-	table := c.client.GetTable(c.baseID, MentorsTableName)
+	// Use retry logic with context timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	// Fetch records from the view
-	records, err := table.GetRecords().
-		FromView(MentorsViewName).
-		ReturnFields(
-			"Id", "Alias", "Name", "Description", "JobTitle", "Workplace",
-			"Details", "About", "Competencies", "Experience", "Price",
-			"Done Sessions Count", "Image_Attachment", "Image", "Tags",
-			"SortOrder", "OnSite", "Status", "AuthToken", "Calendly Url", "Is New",
-		).
-		Do()
+	retryConfig := retry.AirtableConfig()
+
+	records, err := retry.DoWithResult(ctx, retryConfig, operation, func() (*airtable.Records, error) {
+		table := c.client.GetTable(c.baseID, MentorsTableName)
+
+		// Fetch records from the view
+		records, err := table.GetRecords().
+			FromView(MentorsViewName).
+			ReturnFields(
+				"Id", "Alias", "Name", "Description", "JobTitle", "Workplace",
+				"Details", "About", "Competencies", "Experience", "Price",
+				"Done Sessions Count", "Image_Attachment", "Image", "Tags",
+				"SortOrder", "OnSite", "Status", "AuthToken", "Calendly Url", "Is New",
+			).
+			Do()
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch mentors from Airtable: %w", err)
+		}
+
+		return records, nil
+	})
 
 	duration := metrics.MeasureDuration(start)
 
@@ -112,7 +128,7 @@ func (c *Client) fetchAllMentors() ([]*models.Mentor, error) {
 		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
 		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
 		logger.LogAPICall("airtable", operation, "error", duration, zap.Error(err))
-		return nil, fmt.Errorf("failed to fetch mentors from Airtable: %w", err)
+		return nil, err
 	}
 
 	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
@@ -178,7 +194,7 @@ func (c *Client) GetMentorByRecordID(recordID string) (*models.Mentor, error) {
 	return nil, fmt.Errorf("mentor with record ID %s not found", recordID)
 }
 
-// UpdateMentor updates a mentor record in Airtable
+// UpdateMentor updates a mentor record in Airtable with retry logic
 func (c *Client) UpdateMentor(recordID string, updates map[string]interface{}) error {
 	if c.workOffline {
 		logger.Info("Skipping Airtable update in offline mode", zap.String("record_id", recordID))
@@ -188,18 +204,31 @@ func (c *Client) UpdateMentor(recordID string, updates map[string]interface{}) e
 	start := time.Now()
 	operation := "updateMentor"
 
-	table := c.client.GetTable(c.baseID, MentorsTableName)
+	// Use retry logic with context timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	records := &airtable.Records{
-		Records: []*airtable.Record{
-			{
-				ID:     recordID,
-				Fields: updates,
+	retryConfig := retry.AirtableConfig()
+
+	err := retry.Do(ctx, retryConfig, operation, func() error {
+		table := c.client.GetTable(c.baseID, MentorsTableName)
+
+		records := &airtable.Records{
+			Records: []*airtable.Record{
+				{
+					ID:     recordID,
+					Fields: updates,
+				},
 			},
-		},
-	}
+		}
 
-	_, err := table.UpdateRecordsPartial(records)
+		_, err := table.UpdateRecordsPartial(records)
+		if err != nil {
+			return fmt.Errorf("failed to update mentor: %w", err)
+		}
+
+		return nil
+	})
 
 	duration := metrics.MeasureDuration(start)
 
@@ -207,7 +236,7 @@ func (c *Client) UpdateMentor(recordID string, updates map[string]interface{}) e
 		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
 		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
 		logger.LogAPICall("airtable", operation, "error", duration, zap.Error(err))
-		return fmt.Errorf("failed to update mentor: %w", err)
+		return err
 	}
 
 	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
@@ -226,7 +255,7 @@ func (c *Client) UpdateMentorImage(recordID, imageURL string) error {
 	return c.UpdateMentor(recordID, updates)
 }
 
-// CreateClientRequest creates a new client request in Airtable
+// CreateClientRequest creates a new client request in Airtable with retry logic
 func (c *Client) CreateClientRequest(req *models.ClientRequest) error {
 	if c.workOffline {
 		logger.Info("Skipping client request creation in offline mode")
@@ -236,29 +265,42 @@ func (c *Client) CreateClientRequest(req *models.ClientRequest) error {
 	start := time.Now()
 	operation := "createClientRequest"
 
-	table := c.client.GetTable(c.baseID, ClientRequestsTableName)
+	// Use retry logic with context timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	fields := map[string]interface{}{
-		"Email":       req.Email,
-		"Name":        req.Name,
-		"Description": req.Description,
-		"Telegram":    req.Telegram,
-		"Mentor":      []string{req.MentorID},
-	}
+	retryConfig := retry.AirtableConfig()
 
-	if req.Level != "" {
-		fields["Level"] = req.Level
-	}
+	err := retry.Do(ctx, retryConfig, operation, func() error {
+		table := c.client.GetTable(c.baseID, ClientRequestsTableName)
 
-	records := &airtable.Records{
-		Records: []*airtable.Record{
-			{
-				Fields: fields,
+		fields := map[string]interface{}{
+			"Email":       req.Email,
+			"Name":        req.Name,
+			"Description": req.Description,
+			"Telegram":    req.Telegram,
+			"Mentor":      []string{req.MentorID},
+		}
+
+		if req.Level != "" {
+			fields["Level"] = req.Level
+		}
+
+		records := &airtable.Records{
+			Records: []*airtable.Record{
+				{
+					Fields: fields,
+				},
 			},
-		},
-	}
+		}
 
-	_, err := table.AddRecords(records)
+		_, err := table.AddRecords(records)
+		if err != nil {
+			return fmt.Errorf("failed to create client request: %w", err)
+		}
+
+		return nil
+	})
 
 	duration := metrics.MeasureDuration(start)
 
@@ -266,7 +308,7 @@ func (c *Client) CreateClientRequest(req *models.ClientRequest) error {
 		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
 		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
 		logger.LogAPICall("airtable", operation, "error", duration, zap.Error(err))
-		return fmt.Errorf("failed to create client request: %w", err)
+		return err
 	}
 
 	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
@@ -296,14 +338,25 @@ func (c *Client) GetAllTags() (map[string]string, error) {
 	)
 }
 
-// fetchAllTags performs the actual Airtable API call
+// fetchAllTags performs the actual Airtable API call with retry logic
 func (c *Client) fetchAllTags() (map[string]string, error) {
 	start := time.Now()
 	operation := "getAllTags"
 
-	table := c.client.GetTable(c.baseID, TagsTableName)
+	// Use retry logic with context timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	records, err := table.GetRecords().Do()
+	retryConfig := retry.AirtableConfig()
+
+	records, err := retry.DoWithResult(ctx, retryConfig, operation, func() (*airtable.Records, error) {
+		table := c.client.GetTable(c.baseID, TagsTableName)
+		records, err := table.GetRecords().Do()
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch tags: %w", err)
+		}
+		return records, nil
+	})
 
 	duration := metrics.MeasureDuration(start)
 
@@ -311,7 +364,7 @@ func (c *Client) fetchAllTags() (map[string]string, error) {
 		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
 		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
 		logger.LogAPICall("airtable", operation, "error", duration, zap.Error(err))
-		return nil, fmt.Errorf("failed to fetch tags: %w", err)
+		return nil, err
 	}
 
 	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
