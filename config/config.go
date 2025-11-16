@@ -9,14 +9,15 @@ import (
 
 // Config holds all application configuration
 type Config struct {
-	Server    ServerConfig
-	Airtable  AirtableConfig
-	Azure     AzureConfig
-	Auth      AuthConfig
-	ReCAPTCHA ReCAPTCHAConfig
-	NextJS    NextJSConfig
-	Grafana   GrafanaConfig
-	Logging   LoggingConfig
+	Server        ServerConfig
+	Airtable      AirtableConfig
+	Azure         AzureConfig
+	Auth          AuthConfig
+	ReCAPTCHA     ReCAPTCHAConfig
+	NextJS        NextJSConfig
+	Grafana       GrafanaConfig
+	Logging       LoggingConfig
+	Observability ObservabilityConfig
 }
 
 type ServerConfig struct {
@@ -69,6 +70,12 @@ type LoggingConfig struct {
 	Dir   string
 }
 
+type ObservabilityConfig struct {
+	AlloyEndpoint  string
+	ServiceName    string
+	ServiceVersion string
+}
+
 // Load reads configuration from environment variables
 func Load() (*Config, error) {
 	v := viper.New()
@@ -81,6 +88,9 @@ func Load() (*Config, error) {
 	v.SetDefault("LOG_DIR", "/app/logs")
 	v.SetDefault("AIRTABLE_WORK_OFFLINE", false)
 	v.SetDefault("NEXTJS_BASE_URL", "http://localhost:3000")
+	v.SetDefault("ALLOY_ENDPOINT", "alloy:4317")
+	v.SetDefault("SERVICE_NAME", "getmentor-api")
+	v.SetDefault("SERVICE_VERSION", "1.0.0")
 
 	// Automatically read environment variables
 	v.AutomaticEnv()
@@ -128,6 +138,11 @@ func Load() (*Config, error) {
 		Logging: LoggingConfig{
 			Level: v.GetString("LOG_LEVEL"),
 			Dir:   v.GetString("LOG_DIR"),
+		},
+		Observability: ObservabilityConfig{
+			AlloyEndpoint:  v.GetString("ALLOY_ENDPOINT"),
+			ServiceName:    v.GetString("SERVICE_NAME"),
+			ServiceVersion: v.GetString("SERVICE_VERSION"),
 		},
 	}
 

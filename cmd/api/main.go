@@ -23,6 +23,8 @@ import (
 	"github.com/getmentor/getmentor-api/pkg/azure"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
+	"github.com/getmentor/getmentor-api/pkg/tracing"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/zap"
 )
 
@@ -49,6 +51,24 @@ func main() {
 		zap.String("version", "1.0.0"),
 		zap.String("environment", cfg.Server.AppEnv),
 	)
+
+	// Initialize distributed tracing
+	tracerShutdown, err := tracing.InitTracer(
+		cfg.Observability.ServiceName,
+		cfg.Observability.ServiceVersion,
+		cfg.Server.AppEnv,
+		cfg.Observability.AlloyEndpoint,
+	)
+	if err != nil {
+		logger.Fatal("Failed to initialize tracer", zap.Error(err))
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tracerShutdown(ctx); err != nil {
+			logger.Error("Failed to shutdown tracer", zap.Error(err))
+		}
+	}()
 
 	// Start infrastructure metrics collection
 	metrics.RecordInfrastructureMetrics()
@@ -104,6 +124,7 @@ func main() {
 
 	// Global middleware
 	router.Use(gin.Recovery())
+	router.Use(otelgin.Middleware(cfg.Observability.ServiceName)) // OpenTelemetry tracing
 	router.Use(middleware.ObservabilityMiddleware())
 	router.Use(middleware.SecurityHeadersMiddleware())
 
