@@ -88,7 +88,7 @@ func Load() (*Config, error) {
 	v.SetDefault("LOG_DIR", "/app/logs")
 	v.SetDefault("AIRTABLE_WORK_OFFLINE", false)
 	v.SetDefault("NEXTJS_BASE_URL", "http://localhost:3000")
-	v.SetDefault("ALLOY_ENDPOINT", "alloy:4317")
+	v.SetDefault("ALLOY_ENDPOINT", "alloy:4318") // OTLP over HTTP
 	v.SetDefault("SERVICE_NAME", "getmentor-api")
 	v.SetDefault("SERVICE_VERSION", "1.0.0")
 
