@@ -104,22 +104,45 @@ func (c *Client) fetchAllMentors() ([]*models.Mentor, error) {
 	records, err := retry.DoWithResult(ctx, retryConfig, operation, func() (*airtable.Records, error) {
 		table := c.client.GetTable(c.baseID, MentorsTableName)
 
-		// Fetch records from the view
-		records, err := table.GetRecords().
-			FromView(MentorsViewName).
-			ReturnFields(
-				"Id", "Alias", "Name", "Description", "JobTitle", "Workplace",
-				"Details", "About", "Competencies", "Experience", "Price",
-				"Done Sessions Count", "Image_Attachment", "Image", "Tags",
-				"SortOrder", "OnSite", "Status", "AuthToken", "Calendly Url", "Is New",
-			).
-			Do()
+		// Fetch ALL records from the view using manual pagination
+		var allMentorRecords []*airtable.Record
+		offset := ""
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch mentors from Airtable: %w", err)
+		for {
+			query := table.GetRecords().
+				FromView(MentorsViewName).
+				PageSize(100). // Maximum page size to minimize API requests
+				ReturnFields(
+					"Id", "Alias", "Name", "Description", "JobTitle", "Workplace",
+					"Details", "About", "Competencies", "Experience", "Price",
+					"Done Sessions Count", "Image_Attachment", "Image", "Tags",
+					"SortOrder", "OnSite", "Status", "AuthToken", "Calendly Url", "Is New",
+				)
+
+			// Add offset for subsequent pages
+			if offset != "" {
+				query = query.WithOffset(offset)
+			}
+
+			records, err := query.Do()
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch mentors from Airtable: %w", err)
+			}
+
+			// Append records from this page
+			allMentorRecords = append(allMentorRecords, records.Records...)
+
+			// Check if there are more pages
+			if records.Offset == "" {
+				break
+			}
+			offset = records.Offset
 		}
 
-		return records, nil
+		// Return all records in Records wrapper
+		return &airtable.Records{
+			Records: allMentorRecords,
+		}, nil
 	})
 
 	duration := metrics.MeasureDuration(start)
@@ -351,11 +374,39 @@ func (c *Client) fetchAllTags() (map[string]string, error) {
 
 	records, err := retry.DoWithResult(ctx, retryConfig, operation, func() (*airtable.Records, error) {
 		table := c.client.GetTable(c.baseID, TagsTableName)
-		records, err := table.GetRecords().Do()
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch tags: %w", err)
+
+		// Fetch ALL records using manual pagination
+		var allTagRecords []*airtable.Record
+		offset := ""
+
+		for {
+			query := table.GetRecords().
+				PageSize(100) // Maximum page size to minimize API requests
+
+			// Add offset for subsequent pages
+			if offset != "" {
+				query = query.WithOffset(offset)
+			}
+
+			records, err := query.Do()
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch tags: %w", err)
+			}
+
+			// Append records from this page
+			allTagRecords = append(allTagRecords, records.Records...)
+
+			// Check if there are more pages
+			if records.Offset == "" {
+				break
+			}
+			offset = records.Offset
 		}
-		return records, nil
+
+		// Return all records in Records wrapper
+		return &airtable.Records{
+			Records: allTagRecords,
+		}, nil
 	})
 
 	duration := metrics.MeasureDuration(start)
