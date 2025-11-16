@@ -109,8 +109,8 @@ func main() {
 
 	// CORS configuration - SECURITY: Only allow specific origins
 	allowedOrigins := []string{
-		"https://getmentor.dev",
-		"https://www.getmentor.dev",
+		"https://гетментор.рф",
+		"https://www.гетментор.рф",
 	}
 	// Allow localhost in development
 	if cfg.Server.AppEnv == "development" {
@@ -128,10 +128,10 @@ func main() {
 
 	// SECURITY: Rate limiters to prevent abuse and DoS attacks
 	// Different limits for different endpoint types
-	generalRateLimiter := middleware.NewRateLimiter(100, 200)          // 100 req/sec, burst of 200
-	contactRateLimiter := middleware.NewRateLimiter(5, 10)             // 5 req/sec, burst of 10 (prevent spam)
-	profileRateLimiter := middleware.NewRateLimiter(10, 20)            // 10 req/sec, burst of 20
-	webhookRateLimiter := middleware.NewRateLimiter(10, 20)            // 10 req/sec, burst of 20
+	generalRateLimiter := middleware.NewRateLimiter(100, 200) // 100 req/sec, burst of 200
+	contactRateLimiter := middleware.NewRateLimiter(5, 10)    // 5 req/sec, burst of 10 (prevent spam)
+	profileRateLimiter := middleware.NewRateLimiter(10, 20)   // 10 req/sec, burst of 20
+	webhookRateLimiter := middleware.NewRateLimiter(10, 20)   // 10 req/sec, burst of 20
 
 	// API routes
 	// SECURITY: Apply body size limits to prevent DoS attacks

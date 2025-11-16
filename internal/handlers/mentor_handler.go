@@ -29,7 +29,7 @@ func (h *MentorHandler) GetPublicMentors(c *gin.Context) {
 	// Convert to public format
 	publicMentors := make([]models.PublicMentorResponse, 0, len(mentors))
 	for _, mentor := range mentors {
-		publicMentors = append(publicMentors, mentor.ToPublicResponse("https://getmentor.dev"))
+		publicMentors = append(publicMentors, mentor.ToPublicResponse("https://гетментор.рф"))
 	}
 
 	c.JSON(http.StatusOK, gin.H{"mentors": publicMentors})
@@ -49,7 +49,7 @@ func (h *MentorHandler) GetPublicMentorByID(c *gin.Context) {
 		return
 	}
 
-	publicMentor := mentor.ToPublicResponse("https://getmentor.dev")
+	publicMentor := mentor.ToPublicResponse("https://гетментор.рф")
 	c.JSON(http.StatusOK, publicMentor)
 }
 
