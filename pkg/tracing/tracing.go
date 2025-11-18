@@ -20,7 +20,7 @@ import (
 var tracer trace.Tracer
 
 // InitTracer initializes the OpenTelemetry tracer provider
-func InitTracer(serviceName, serviceVersion, environment, alloyEndpoint string) (func(context.Context) error, error) {
+func InitTracer(serviceName, serviceNamespace, serviceVersion, environment, alloyEndpoint string) (func(context.Context) error, error) {
 	if alloyEndpoint == "" {
 		logger.Info("Tracing disabled: ALLOY_ENDPOINT not set")
 		return func(context.Context) error { return nil }, nil
@@ -28,6 +28,7 @@ func InitTracer(serviceName, serviceVersion, environment, alloyEndpoint string) 
 
 	logger.Info("Initializing OpenTelemetry tracer",
 		zap.String("service", serviceName),
+		zap.String("namespace", serviceNamespace),
 		zap.String("version", serviceVersion),
 		zap.String("environment", environment),
 		zap.String("endpoint", alloyEndpoint))
@@ -48,7 +49,7 @@ func InitTracer(serviceName, serviceVersion, environment, alloyEndpoint string) 
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
 			semconv.ServiceName(serviceName),
-			semconv.ServiceNamespace("yc_gm"), // Grafana Cloud namespace
+			semconv.ServiceNamespace(serviceNamespace), // Grafana Cloud namespace
 			semconv.ServiceVersion(serviceVersion),
 			semconv.DeploymentEnvironment(environment),
 		),

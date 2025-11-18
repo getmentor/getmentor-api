@@ -55,6 +55,7 @@ func main() {
 	// Initialize distributed tracing
 	tracerShutdown, err := tracing.InitTracer(
 		cfg.Observability.ServiceName,
+		cfg.Observability.ServiceNamespace,
 		cfg.Observability.ServiceVersion,
 		cfg.Server.AppEnv,
 		cfg.Observability.AlloyEndpoint,

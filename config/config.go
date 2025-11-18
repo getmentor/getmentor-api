@@ -71,9 +71,10 @@ type LoggingConfig struct {
 }
 
 type ObservabilityConfig struct {
-	AlloyEndpoint  string
-	ServiceName    string
-	ServiceVersion string
+	AlloyEndpoint    string
+	ServiceName      string
+	ServiceNamespace string
+	ServiceVersion   string
 }
 
 // Load reads configuration from environment variables
@@ -90,6 +91,7 @@ func Load() (*Config, error) {
 	v.SetDefault("NEXTJS_BASE_URL", "http://localhost:3000")
 	v.SetDefault("O11Y_EXPORTER_ENDPOINT", "alloy:4318") // OTLP over HTTP
 	v.SetDefault("O11Y_BE_SERVICE_NAME", "getmentor-api")
+	v.SetDefault("O11Y_SERVICE_NAMESPACE", "getmentor-dev")
 	v.SetDefault("O11Y_BE_SERVICE_VERSION", "1.0.0")
 
 	// Automatically read environment variables
@@ -140,9 +142,10 @@ func Load() (*Config, error) {
 			Dir:   v.GetString("LOG_DIR"),
 		},
 		Observability: ObservabilityConfig{
-			AlloyEndpoint:  v.GetString("O11Y_EXPORTER_ENDPOINT"),
-			ServiceName:    v.GetString("O11Y_BE_SERVICE_NAME"),
-			ServiceVersion: v.GetString("O11Y_BE_SERVICE_VERSION"),
+			AlloyEndpoint:    v.GetString("O11Y_EXPORTER_ENDPOINT"),
+			ServiceName:      v.GetString("O11Y_BE_SERVICE_NAME"),
+			ServiceNamespace: v.GetString("O11Y_SERVICE_NAMESPACE"),
+			ServiceVersion:   v.GetString("O11Y_BE_SERVICE_VERSION"),
 		},
 	}
 
