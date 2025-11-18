@@ -3,15 +3,16 @@ package airtable
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
-	"github.com/mehanizm/airtable"
-	"github.com/sony/gobreaker"
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/pkg/circuitbreaker"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
 	"github.com/getmentor/getmentor-api/pkg/retry"
+	"github.com/mehanizm/airtable"
+	"github.com/sony/gobreaker"
 	"go.uber.org/zap"
 )
 
@@ -164,6 +165,10 @@ func (c *Client) fetchAllMentors() ([]*models.Mentor, error) {
 		mentor := models.AirtableRecordToMentor(records.Records[i])
 		mentors = append(mentors, mentor)
 	}
+
+	sort.Slice(mentors, func(i, j int) bool {
+		return mentors[i].SortOrder < mentors[j].SortOrder
+	})
 
 	return mentors, nil
 }
