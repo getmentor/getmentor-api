@@ -88,9 +88,9 @@ func Load() (*Config, error) {
 	v.SetDefault("LOG_DIR", "/app/logs")
 	v.SetDefault("AIRTABLE_WORK_OFFLINE", false)
 	v.SetDefault("NEXTJS_BASE_URL", "http://localhost:3000")
-	v.SetDefault("ALLOY_ENDPOINT", "alloy:4318") // OTLP over HTTP
-	v.SetDefault("SERVICE_NAME", "getmentor-api")
-	v.SetDefault("SERVICE_VERSION", "1.0.0")
+	v.SetDefault("O11Y_EXPORTER_ENDPOINT", "alloy:4318") // OTLP over HTTP
+	v.SetDefault("O11Y_BE_SERVICE_NAME", "getmentor-api")
+	v.SetDefault("O11Y_BE_SERVICE_VERSION", "1.0.0")
 
 	// Automatically read environment variables
 	v.AutomaticEnv()
@@ -140,9 +140,9 @@ func Load() (*Config, error) {
 			Dir:   v.GetString("LOG_DIR"),
 		},
 		Observability: ObservabilityConfig{
-			AlloyEndpoint:  v.GetString("ALLOY_ENDPOINT"),
-			ServiceName:    v.GetString("SERVICE_NAME"),
-			ServiceVersion: v.GetString("SERVICE_VERSION"),
+			AlloyEndpoint:  v.GetString("O11Y_EXPORTER_ENDPOINT"),
+			ServiceName:    v.GetString("O11Y_BE_SERVICE_NAME"),
+			ServiceVersion: v.GetString("O11Y_BE_SERVICE_VERSION"),
 		},
 	}
 
