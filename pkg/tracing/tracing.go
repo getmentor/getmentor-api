@@ -58,9 +58,18 @@ func InitTracer(serviceName, serviceNamespace, serviceVersion, environment, allo
 		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
 
+	// Create batch span processor with proper timeouts
+	// This ensures export failures don't block the application
+	bsp := sdktrace.NewBatchSpanProcessor(exporter,
+		sdktrace.WithBatchTimeout(2*time.Second),        // Export batch every 2 seconds
+		sdktrace.WithExportTimeout(5*time.Second),       // Timeout individual exports after 5s
+		sdktrace.WithMaxQueueSize(2048),                 // Max queue size before dropping
+		sdktrace.WithMaxExportBatchSize(512),            // Max spans per export batch
+	)
+
 	// Create tracer provider
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
+		sdktrace.WithSpanProcessor(bsp),
 		sdktrace.WithResource(res),
 		sdktrace.WithSampler(sdktrace.AlwaysSample()), // Sample all traces in production
 	)
