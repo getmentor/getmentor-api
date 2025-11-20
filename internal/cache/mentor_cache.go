@@ -27,7 +27,7 @@ type MentorCache struct {
 	airtableClient *airtable.Client
 	mu             sync.RWMutex
 	refreshing     bool
-	ready          bool  // Indicates if cache has been successfully initialized
+	ready          bool // Indicates if cache has been successfully initialized
 	ttl            time.Duration
 }
 
@@ -184,7 +184,6 @@ func (mc *MentorCache) refreshInBackground() error {
 // refreshWithRetry performs a refresh with exponential backoff retry logic
 func (mc *MentorCache) refreshWithRetry() error {
 	var err error
-	var mentors []*models.Mentor
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
@@ -196,7 +195,7 @@ func (mc *MentorCache) refreshWithRetry() error {
 			time.Sleep(waitTime)
 		}
 
-		mentors, err = mc.doRefresh()
+		_, err = mc.doRefresh()
 		if err == nil {
 			return nil
 		}
