@@ -98,8 +98,14 @@ func main() {
 	}
 
 	// Initialize caches
-	mentorCache := cache.NewMentorCache(airtableClient)
+	mentorCache := cache.NewMentorCache(airtableClient, cfg.Cache.MentorTTLSeconds)
 	tagsCache := cache.NewTagsCache(airtableClient)
+
+	// Initialize mentor cache synchronously before accepting requests
+	// This ensures the cache is populated before the container is marked as healthy
+	if err := mentorCache.Initialize(); err != nil {
+		logger.Fatal("Failed to initialize mentor cache", zap.Error(err))
+	}
 
 	// Initialize repositories
 	mentorRepo := repository.NewMentorRepository(airtableClient, mentorCache, tagsCache)
@@ -116,7 +122,7 @@ func main() {
 	contactHandler := handlers.NewContactHandler(contactService)
 	profileHandler := handlers.NewProfileHandler(profileService)
 	webhookHandler := handlers.NewWebhookHandler(webhookService)
-	healthHandler := handlers.NewHealthHandler()
+	healthHandler := handlers.NewHealthHandler(mentorCache.IsReady)
 	logsHandler := handlers.NewLogsHandler(cfg.Logging.Dir)
 
 	// Set up Gin router

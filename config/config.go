@@ -18,6 +18,7 @@ type Config struct {
 	Grafana       GrafanaConfig
 	Logging       LoggingConfig
 	Observability ObservabilityConfig
+	Cache         CacheConfig
 }
 
 type ServerConfig struct {
@@ -77,6 +78,10 @@ type ObservabilityConfig struct {
 	ServiceVersion   string
 }
 
+type CacheConfig struct {
+	MentorTTLSeconds int // Mentor cache TTL in seconds
+}
+
 // Load reads configuration from environment variables
 func Load() (*Config, error) {
 	v := viper.New()
@@ -93,6 +98,7 @@ func Load() (*Config, error) {
 	v.SetDefault("O11Y_BE_SERVICE_NAME", "getmentor-api")
 	v.SetDefault("O11Y_SERVICE_NAMESPACE", "getmentor-dev")
 	v.SetDefault("O11Y_BE_SERVICE_VERSION", "1.0.0")
+	v.SetDefault("MENTOR_CACHE_TTL", 600) // 10 minutes in seconds
 
 	// Automatically read environment variables
 	v.AutomaticEnv()
@@ -146,6 +152,9 @@ func Load() (*Config, error) {
 			ServiceName:      v.GetString("O11Y_BE_SERVICE_NAME"),
 			ServiceNamespace: v.GetString("O11Y_SERVICE_NAMESPACE"),
 			ServiceVersion:   v.GetString("O11Y_BE_SERVICE_VERSION"),
+		},
+		Cache: CacheConfig{
+			MentorTTLSeconds: v.GetInt("MENTOR_CACHE_TTL"),
 		},
 	}
 
