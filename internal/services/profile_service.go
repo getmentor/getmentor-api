@@ -73,7 +73,7 @@ func (s *ProfileService) SaveProfile(id int, token string, req *models.SaveProfi
 		"Workplace":    req.Workplace,
 		"Experience":   req.Experience,
 		"Price":        req.Price,
-		"Tag Links":    tagIDs,
+		"Tags Links":   tagIDs,
 		"Details":      req.Description,
 		"About":        req.About,
 		"Competencies": req.Competencies,
