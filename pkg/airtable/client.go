@@ -277,7 +277,7 @@ func (c *Client) UpdateMentor(recordID string, updates map[string]interface{}) e
 // UpdateMentorImage updates a mentor's profile image
 func (c *Client) UpdateMentorImage(recordID, imageURL string) error {
 	updates := map[string]interface{}{
-		"Image_Attachment": imageURL,
+		"Image_Attachment": []map[string]string{{"url": imageURL}},
 	}
 
 	return c.UpdateMentor(recordID, updates)
