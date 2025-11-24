@@ -28,9 +28,9 @@ type Mentor struct {
 	CalendarType string   `json:"calendarType"`
 	IsNew        bool     `json:"isNew"`
 
-	// Secure fields (not serialized by default)
-	AuthToken   string `json:"-"`
-	CalendarURL string `json:"-"`
+	// Secure fields (cleared by repository unless ShowHidden is true)
+	AuthToken   string `json:"authToken"`
+	CalendarURL string `json:"calendarUrl"`
 }
 
 // PublicMentorResponse represents the public API response format
