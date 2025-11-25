@@ -7,6 +7,7 @@ import (
 
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/services"
+	apperrors "github.com/getmentor/getmentor-api/pkg/errors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -55,12 +56,11 @@ func (h *ProfileHandler) SaveProfile(c *gin.Context) {
 	}
 
 	if err := h.service.SaveProfile(id, token, &req); err != nil {
-		switch err.Error() {
-		case "mentor not found":
+		if errors.Is(err, apperrors.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Mentor not found"})
-		case "access denied":
+		} else if errors.Is(err, apperrors.ErrAccessDenied) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
-		default:
+		} else {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Failed to update profile"})
 		}
 		return
@@ -89,12 +89,11 @@ func (h *ProfileHandler) UploadProfilePicture(c *gin.Context) {
 
 	imageURL, err := h.service.UploadProfilePicture(id, token, &req)
 	if err != nil {
-		switch err.Error() {
-		case "mentor not found":
+		if errors.Is(err, apperrors.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Mentor not found"})
-		case "access denied":
+		} else if errors.Is(err, apperrors.ErrAccessDenied) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
-		default:
+		} else {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		}
 		return

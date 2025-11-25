@@ -3,13 +3,13 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
+	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
 	"go.uber.org/zap"
@@ -20,6 +20,7 @@ type ContactService struct {
 	clientRequestRepo *repository.ClientRequestRepository
 	mentorRepo        *repository.MentorRepository
 	config            *config.Config
+	httpClient        httpclient.Client
 }
 
 // NewContactService creates a new contact service instance
@@ -27,11 +28,13 @@ func NewContactService(
 	clientRequestRepo *repository.ClientRequestRepository,
 	mentorRepo *repository.MentorRepository,
 	cfg *config.Config,
+	httpClient httpclient.Client,
 ) *ContactService {
 	return &ContactService{
 		clientRequestRepo: clientRequestRepo,
 		mentorRepo:        mentorRepo,
 		config:            cfg,
+		httpClient:        httpClient,
 	}
 }
 
@@ -95,7 +98,7 @@ func (s *ContactService) verifyRecaptcha(token string) error {
 	data.Set("response", token)
 
 	// Send POST request with form body
-	resp, err := http.Post(
+	resp, err := s.httpClient.Post(
 		"https://www.google.com/recaptcha/api/siteverify",
 		"application/x-www-form-urlencoded",
 		strings.NewReader(data.Encode()),

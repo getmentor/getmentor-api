@@ -21,6 +21,7 @@ import (
 	"github.com/getmentor/getmentor-api/internal/services"
 	"github.com/getmentor/getmentor-api/pkg/airtable"
 	"github.com/getmentor/getmentor-api/pkg/azure"
+	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
 	"github.com/getmentor/getmentor-api/pkg/tracing"
@@ -116,9 +117,12 @@ func main() {
 	mentorRepo := repository.NewMentorRepository(airtableClient, mentorCache, tagsCache)
 	clientRequestRepo := repository.NewClientRequestRepository(airtableClient)
 
+	// Initialize HTTP client for external API calls
+	httpClient := httpclient.NewStandardClient()
+
 	// Initialize services
 	mentorService := services.NewMentorService(mentorRepo, cfg)
-	contactService := services.NewContactService(clientRequestRepo, mentorRepo, cfg)
+	contactService := services.NewContactService(clientRequestRepo, mentorRepo, cfg, httpClient)
 	profileService := services.NewProfileService(mentorRepo, azureClient, cfg)
 	webhookService := services.NewWebhookService(mentorRepo, cfg)
 	mcpService := services.NewMCPService(mentorRepo)
