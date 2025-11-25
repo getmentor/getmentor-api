@@ -11,10 +11,14 @@ import (
 
 type MentorHandler struct {
 	service *services.MentorService
+	baseURL string
 }
 
-func NewMentorHandler(service *services.MentorService) *MentorHandler {
-	return &MentorHandler{service: service}
+func NewMentorHandler(service *services.MentorService, baseURL string) *MentorHandler {
+	return &MentorHandler{
+		service: service,
+		baseURL: baseURL,
+	}
 }
 
 func (h *MentorHandler) GetPublicMentors(c *gin.Context) {
@@ -29,7 +33,7 @@ func (h *MentorHandler) GetPublicMentors(c *gin.Context) {
 	// Convert to public format
 	publicMentors := make([]models.PublicMentorResponse, 0, len(mentors))
 	for _, mentor := range mentors {
-		publicMentors = append(publicMentors, mentor.ToPublicResponse("https://гетментор.рф"))
+		publicMentors = append(publicMentors, mentor.ToPublicResponse(h.baseURL))
 	}
 
 	c.JSON(http.StatusOK, gin.H{"mentors": publicMentors})
@@ -49,7 +53,7 @@ func (h *MentorHandler) GetPublicMentorByID(c *gin.Context) {
 		return
 	}
 
-	publicMentor := mentor.ToPublicResponse("https://гетментор.рф")
+	publicMentor := mentor.ToPublicResponse(h.baseURL)
 	c.JSON(http.StatusOK, publicMentor)
 }
 

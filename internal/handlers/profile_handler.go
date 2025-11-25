@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -17,20 +18,29 @@ func NewProfileHandler(service *services.ProfileService) *ProfileHandler {
 	return &ProfileHandler{service: service}
 }
 
-func (h *ProfileHandler) SaveProfile(c *gin.Context) {
-	// SECURITY: Read auth credentials from headers instead of URL query parameters
-	// This prevents credentials from being logged in access logs, browser history, referrer headers
+// extractMentorCredentials extracts and validates mentor ID and auth token from request headers
+func extractMentorCredentials(c *gin.Context) (int, string, error) {
 	idStr := c.GetHeader("X-Mentor-ID")
 	token := c.GetHeader("X-Auth-Token")
 
 	if idStr == "" || token == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing X-Mentor-ID or X-Auth-Token headers"})
-		return
+		return 0, "", errors.New("missing credentials")
 	}
 
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return 0, "", errors.New("invalid id")
+	}
+
+	return id, token, nil
+}
+
+func (h *ProfileHandler) SaveProfile(c *gin.Context) {
+	// SECURITY: Read auth credentials from headers instead of URL query parameters
+	// This prevents credentials from being logged in access logs, browser history, referrer headers
+	id, token, err := extractMentorCredentials(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -61,17 +71,9 @@ func (h *ProfileHandler) SaveProfile(c *gin.Context) {
 
 func (h *ProfileHandler) UploadProfilePicture(c *gin.Context) {
 	// SECURITY: Read auth credentials from headers instead of URL query parameters
-	idStr := c.GetHeader("X-Mentor-ID")
-	token := c.GetHeader("X-Auth-Token")
-
-	if idStr == "" || token == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing X-Mentor-ID or X-Auth-Token headers"})
-		return
-	}
-
-	id, err := strconv.Atoi(idStr)
+	id, token, err := extractMentorCredentials(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
