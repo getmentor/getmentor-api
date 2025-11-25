@@ -123,7 +123,7 @@ func main() {
 	webhookService := services.NewWebhookService(mentorRepo, cfg)
 
 	// Initialize handlers
-	mentorHandler := handlers.NewMentorHandler(mentorService)
+	mentorHandler := handlers.NewMentorHandler(mentorService, cfg.Server.BaseURL)
 	contactHandler := handlers.NewContactHandler(contactService)
 	profileHandler := handlers.NewProfileHandler(profileService)
 	webhookHandler := handlers.NewWebhookHandler(webhookService)
@@ -141,10 +141,7 @@ func main() {
 	router.Use(middleware.SecurityHeadersMiddleware())
 
 	// CORS configuration - SECURITY: Only allow specific origins
-	allowedOrigins := []string{
-		"https://гетментор.рф",
-		"https://www.гетментор.рф",
-	}
+	allowedOrigins := cfg.Server.AllowedOrigins
 	// Allow localhost in development
 	if cfg.Server.AppEnv == "development" {
 		allowedOrigins = append(allowedOrigins, "http://localhost:3000", "http://127.0.0.1:3000")

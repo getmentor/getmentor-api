@@ -22,9 +22,11 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port    string
-	GinMode string
-	AppEnv  string
+	Port           string
+	GinMode        string
+	AppEnv         string
+	BaseURL        string
+	AllowedOrigins []string
 }
 
 type AirtableConfig struct {
@@ -90,6 +92,8 @@ func Load() (*Config, error) {
 	v.SetDefault("PORT", "8081")
 	v.SetDefault("GIN_MODE", "release")
 	v.SetDefault("APP_ENV", "production")
+	v.SetDefault("BASE_URL", "https://гетментор.рф")
+	v.SetDefault("ALLOWED_CORS_ORIGINS", "https://гетментор.рф,https://www.гетментор.рф")
 	v.SetDefault("LOG_LEVEL", "info")
 	v.SetDefault("LOG_DIR", "/app/logs")
 	v.SetDefault("AIRTABLE_WORK_OFFLINE", false)
@@ -111,11 +115,25 @@ func Load() (*Config, error) {
 	v.AddConfigPath("..")
 	_ = v.ReadInConfig() // Ignore error if file doesn't exist
 
+	// Parse allowed CORS origins (comma-separated)
+	allowedOrigins := []string{}
+	originsStr := v.GetString("ALLOWED_CORS_ORIGINS")
+	if originsStr != "" {
+		for _, origin := range strings.Split(originsStr, ",") {
+			origin = strings.TrimSpace(origin)
+			if origin != "" {
+				allowedOrigins = append(allowedOrigins, origin)
+			}
+		}
+	}
+
 	cfg := &Config{
 		Server: ServerConfig{
-			Port:    v.GetString("PORT"),
-			GinMode: v.GetString("GIN_MODE"),
-			AppEnv:  v.GetString("APP_ENV"),
+			Port:           v.GetString("PORT"),
+			GinMode:        v.GetString("GIN_MODE"),
+			AppEnv:         v.GetString("APP_ENV"),
+			BaseURL:        v.GetString("BASE_URL"),
+			AllowedOrigins: allowedOrigins,
 		},
 		Airtable: AirtableConfig{
 			APIKey:      v.GetString("AIRTABLE_API_KEY"),
