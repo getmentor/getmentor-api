@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -36,7 +37,7 @@ func NewContactService(
 	}
 }
 
-func (s *ContactService) SubmitContactForm(req *models.ContactMentorRequest) (*models.ContactMentorResponse, error) {
+func (s *ContactService) SubmitContactForm(ctx context.Context, req *models.ContactMentorRequest) (*models.ContactMentorResponse, error) {
 	// Verify ReCAPTCHA
 	if err := s.verifyRecaptcha(req.RecaptchaToken); err != nil {
 		metrics.ContactFormSubmissions.WithLabelValues("captcha_failed").Inc()
@@ -58,7 +59,7 @@ func (s *ContactService) SubmitContactForm(req *models.ContactMentorRequest) (*m
 			Telegram:    req.TelegramUsername,
 		}
 
-		if err := s.clientRequestRepo.Create(clientReq); err != nil {
+		if err := s.clientRequestRepo.Create(ctx, clientReq); err != nil {
 			metrics.ContactFormSubmissions.WithLabelValues("error").Inc()
 			logger.Error("Failed to create client request", zap.Error(err))
 			return &models.ContactMentorResponse{
@@ -71,7 +72,7 @@ func (s *ContactService) SubmitContactForm(req *models.ContactMentorRequest) (*m
 	}
 
 	// Get mentor to retrieve calendar URL
-	mentor, err := s.mentorRepo.GetByRecordID(req.MentorAirtableID, models.FilterOptions{ShowHidden: true})
+	mentor, err := s.mentorRepo.GetByRecordID(ctx, req.MentorAirtableID, models.FilterOptions{ShowHidden: true})
 	if err != nil {
 		logger.Error("Failed to get mentor for calendar URL", zap.Error(err))
 		// Still return success as the request was saved

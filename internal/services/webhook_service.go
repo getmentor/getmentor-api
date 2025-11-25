@@ -1,6 +1,8 @@
 package services
 
 import (
+	"context"
+
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
@@ -20,7 +22,7 @@ func NewWebhookService(mentorRepo *repository.MentorRepository, cfg *config.Conf
 	}
 }
 
-func (s *WebhookService) HandleAirtableWebhook(payload *models.WebhookPayload) error {
+func (s *WebhookService) HandleAirtableWebhook(ctx context.Context, payload *models.WebhookPayload) error {
 	logger.Info("Received Airtable webhook", zap.String("record_id", payload.RecordID))
 
 	// Invalidate mentor cache to ensure fresh data
