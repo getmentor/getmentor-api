@@ -8,6 +8,7 @@ import (
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
 	"github.com/getmentor/getmentor-api/pkg/azure"
+	apperrors "github.com/getmentor/getmentor-api/pkg/errors"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
 	"go.uber.org/zap"
@@ -35,13 +36,13 @@ func (s *ProfileService) SaveProfile(id int, token string, req *models.SaveProfi
 	// Get mentor and verify auth token
 	mentor, err := s.mentorRepo.GetByID(id, models.FilterOptions{ShowHidden: true})
 	if err != nil {
-		return fmt.Errorf("mentor not found")
+		return apperrors.NotFoundError("mentor")
 	}
 
 	// SECURITY: Use timing-safe comparison to prevent timing attacks
 	if subtle.ConstantTimeCompare([]byte(mentor.AuthToken), []byte(token)) != 1 {
 		logger.Warn("Access denied - invalid token", zap.Int("mentor_id", id))
-		return fmt.Errorf("access denied")
+		return apperrors.ErrAccessDenied
 	}
 
 	// Get sponsor tags to preserve them
@@ -100,13 +101,13 @@ func (s *ProfileService) UploadProfilePicture(id int, token string, req *models.
 	// Get mentor and verify auth token
 	mentor, err := s.mentorRepo.GetByID(id, models.FilterOptions{ShowHidden: true})
 	if err != nil {
-		return "", fmt.Errorf("mentor not found")
+		return "", apperrors.NotFoundError("mentor")
 	}
 
 	// SECURITY: Use timing-safe comparison to prevent timing attacks
 	if subtle.ConstantTimeCompare([]byte(mentor.AuthToken), []byte(token)) != 1 {
 		logger.Warn("Access denied - invalid token", zap.Int("mentor_id", id))
-		return "", fmt.Errorf("access denied")
+		return "", apperrors.ErrAccessDenied
 	}
 
 	// Validate file type

@@ -186,6 +186,7 @@ func Load() (*Config, error) {
 
 // Validate checks if required configuration values are set
 func (c *Config) Validate() error {
+	// Airtable configuration
 	if !c.Airtable.WorkOffline {
 		if c.Airtable.APIKey == "" {
 			return fmt.Errorf("AIRTABLE_API_KEY is required")
@@ -195,8 +196,31 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// Authentication tokens
 	if c.Auth.InternalMentorsAPI == "" {
 		return fmt.Errorf("INTERNAL_MENTORS_API is required")
+	}
+	if c.Auth.MentorsAPIToken == "" {
+		return fmt.Errorf("MENTORS_API_LIST_AUTH_TOKEN is required")
+	}
+	if c.Auth.WebhookSecret == "" {
+		return fmt.Errorf("WEBHOOK_SECRET is required")
+	}
+
+	// ReCAPTCHA configuration
+	if c.ReCAPTCHA.SecretKey == "" {
+		return fmt.Errorf("RECAPTCHA_V2_SECRET_KEY is required")
+	}
+
+	// Server configuration
+	if c.Server.Port == "" {
+		return fmt.Errorf("PORT is required")
+	}
+	if c.Server.BaseURL == "" {
+		return fmt.Errorf("BASE_URL is required")
+	}
+	if len(c.Server.AllowedOrigins) == 0 {
+		return fmt.Errorf("ALLOWED_CORS_ORIGINS is required")
 	}
 
 	return nil
