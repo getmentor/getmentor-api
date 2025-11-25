@@ -141,6 +141,9 @@ func TestConfig_Validate(t *testing.T) {
 				ReCAPTCHA: config.ReCAPTCHAConfig{
 					SecretKey: "recaptcha-secret",
 				},
+				ReCAPTCHA: config.ReCAPTCHAConfig{
+					SecretKey: "recaptcha-secret",
+				},
 			},
 			expectError: false,
 		},
@@ -290,16 +293,14 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 func TestLoad_ValidationFailure(t *testing.T) {
 	// Save current directory and change to a temp directory without .env file
 	originalDir, _ := os.Getwd()
-	defer func() {
-		_ = os.Chdir(originalDir)
-	}()
+	defer os.Chdir(originalDir)
 
 	tempDir := t.TempDir()
-	_ = os.Chdir(tempDir)
+	os.Chdir(tempDir)
 
 	// Clean environment - missing required fields
 	os.Clearenv()
-	_ = os.Setenv("AIRTABLE_WORK_OFFLINE", "false")
+	os.Setenv("AIRTABLE_WORK_OFFLINE", "false")
 	// Missing AIRTABLE_API_KEY, AIRTABLE_BASE_ID, and INTERNAL_MENTORS_API
 
 	cfg, err := config.Load()
