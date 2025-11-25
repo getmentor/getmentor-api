@@ -1613,6 +1613,336 @@ api.POST("/save-profile", profileRateLimiter.Middleware(), csrfMiddleware, profi
 
 ---
 
+## P1 Fixes Completed
+
+### P1-8: TEST-6 - No Interfaces for Dependencies
+
+**Status:** ✅ COMPLETED
+**Effort:** 2 hours
+**Priority:** P1
+
+#### Problem
+Services were concrete types, making it impossible to create mocks for testing handlers. This prevented proper unit testing of handlers in isolation.
+
+#### Solution Implemented
+
+**Step 1: Created Service Interfaces**
+
+Added interface definitions in `internal/services/interfaces.go`:
+
+```go
+// MentorServiceInterface defines the interface for mentor service operations
+type MentorServiceInterface interface {
+    GetAllMentors(opts models.FilterOptions) ([]*models.Mentor, error)
+    GetMentorByID(id int, opts models.FilterOptions) (*models.Mentor, error)
+    GetMentorBySlug(slug string, opts models.FilterOptions) (*models.Mentor, error)
+    GetMentorByRecordID(recordID string, opts models.FilterOptions) (*models.Mentor, error)
+}
+
+// ProfileServiceInterface defines the interface for profile service operations
+type ProfileServiceInterface interface {
+    SaveProfile(id int, token string, req *models.SaveProfileRequest) error
+    UploadProfilePicture(id int, token string, req *models.UploadProfilePictureRequest) (string, error)
+}
+
+// WebhookServiceInterface defines the interface for webhook service operations
+type WebhookServiceInterface interface {
+    HandleAirtableWebhook(payload *models.WebhookPayload) error
+}
+
+// Ensure services implement their interfaces (compile-time checks)
+var _ ContactServiceInterface = (*ContactService)(nil)
+var _ MentorServiceInterface = (*MentorService)(nil)
+var _ ProfileServiceInterface = (*ProfileService)(nil)
+var _ WebhookServiceInterface = (*WebhookService)(nil)
+```
+
+**Step 2: Updated Handlers to Use Interfaces**
+
+Modified all handlers to accept and use interfaces instead of concrete types:
+
+```go
+// internal/handlers/mentor_handler.go
+type MentorHandler struct {
+    service services.MentorServiceInterface  // Changed from *services.MentorService
+    baseURL string
+}
+
+func NewMentorHandler(service services.MentorServiceInterface, baseURL string) *MentorHandler {
+    return &MentorHandler{
+        service: service,
+        baseURL: baseURL,
+    }
+}
+
+// internal/handlers/profile_handler.go
+type ProfileHandler struct {
+    service services.ProfileServiceInterface  // Changed from *services.ProfileService
+}
+
+func NewProfileHandler(service services.ProfileServiceInterface) *ProfileHandler {
+    return &ProfileHandler{service: service}
+}
+
+// internal/handlers/webhook_handler.go
+type WebhookHandler struct {
+    service services.WebhookServiceInterface  // Changed from *services.WebhookService
+}
+
+func NewWebhookHandler(service services.WebhookServiceInterface) *WebhookHandler {
+    return &WebhookHandler{service: service}
+}
+```
+
+#### Benefits
+
+1. **Testability**: Handlers can now be tested with mocked services
+2. **Type Safety**: Compile-time checks ensure services implement interfaces
+3. **Decoupling**: Handlers depend on abstractions, not concrete implementations
+4. **Future-proof**: Easy to swap implementations or add decorators
+
+#### Verification
+
+- ✅ Project builds successfully: `go build ./...`
+- ✅ All tests pass: `go test ./...`
+- ✅ No breaking changes to existing code
+- ✅ Compile-time interface conformance checks in place
+
+### P1-9: SEC-8 - CSRF Protection
+
+**Status:** ✅ NOT APPLICABLE (Documented)
+**Effort:** 1 hour (analysis)
+**Priority:** P1
+
+#### Problem Analysis
+
+The original issue identified lack of CSRF protection as a security concern.
+
+#### Investigation
+
+After thorough analysis of the codebase:
+
+1. **Authentication Method**: API uses header-based authentication (X-Mentor-ID, X-Auth-Token)
+2. **No Credentials**: `AllowCredentials: false` in CORS config (cmd/api/main.go:159)
+3. **No Cookies**: Grep search confirms no cookie usage anywhere in codebase
+4. **CORS Configured**: Proper CORS configuration with allowed origins
+
+#### Conclusion
+
+**CSRF protection is NOT NEEDED for this API architecture.**
+
+**Reasoning:**
+- CSRF attacks exploit browsers' automatic sending of credentials (cookies, HTTP auth)
+- This API uses custom headers for authentication
+- Browsers cannot automatically send custom headers in cross-origin requests
+- CORS prevents malicious sites from reading responses even if they make requests
+- The `/contact-mentor` endpoint has ReCAPTCHA + rate limiting protection
+
+**Current Protection Mechanisms:**
+- ✅ Header-based auth prevents automatic credential sending
+- ✅ CORS restricts which origins can make requests
+- ✅ ReCAPTCHA protects public endpoints
+- ✅ Rate limiting prevents abuse
+- ✅ Proper input validation
+
+**Reference:** OWASP recommends CSRF protection primarily for cookie-based sessions. For stateless APIs with header-based auth, CSRF is not applicable.
+
+#### Recommendation
+
+No code changes needed. This issue can be marked as resolved with the understanding that CSRF protection is not required for header-based authentication APIs.
+
+### P1-10: API-5 - No API Versioning
+
+**Status:** ✅ COMPLETED
+**Effort:** 2 hours
+**Priority:** P1
+
+#### Problem
+
+API endpoints had no versioning scheme, making it difficult to introduce breaking changes or evolve the API without disrupting existing clients.
+
+#### Solution Implemented
+
+Added versioned routing structure with backward compatibility:
+
+**Changes to `cmd/api/main.go`:**
+
+```go
+// API routes - operational endpoints (unversioned)
+api := router.Group("/api")
+{
+    api.GET("/healthcheck", ...)
+    api.GET("/metrics", ...)
+}
+
+// API v1 routes - all business endpoints
+v1 := router.Group("/api/v1")
+v1.Use(middleware.BodySizeLimitMiddleware(1 * 1024 * 1024))
+{
+    v1.GET("/mentors", ...)
+    v1.GET("/mentor/:id", ...)
+    v1.POST("/internal/mentors", ...)
+    v1.POST("/contact-mentor", ...)
+    v1.POST("/save-profile", ...)
+    v1.POST("/upload-profile-picture", ...)
+    v1.POST("/logs", ...)
+    v1.POST("/webhooks/airtable", ...)
+}
+
+// Backward compatibility: Alias old /api/* routes to /api/v1/*
+apiCompat := router.Group("/api")
+apiCompat.Use(middleware.BodySizeLimitMiddleware(1 * 1024 * 1024))
+{
+    // All endpoints duplicated for gradual migration
+}
+```
+
+#### Design Decisions
+
+1. **Operational Endpoints Unversioned**: `/api/healthcheck` and `/api/metrics` remain at root level as they're operational, not business endpoints
+2. **Backward Compatibility**: Old `/api/*` routes still work, aliased to `/api/v1/*`
+3. **Clear Deprecation Path**: Comments indicate compatibility layer should be removed in future
+4. **No Breaking Changes**: Existing clients continue to work without modification
+
+#### Benefits
+
+1. **Future-proof**: Can introduce v2 API without breaking v1 clients
+2. **Gradual Migration**: Clients can migrate at their own pace
+3. **Clear Versioning**: API version is explicit in the URL
+4. **Industry Standard**: Follows REST API versioning best practices
+
+#### API Endpoints
+
+**New Versioned Endpoints:**
+- `GET /api/v1/mentors`
+- `GET /api/v1/mentor/:id`
+- `POST /api/v1/internal/mentors`
+- `POST /api/v1/contact-mentor`
+- `POST /api/v1/save-profile`
+- `POST /api/v1/upload-profile-picture`
+- `POST /api/v1/logs`
+- `POST /api/v1/webhooks/airtable`
+
+**Operational Endpoints (Unversioned):**
+- `GET /api/healthcheck`
+- `GET /api/metrics`
+
+**Deprecated (but still working):**
+- All old `/api/*` business endpoints
+
+#### Migration Plan
+
+1. **Phase 1 (Current)**: Both `/api/*` and `/api/v1/*` work
+2. **Phase 2 (Next Release)**: Add deprecation warnings to old endpoints
+3. **Phase 3 (Future)**: Remove compatibility layer after client migration
+
+#### Verification
+
+- ✅ Project builds successfully
+- ✅ All tests pass
+- ✅ Backward compatibility maintained
+- ✅ New versioned endpoints available
+
+### P1-11: GO-4 - Context Not Propagated Through Layers
+
+**Status:** ✅ COMPLETED
+**Effort:** 4 hours
+**Priority:** P1
+
+#### Problem
+
+Context was not being propagated through the application layers (handlers → services → repositories), preventing proper request cancellation, timeout handling, and distributed tracing.
+
+#### Solution Implemented
+
+Added `context.Context` as the first parameter to all service and repository methods, following Go best practices.
+
+**Changes Made:**
+
+1. **Service Interfaces** (`internal/services/interfaces.go`)
+   - Added `ctx context.Context` as first parameter to all interface methods
+   - Updated: ContactServiceInterface, MentorServiceInterface, ProfileServiceInterface, WebhookServiceInterface
+
+2. **Service Implementations**
+   - `internal/services/mentor_service.go`: Updated 4 methods
+   - `internal/services/contact_service.go`: Updated SubmitContactForm
+   - `internal/services/profile_service.go`: Updated SaveProfile, UploadProfilePicture
+   - `internal/services/webhook_service.go`: Updated HandleAirtableWebhook
+
+3. **Repository Layer**
+   - `internal/repository/mentor_repository.go`: Updated 9 methods (GetAll, GetByID, GetBySlug, GetByRecordID, Update, UpdateImage, GetTagIDByName, GetAllTags)
+   - `internal/repository/client_request_repository.go`: Updated Create method
+
+4. **Handler Layer**
+   - All handlers updated to extract context from `gin.Context` and pass it down
+   - `internal/handlers/mentor_handler.go`: 6 service calls updated
+   - `internal/handlers/contact_handler.go`: 1 service call updated
+   - `internal/handlers/profile_handler.go`: 2 service calls updated
+   - `internal/handlers/webhook_handler.go`: 1 service call updated
+
+5. **Tests**
+   - Updated mock service in `test/internal/handlers/contact_handler_test.go`
+   - Updated all mock expectations to include context parameter
+
+**Example Context Propagation:**
+
+```go
+// Handler extracts context from gin.Context
+func (h *MentorHandler) GetPublicMentors(c *gin.Context) {
+    mentors, err := h.service.GetAllMentors(c.Request.Context(), models.FilterOptions{
+        OnlyVisible: true,
+    })
+    // ...
+}
+
+// Service passes context to repository
+func (s *MentorService) GetAllMentors(ctx context.Context, opts models.FilterOptions) ([]*models.Mentor, error) {
+    return s.repo.GetAll(ctx, opts)
+}
+
+// Repository receives context (ready for future use with database calls)
+func (r *MentorRepository) GetAll(ctx context.Context, opts models.FilterOptions) ([]*models.Mentor, error) {
+    // Context available for cancellation, timeouts, tracing
+    // ...
+}
+```
+
+**Async Operations:**
+
+For the async goroutine in ProfileService.UploadProfilePicture, used `context.Background()` since the operation should complete independently of the request lifecycle:
+
+```go
+go func() {
+    if err := s.mentorRepo.UpdateImage(context.Background(), mentor.AirtableID, imageURL); err != nil {
+        logger.Error("Failed to update mentor image in Airtable", zap.Error(err))
+    }
+}()
+```
+
+#### Benefits
+
+1. **Request Cancellation**: If client disconnects, context cancellation can stop ongoing operations
+2. **Timeout Handling**: Can set deadlines for operations using context.WithTimeout
+3. **Distributed Tracing**: Context carries trace IDs through the call stack for OpenTelemetry
+4. **Best Practices**: Follows Go standard library conventions for context propagation
+5. **Future-Proof**: Ready for adding cancellation logic, timeouts, and trace propagation
+
+#### Next Steps (Future Enhancements)
+
+1. Add context timeouts at service layer for long-running operations
+2. Implement cancellation checks in repository methods
+3. Propagate context to Airtable client calls for cancellation support
+4. Add context values for request IDs and trace propagation
+
+#### Verification
+
+- ✅ Project builds successfully
+- ✅ All tests pass (including updated mocks)
+- ✅ Context flows from gin.Context through all layers
+- ✅ No breaking changes to external API
+
+---
+
 ## Conclusion
 
 This codebase has a **solid foundation** with excellent observability and resilience patterns. The main areas for improvement are:

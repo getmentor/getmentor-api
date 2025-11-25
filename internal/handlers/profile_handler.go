@@ -12,10 +12,10 @@ import (
 )
 
 type ProfileHandler struct {
-	service *services.ProfileService
+	service services.ProfileServiceInterface
 }
 
-func NewProfileHandler(service *services.ProfileService) *ProfileHandler {
+func NewProfileHandler(service services.ProfileServiceInterface) *ProfileHandler {
 	return &ProfileHandler{service: service}
 }
 
@@ -55,7 +55,7 @@ func (h *ProfileHandler) SaveProfile(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.SaveProfile(id, token, &req); err != nil {
+	if err := h.service.SaveProfile(c.Request.Context(), id, token, &req); err != nil {
 		if errors.Is(err, apperrors.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Mentor not found"})
 		} else if errors.Is(err, apperrors.ErrAccessDenied) {
@@ -87,7 +87,7 @@ func (h *ProfileHandler) UploadProfilePicture(c *gin.Context) {
 		return
 	}
 
-	imageURL, err := h.service.UploadProfilePicture(id, token, &req)
+	imageURL, err := h.service.UploadProfilePicture(c.Request.Context(), id, token, &req)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Mentor not found"})

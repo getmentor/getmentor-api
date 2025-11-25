@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"crypto/subtle"
 	"fmt"
 
@@ -32,9 +33,9 @@ func NewProfileService(
 	}
 }
 
-func (s *ProfileService) SaveProfile(id int, token string, req *models.SaveProfileRequest) error {
+func (s *ProfileService) SaveProfile(ctx context.Context, id int, token string, req *models.SaveProfileRequest) error {
 	// Get mentor and verify auth token
-	mentor, err := s.mentorRepo.GetByID(id, models.FilterOptions{ShowHidden: true})
+	mentor, err := s.mentorRepo.GetByID(ctx, id, models.FilterOptions{ShowHidden: true})
 	if err != nil {
 		return apperrors.NotFoundError("mentor")
 	}
@@ -61,7 +62,7 @@ func (s *ProfileService) SaveProfile(id int, token string, req *models.SaveProfi
 	// Get tag IDs
 	tagIDs := []string{}
 	for _, tagName := range allTags {
-		tagID, err := s.mentorRepo.GetTagIDByName(tagName)
+		tagID, err := s.mentorRepo.GetTagIDByName(ctx, tagName)
 		if err == nil && tagID != "" {
 			tagIDs = append(tagIDs, tagID)
 		}
@@ -85,7 +86,7 @@ func (s *ProfileService) SaveProfile(id int, token string, req *models.SaveProfi
 	}
 
 	// Update in Airtable
-	if err := s.mentorRepo.Update(mentor.AirtableID, updates); err != nil {
+	if err := s.mentorRepo.Update(ctx, mentor.AirtableID, updates); err != nil {
 		metrics.ProfileUpdates.WithLabelValues("error").Inc()
 		logger.Error("Failed to update mentor profile", zap.Error(err), zap.Int("mentor_id", id))
 		return fmt.Errorf("failed to update profile")
@@ -97,9 +98,9 @@ func (s *ProfileService) SaveProfile(id int, token string, req *models.SaveProfi
 	return nil
 }
 
-func (s *ProfileService) UploadProfilePicture(id int, token string, req *models.UploadProfilePictureRequest) (string, error) {
+func (s *ProfileService) UploadProfilePicture(ctx context.Context, id int, token string, req *models.UploadProfilePictureRequest) (string, error) {
 	// Get mentor and verify auth token
-	mentor, err := s.mentorRepo.GetByID(id, models.FilterOptions{ShowHidden: true})
+	mentor, err := s.mentorRepo.GetByID(ctx, id, models.FilterOptions{ShowHidden: true})
 	if err != nil {
 		return "", apperrors.NotFoundError("mentor")
 	}
@@ -133,7 +134,7 @@ func (s *ProfileService) UploadProfilePicture(id int, token string, req *models.
 
 	// Update Airtable asynchronously
 	go func() {
-		if err := s.mentorRepo.UpdateImage(mentor.AirtableID, imageURL); err != nil {
+		if err := s.mentorRepo.UpdateImage(context.Background(), mentor.AirtableID, imageURL); err != nil {
 			logger.Error("Failed to update mentor image in Airtable", zap.Error(err), zap.Int("mentor_id", id))
 		}
 	}()

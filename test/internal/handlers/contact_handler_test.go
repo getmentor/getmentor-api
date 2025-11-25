@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -21,8 +22,8 @@ type MockContactService struct {
 	mock.Mock
 }
 
-func (m *MockContactService) SubmitContactForm(req *models.ContactMentorRequest) (*models.ContactMentorResponse, error) {
-	args := m.Called(req)
+func (m *MockContactService) SubmitContactForm(ctx context.Context, req *models.ContactMentorRequest) (*models.ContactMentorResponse, error) {
+	args := m.Called(ctx, req)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -50,7 +51,7 @@ func TestContactHandler_ContactMentor_Success(t *testing.T) {
 	}
 
 	// Mock successful response
-	mockService.On("SubmitContactForm", mock.MatchedBy(func(req *models.ContactMentorRequest) bool {
+	mockService.On("SubmitContactForm", mock.Anything, mock.MatchedBy(func(req *models.ContactMentorRequest) bool {
 		return req.Email == "test@example.com" && req.Name == "Test User"
 	})).Return(&models.ContactMentorResponse{
 		Success:     true,
@@ -338,7 +339,7 @@ func TestContactHandler_ContactMentor_CaptchaFailed(t *testing.T) {
 	}
 
 	// Mock captcha failure
-	mockService.On("SubmitContactForm", mock.Anything).Return(
+	mockService.On("SubmitContactForm", mock.Anything, mock.Anything).Return(
 		&models.ContactMentorResponse{
 			Success: false,
 			Error:   "Captcha verification failed",
@@ -382,7 +383,7 @@ func TestContactHandler_ContactMentor_ServiceError(t *testing.T) {
 	}
 
 	// Mock service returning error
-	mockService.On("SubmitContactForm", mock.Anything).Return(
+	mockService.On("SubmitContactForm", mock.Anything, mock.Anything).Return(
 		nil,
 		errors.New("internal service error"),
 	)
@@ -423,7 +424,7 @@ func TestContactHandler_ContactMentor_WithoutTelegram(t *testing.T) {
 	}
 
 	// Mock successful response
-	mockService.On("SubmitContactForm", mock.Anything).Return(
+	mockService.On("SubmitContactForm", mock.Anything, mock.Anything).Return(
 		&models.ContactMentorResponse{
 			Success:     true,
 			CalendarURL: "https://calendly.com/mentor-slug",

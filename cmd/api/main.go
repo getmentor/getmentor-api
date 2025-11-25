@@ -171,42 +171,66 @@ func main() {
 	mcpRateLimiter := middleware.NewRateLimiter(20, 40)       // 20 req/sec, burst of 40 (for AI tool usage)
 
 	// API routes
-	// SECURITY: Apply body size limits to prevent DoS attacks
 	api := router.Group("/api")
-	api.Use(middleware.BodySizeLimitMiddleware(1 * 1024 * 1024)) // Default 1 MB limit
 	{
-		// Utility endpoints
+		// Utility endpoints (not versioned - operational endpoints)
 		api.GET("/healthcheck", generalRateLimiter.Middleware(), healthHandler.Healthcheck)
 		api.GET("/metrics", generalRateLimiter.Middleware(), gin.WrapH(promhttp.Handler()))
+	}
 
+	// API v1 routes
+	// SECURITY: Apply body size limits to prevent DoS attacks
+	v1 := router.Group("/api/v1")
+	v1.Use(middleware.BodySizeLimitMiddleware(1 * 1024 * 1024)) // Default 1 MB limit
+	{
 		// Public mentor endpoints
 		publicTokens := []string{
 			cfg.Auth.MentorsAPIToken,
 			cfg.Auth.MentorsAPITokenInno,
 			cfg.Auth.MentorsAPITokenAIKB,
 		}
-		api.GET("/mentors", generalRateLimiter.Middleware(), middleware.TokenAuthMiddleware(publicTokens...), mentorHandler.GetPublicMentors)
-		api.GET("/mentor/:id", generalRateLimiter.Middleware(), middleware.TokenAuthMiddleware(cfg.Auth.MentorsAPIToken, cfg.Auth.MentorsAPITokenInno), mentorHandler.GetPublicMentorByID)
+		v1.GET("/mentors", generalRateLimiter.Middleware(), middleware.TokenAuthMiddleware(publicTokens...), mentorHandler.GetPublicMentors)
+		v1.GET("/mentor/:id", generalRateLimiter.Middleware(), middleware.TokenAuthMiddleware(cfg.Auth.MentorsAPIToken, cfg.Auth.MentorsAPITokenInno), mentorHandler.GetPublicMentorByID)
 
 		// Internal mentor endpoint
-		api.POST("/internal/mentors", generalRateLimiter.Middleware(), middleware.InternalAPIAuthMiddleware(cfg.Auth.InternalMentorsAPI), mentorHandler.GetInternalMentors)
+		v1.POST("/internal/mentors", generalRateLimiter.Middleware(), middleware.InternalAPIAuthMiddleware(cfg.Auth.InternalMentorsAPI), mentorHandler.GetInternalMentors)
 
 		// MCP endpoint (for AI tools to search mentors)
 		api.POST("/internal/mcp", mcpRateLimiter.Middleware(), middleware.TokenAuthMiddleware(cfg.Auth.MCPAuthToken), mcpHandler.HandleMCPRequest)
 
 		// Contact endpoint (smaller limit for forms + stricter rate limit)
-		api.POST("/contact-mentor", contactRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(100*1024), contactHandler.ContactMentor)
+		v1.POST("/contact-mentor", contactRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(100*1024), contactHandler.ContactMentor)
 
 		// Profile endpoints (moderate rate limit)
-		api.POST("/save-profile", profileRateLimiter.Middleware(), profileHandler.SaveProfile)
+		v1.POST("/save-profile", profileRateLimiter.Middleware(), profileHandler.SaveProfile)
 		// Profile picture upload needs larger limit for base64-encoded images (10 MB)
-		api.POST("/upload-profile-picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), profileHandler.UploadProfilePicture)
+		v1.POST("/upload-profile-picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), profileHandler.UploadProfilePicture)
 
 		// Logs endpoint - receive logs from frontend for centralized collection (moderate rate limit, 1 MB max)
-		api.POST("/logs", generalRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(1*1024*1024), logsHandler.ReceiveFrontendLogs)
+		v1.POST("/logs", generalRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(1*1024*1024), logsHandler.ReceiveFrontendLogs)
 
 		// Webhook endpoint (moderate rate limit)
-		api.POST("/webhooks/airtable", webhookRateLimiter.Middleware(), middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
+		v1.POST("/webhooks/airtable", webhookRateLimiter.Middleware(), middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
+	}
+
+	// Backward compatibility: Alias old /api/* routes to /api/v1/* (DEPRECATED - to be removed in future)
+	// This allows gradual migration of clients to versioned endpoints
+	apiCompat := router.Group("/api")
+	apiCompat.Use(middleware.BodySizeLimitMiddleware(1 * 1024 * 1024))
+	{
+		publicTokens := []string{
+			cfg.Auth.MentorsAPIToken,
+			cfg.Auth.MentorsAPITokenInno,
+			cfg.Auth.MentorsAPITokenAIKB,
+		}
+		apiCompat.GET("/mentors", generalRateLimiter.Middleware(), middleware.TokenAuthMiddleware(publicTokens...), mentorHandler.GetPublicMentors)
+		apiCompat.GET("/mentor/:id", generalRateLimiter.Middleware(), middleware.TokenAuthMiddleware(cfg.Auth.MentorsAPIToken, cfg.Auth.MentorsAPITokenInno), mentorHandler.GetPublicMentorByID)
+		apiCompat.POST("/internal/mentors", generalRateLimiter.Middleware(), middleware.InternalAPIAuthMiddleware(cfg.Auth.InternalMentorsAPI), mentorHandler.GetInternalMentors)
+		apiCompat.POST("/contact-mentor", contactRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(100*1024), contactHandler.ContactMentor)
+		apiCompat.POST("/save-profile", profileRateLimiter.Middleware(), profileHandler.SaveProfile)
+		apiCompat.POST("/upload-profile-picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), profileHandler.UploadProfilePicture)
+		apiCompat.POST("/logs", generalRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(1*1024*1024), logsHandler.ReceiveFrontendLogs)
+		apiCompat.POST("/webhooks/airtable", webhookRateLimiter.Middleware(), middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
 	}
 
 	// Create HTTP server
