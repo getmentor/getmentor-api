@@ -36,7 +36,11 @@ func (h *ProfileHandler) SaveProfile(c *gin.Context) {
 
 	var req models.SaveProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "details": err.Error()})
+		validationErrors := ParseValidationErrors(err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Validation failed",
+			"details": validationErrors,
+		})
 		return
 	}
 
@@ -73,7 +77,11 @@ func (h *ProfileHandler) UploadProfilePicture(c *gin.Context) {
 
 	var req models.UploadProfilePictureRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "details": err.Error()})
+		validationErrors := ParseValidationErrors(err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Validation failed",
+			"details": validationErrors,
+		})
 		return
 	}
 

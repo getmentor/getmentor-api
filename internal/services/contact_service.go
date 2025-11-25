@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
@@ -87,11 +89,17 @@ func (s *ContactService) SubmitContactForm(req *models.ContactMentorRequest) (*m
 }
 
 func (s *ContactService) verifyRecaptcha(token string) error {
-	url := fmt.Sprintf("https://www.google.com/recaptcha/api/siteverify?secret=%s&response=%s",
-		s.config.ReCAPTCHA.SecretKey, token)
+	// Prepare form data with secret in POST body (not URL)
+	data := url.Values{}
+	data.Set("secret", s.config.ReCAPTCHA.SecretKey)
+	data.Set("response", token)
 
-	//nolint:gosec // URL is Google's official reCAPTCHA verification endpoint
-	resp, err := http.Post(url, "application/x-www-form-urlencoded", nil)
+	// Send POST request with form body
+	resp, err := http.Post(
+		"https://www.google.com/recaptcha/api/siteverify",
+		"application/x-www-form-urlencoded",
+		strings.NewReader(data.Encode()),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to verify recaptcha: %w", err)
 	}

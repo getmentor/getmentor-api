@@ -16,8 +16,8 @@ func init() {
 
 func TestHealthHandler_Healthcheck(t *testing.T) {
 	// Setup
-	mockCacheReady := func() bool { return true }
-	handler := handlers.NewHealthHandler(mockCacheReady)
+	mockReadyFunc := func() bool { return true }
+	handler := handlers.NewHealthHandler(mockReadyFunc)
 	router := gin.New()
 	router.GET("/healthcheck", handler.Healthcheck)
 

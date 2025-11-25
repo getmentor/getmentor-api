@@ -107,6 +107,11 @@ func main() {
 		logger.Fatal("Failed to initialize mentor cache", zap.Error(err))
 	}
 
+	// Initialize tags cache synchronously
+	if err := tagsCache.Initialize(); err != nil {
+		logger.Fatal("Failed to initialize tags cache", zap.Error(err))
+	}
+
 	// Initialize repositories
 	mentorRepo := repository.NewMentorRepository(airtableClient, mentorCache, tagsCache)
 	clientRequestRepo := repository.NewClientRequestRepository(airtableClient)
@@ -201,9 +206,6 @@ func main() {
 
 		// Webhook endpoint (moderate rate limit)
 		api.POST("/webhooks/airtable", webhookRateLimiter.Middleware(), middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
-
-		// Revalidate Next.js endpoint
-		api.POST("/revalidate-nextjs", webhookRateLimiter.Middleware(), webhookHandler.RevalidateNextJS)
 	}
 
 	// Create HTTP server
