@@ -17,6 +17,14 @@ import (
 	"go.uber.org/zap"
 )
 
+// StorageClientInterface defines the interface for Azure Blob Storage operations.
+type StorageClientInterface interface {
+	UploadImage(ctx context.Context, imageData, fileName, contentType string) (string, error)
+	GenerateFileName(mentorID int, originalFileName string) string
+	ValidateImageType(contentType string) error
+	ValidateImageSize(imageData string) error
+}
+
 // StorageClient represents an Azure Blob Storage client
 type StorageClient struct {
 	containerClient *container.Client
@@ -25,7 +33,7 @@ type StorageClient struct {
 }
 
 // NewStorageClient creates a new Azure Storage client
-func NewStorageClient(connectionString, containerName, storageDomain string) (*StorageClient, error) {
+func NewStorageClient(connectionString, containerName, storageDomain string) (StorageClientInterface, error) {
 	serviceClient, err := azblob.NewClientFromConnectionString(connectionString, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Azure service client: %w", err)
@@ -56,7 +64,7 @@ func NewStorageClient(connectionString, containerName, storageDomain string) (*S
 }
 
 // UploadImage uploads an image to Azure Blob Storage
-func (s *StorageClient) UploadImage(imageData, fileName, contentType string) (string, error) {
+func (s *StorageClient) UploadImage(ctx context.Context, imageData, fileName, contentType string) (string, error) {
 	start := time.Now()
 	operation := "uploadImage"
 
@@ -83,8 +91,6 @@ func (s *StorageClient) UploadImage(imageData, fileName, contentType string) (st
 
 	// Upload to Azure
 	blobClient := s.containerClient.NewBlockBlobClient(fileName)
-	ctx := context.Background()
-
 	_, err = blobClient.UploadBuffer(ctx, imageBytes, &azblob.UploadBufferOptions{
 		HTTPHeaders: &blob.HTTPHeaders{
 			BlobContentType: &contentType,

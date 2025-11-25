@@ -1,6 +1,7 @@
 package circuitbreaker
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -54,9 +55,9 @@ func NewCircuitBreaker(cfg Config) *gobreaker.CircuitBreaker {
 }
 
 // Execute wraps a function call with circuit breaker logic
-func Execute[T any](cb *gobreaker.CircuitBreaker, fn func() (T, error)) (T, error) {
+func Execute[T any](ctx context.Context, cb *gobreaker.CircuitBreaker, fn func(context.Context) (T, error)) (T, error) {
 	result, err := cb.Execute(func() (interface{}, error) {
-		return fn()
+		return fn(ctx)
 	})
 
 	if err != nil {
@@ -68,8 +69,8 @@ func Execute[T any](cb *gobreaker.CircuitBreaker, fn func() (T, error)) (T, erro
 }
 
 // ExecuteWithFallback executes a function with circuit breaker and fallback
-func ExecuteWithFallback[T any](cb *gobreaker.CircuitBreaker, fn func() (T, error), fallback func() (T, error)) (T, error) {
-	result, err := Execute(cb, fn)
+func ExecuteWithFallback[T any](ctx context.Context, cb *gobreaker.CircuitBreaker, fn func(context.Context) (T, error), fallback func() (T, error)) (T, error) {
+	result, err := Execute(ctx, cb, fn)
 
 	if err != nil {
 		if err == gobreaker.ErrOpenState {

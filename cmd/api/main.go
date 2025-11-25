@@ -85,9 +85,9 @@ func main() {
 	}
 
 	// Initialize Azure Storage client
-	var azureClient *azure.StorageClient
+	var azureClient azure.StorageClientInterface
 	if cfg.Azure.ConnectionString != "" {
-		azureClient, err = azure.NewStorageClient(
+		newClient, err := azure.NewStorageClient(
 			cfg.Azure.ConnectionString,
 			cfg.Azure.ContainerName,
 			cfg.Azure.StorageDomain,
@@ -95,6 +95,7 @@ func main() {
 		if err != nil {
 			logger.Fatal("Failed to initialize Azure Storage client", zap.Error(err))
 		}
+		azureClient = newClient
 	}
 
 	// Initialize caches
@@ -103,7 +104,7 @@ func main() {
 
 	// Initialize mentor cache synchronously before accepting requests
 	// This ensures the cache is populated before the container is marked as healthy
-	if err := mentorCache.Initialize(); err != nil {
+	if err := mentorCache.Initialize(context.Background()); err != nil {
 		logger.Fatal("Failed to initialize mentor cache", zap.Error(err))
 	}
 

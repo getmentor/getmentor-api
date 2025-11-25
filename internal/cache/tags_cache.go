@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"time"
 
 	"github.com/getmentor/getmentor-api/pkg/airtable"
@@ -8,6 +9,12 @@ import (
 	gocache "github.com/patrickmn/go-cache"
 	"go.uber.org/zap"
 )
+
+// TagsCacheInterface defines the interface for tags cache operations.
+type TagsCacheInterface interface {
+	Get(ctx context.Context) (map[string]string, error)
+	GetTagIDByName(ctx context.Context, name string) (string, error)
+}
 
 const (
 	tagsCacheKey = "tags"
@@ -17,11 +24,11 @@ const (
 // TagsCache manages the in-memory cache for tags
 type TagsCache struct {
 	cache          *gocache.Cache
-	airtableClient *airtable.Client
+	airtableClient airtable.ClientInterface
 }
 
 // NewTagsCache creates a new tags cache
-func NewTagsCache(airtableClient *airtable.Client) *TagsCache {
+func NewTagsCache(airtableClient airtable.ClientInterface) TagsCacheInterface {
 	cache := gocache.New(tagsCacheTTL, time.Hour)
 
 	tc := &TagsCache{
@@ -36,7 +43,7 @@ func NewTagsCache(airtableClient *airtable.Client) *TagsCache {
 }
 
 // Get retrieves tags from cache or fetches them if cache miss
-func (tc *TagsCache) Get() (map[string]string, error) {
+func (tc *TagsCache) Get(ctx context.Context) (map[string]string, error) {
 	// Check cache
 	if data, found := tc.cache.Get(tagsCacheKey); found {
 		logger.Debug("Tags cache hit")
@@ -46,12 +53,12 @@ func (tc *TagsCache) Get() (map[string]string, error) {
 	logger.Info("Tags cache miss, fetching from Airtable")
 
 	// Cache miss, fetch and populate
-	return tc.refresh()
+	return tc.refresh(ctx)
 }
 
 // refresh fetches tags from Airtable and updates the cache
-func (tc *TagsCache) refresh() (map[string]string, error) {
-	tags, err := tc.airtableClient.GetAllTags()
+func (tc *TagsCache) refresh(ctx context.Context) (map[string]string, error) {
+	tags, err := tc.airtableClient.GetAllTags(ctx)
 	if err != nil {
 		logger.Error("Failed to refresh tags cache", zap.Error(err))
 		return nil, err
@@ -68,15 +75,15 @@ func (tc *TagsCache) refresh() (map[string]string, error) {
 // warmUp performs initial cache population
 func (tc *TagsCache) warmUp() {
 	logger.Info("Warming up tags cache")
-	_, err := tc.refresh()
+	_, err := tc.refresh(context.Background())
 	if err != nil {
 		logger.Error("Failed to warm up tags cache", zap.Error(err))
 	}
 }
 
 // GetTagIDByName gets a single tag ID by name
-func (tc *TagsCache) GetTagIDByName(name string) (string, error) {
-	tags, err := tc.Get()
+func (tc *TagsCache) GetTagIDByName(ctx context.Context, name string) (string, error) {
+	tags, err := tc.Get(ctx)
 	if err != nil {
 		return "", err
 	}

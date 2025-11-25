@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/getmentor/getmentor-api/internal/cache"
@@ -8,15 +9,28 @@ import (
 	"github.com/getmentor/getmentor-api/pkg/airtable"
 )
 
+// MentorRepositoryInterface defines the interface for mentor data access operations.
+type MentorRepositoryInterface interface {
+	GetAll(ctx context.Context, opts models.FilterOptions) ([]*models.Mentor, error)
+	GetByID(ctx context.Context, id int, opts models.FilterOptions) (*models.Mentor, error)
+	GetBySlug(ctx context.Context, slug string, opts models.FilterOptions) (*models.Mentor, error)
+	GetByRecordID(ctx context.Context, recordID string, opts models.FilterOptions) (*models.Mentor, error)
+	Update(ctx context.Context, recordID string, updates map[string]interface{}) error
+	UpdateImage(ctx context.Context, recordID, imageURL string) error
+	GetTagIDByName(ctx context.Context, name string) (string, error)
+	GetAllTags(ctx context.Context) (map[string]string, error)
+	InvalidateCache()
+}
+
 // MentorRepository handles mentor data access
 type MentorRepository struct {
-	airtableClient *airtable.Client
-	mentorCache    *cache.MentorCache
-	tagsCache      *cache.TagsCache
+	airtableClient airtable.ClientInterface
+	mentorCache    cache.MentorCacheInterface
+	tagsCache      cache.TagsCacheInterface
 }
 
 // NewMentorRepository creates a new mentor repository
-func NewMentorRepository(airtableClient *airtable.Client, mentorCache *cache.MentorCache, tagsCache *cache.TagsCache) *MentorRepository {
+func NewMentorRepository(airtableClient airtable.ClientInterface, mentorCache cache.MentorCacheInterface, tagsCache cache.TagsCacheInterface) MentorRepositoryInterface {
 	return &MentorRepository{
 		airtableClient: airtableClient,
 		mentorCache:    mentorCache,
@@ -25,14 +39,14 @@ func NewMentorRepository(airtableClient *airtable.Client, mentorCache *cache.Men
 }
 
 // GetAll retrieves all mentors with optional filtering
-func (r *MentorRepository) GetAll(opts models.FilterOptions) ([]*models.Mentor, error) {
+func (r *MentorRepository) GetAll(ctx context.Context, opts models.FilterOptions) ([]*models.Mentor, error) {
 	var mentors []*models.Mentor
 	var err error
 
 	if opts.ForceRefresh {
-		mentors, err = r.mentorCache.ForceRefresh()
+		mentors, err = r.mentorCache.ForceRefresh(ctx)
 	} else {
-		mentors, err = r.mentorCache.Get()
+		mentors, err = r.mentorCache.Get(ctx)
 	}
 
 	if err != nil {
@@ -46,8 +60,8 @@ func (r *MentorRepository) GetAll(opts models.FilterOptions) ([]*models.Mentor, 
 }
 
 // GetByID retrieves a mentor by numeric ID
-func (r *MentorRepository) GetByID(id int, opts models.FilterOptions) (*models.Mentor, error) {
-	mentors, err := r.GetAll(opts)
+func (r *MentorRepository) GetByID(ctx context.Context, id int, opts models.FilterOptions) (*models.Mentor, error) {
+	mentors, err := r.GetAll(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -62,8 +76,8 @@ func (r *MentorRepository) GetByID(id int, opts models.FilterOptions) (*models.M
 }
 
 // GetBySlug retrieves a mentor by slug
-func (r *MentorRepository) GetBySlug(slug string, opts models.FilterOptions) (*models.Mentor, error) {
-	mentors, err := r.GetAll(opts)
+func (r *MentorRepository) GetBySlug(ctx context.Context, slug string, opts models.FilterOptions) (*models.Mentor, error) {
+	mentors, err := r.GetAll(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -78,8 +92,8 @@ func (r *MentorRepository) GetBySlug(slug string, opts models.FilterOptions) (*m
 }
 
 // GetByRecordID retrieves a mentor by Airtable record ID
-func (r *MentorRepository) GetByRecordID(recordID string, opts models.FilterOptions) (*models.Mentor, error) {
-	mentors, err := r.GetAll(opts)
+func (r *MentorRepository) GetByRecordID(ctx context.Context, recordID string, opts models.FilterOptions) (*models.Mentor, error) {
+	mentors, err := r.GetAll(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -94,8 +108,8 @@ func (r *MentorRepository) GetByRecordID(recordID string, opts models.FilterOpti
 }
 
 // Update updates a mentor in Airtable
-func (r *MentorRepository) Update(recordID string, updates map[string]interface{}) error {
-	err := r.airtableClient.UpdateMentor(recordID, updates)
+func (r *MentorRepository) Update(ctx context.Context, recordID string, updates map[string]interface{}) error {
+	err := r.airtableClient.UpdateMentor(ctx, recordID, updates)
 	if err != nil {
 		return err
 	}
@@ -105,18 +119,18 @@ func (r *MentorRepository) Update(recordID string, updates map[string]interface{
 }
 
 // UpdateImage updates a mentor's profile image
-func (r *MentorRepository) UpdateImage(recordID, imageURL string) error {
-	return r.airtableClient.UpdateMentorImage(recordID, imageURL)
+func (r *MentorRepository) UpdateImage(ctx context.Context, recordID, imageURL string) error {
+	return r.airtableClient.UpdateMentorImage(ctx, recordID, imageURL)
 }
 
 // GetTagIDByName retrieves a tag ID by name
-func (r *MentorRepository) GetTagIDByName(name string) (string, error) {
-	return r.tagsCache.GetTagIDByName(name)
+func (r *MentorRepository) GetTagIDByName(ctx context.Context, name string) (string, error) {
+	return r.tagsCache.GetTagIDByName(ctx, name)
 }
 
 // GetAllTags retrieves all tags
-func (r *MentorRepository) GetAllTags() (map[string]string, error) {
-	return r.tagsCache.Get()
+func (r *MentorRepository) GetAllTags(ctx context.Context) (map[string]string, error) {
+	return r.tagsCache.Get(ctx)
 }
 
 // applyFilters applies filtering options to a mentor list

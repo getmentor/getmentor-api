@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -13,6 +14,15 @@ import (
 	"go.uber.org/zap"
 )
 
+// MentorCacheInterface defines the interface for mentor cache operations.
+type MentorCacheInterface interface {
+	Initialize(ctx context.Context) error
+	IsReady() bool
+	Get(ctx context.Context) ([]*models.Mentor, error)
+	ForceRefresh(ctx context.Context) ([]*models.Mentor, error)
+	Clear()
+}
+
 const (
 	mentorsCacheKey  = "mentors"
 	mentorsCacheName = "mentors"
@@ -24,7 +34,7 @@ const (
 // MentorCache manages the in-memory cache for mentors
 type MentorCache struct {
 	cache          *gocache.Cache
-	airtableClient *airtable.Client
+	airtableClient airtable.ClientInterface
 	mu             sync.RWMutex
 	refreshing     bool
 	ready          bool // Indicates if cache has been successfully initialized
@@ -32,7 +42,7 @@ type MentorCache struct {
 }
 
 // NewMentorCache creates a new mentor cache
-func NewMentorCache(airtableClient *airtable.Client, ttlSeconds int) *MentorCache {
+func NewMentorCache(airtableClient airtable.ClientInterface, ttlSeconds int) MentorCacheInterface {
 	ttl := time.Duration(ttlSeconds) * time.Second
 	cache := gocache.New(ttl, cacheCheckPeriod)
 
@@ -49,7 +59,7 @@ func NewMentorCache(airtableClient *airtable.Client, ttlSeconds int) *MentorCach
 		if key == mentorsCacheKey {
 			logger.Info("Mentor cache expired, triggering background refresh")
 			go func() {
-				if err := mc.refreshInBackground(); err != nil {
+				if err := mc.refreshInBackground(context.Background()); err != nil {
 					logger.Error("Failed to refresh mentor cache in background", zap.Error(err))
 				}
 			}()
@@ -61,9 +71,9 @@ func NewMentorCache(airtableClient *airtable.Client, ttlSeconds int) *MentorCach
 
 // Initialize performs initial cache population (synchronous, blocks until ready)
 // Should be called during application startup before accepting requests
-func (mc *MentorCache) Initialize() error {
+func (mc *MentorCache) Initialize(ctx context.Context) error {
 	logger.Info("Initializing mentor cache...")
-	err := mc.refreshWithRetry()
+	err := mc.refreshWithRetry(ctx)
 	if err != nil {
 		logger.Error("Failed to initialize mentor cache", zap.Error(err))
 		return err
@@ -86,7 +96,7 @@ func (mc *MentorCache) IsReady() bool {
 
 // Get retrieves mentors from cache (stale-while-revalidate pattern)
 // Returns cached data even if refresh is in progress
-func (mc *MentorCache) Get() ([]*models.Mentor, error) {
+func (mc *MentorCache) Get(ctx context.Context) ([]*models.Mentor, error) {
 	// Check cache
 	if data, found := mc.cache.Get(mentorsCacheKey); found {
 		metrics.CacheHits.WithLabelValues(mentorsCacheName).Inc()
@@ -108,18 +118,18 @@ func (mc *MentorCache) Get() ([]*models.Mentor, error) {
 	}
 
 	// Try to refresh synchronously on cache miss
-	return mc.refreshSync()
+	return mc.refreshSync(ctx)
 }
 
 // ForceRefresh forces a cache refresh
-func (mc *MentorCache) ForceRefresh() ([]*models.Mentor, error) {
+func (mc *MentorCache) ForceRefresh(ctx context.Context) ([]*models.Mentor, error) {
 	logger.Info("Force refreshing mentor cache")
-	return mc.refreshSync()
+	return mc.refreshSync(ctx)
 }
 
 // refreshSync performs a synchronous refresh
 // Returns old cache data if refresh is already in progress
-func (mc *MentorCache) refreshSync() ([]*models.Mentor, error) {
+func (mc *MentorCache) refreshSync(ctx context.Context) ([]*models.Mentor, error) {
 	mc.mu.Lock()
 
 	// Check if already refreshing - if so, return old cache data (stale-while-revalidate)
@@ -153,12 +163,12 @@ func (mc *MentorCache) refreshSync() ([]*models.Mentor, error) {
 		mc.mu.Unlock()
 	}()
 
-	return mc.doRefresh()
+	return mc.doRefresh(ctx)
 }
 
 // refreshInBackground performs a background refresh
 // Does not block, does not return data
-func (mc *MentorCache) refreshInBackground() error {
+func (mc *MentorCache) refreshInBackground(ctx context.Context) error {
 	mc.mu.Lock()
 
 	// Check if already refreshing
@@ -177,12 +187,12 @@ func (mc *MentorCache) refreshInBackground() error {
 		mc.mu.Unlock()
 	}()
 
-	_, err := mc.doRefresh()
+	_, err := mc.doRefresh(ctx)
 	return err
 }
 
 // refreshWithRetry performs a refresh with exponential backoff retry logic
-func (mc *MentorCache) refreshWithRetry() error {
+func (mc *MentorCache) refreshWithRetry(ctx context.Context) error {
 	var err error
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
@@ -195,7 +205,7 @@ func (mc *MentorCache) refreshWithRetry() error {
 			time.Sleep(waitTime)
 		}
 
-		_, err = mc.doRefresh()
+		_, err = mc.doRefresh(ctx)
 		if err == nil {
 			return nil
 		}
@@ -209,9 +219,9 @@ func (mc *MentorCache) refreshWithRetry() error {
 }
 
 // doRefresh performs the actual refresh operation
-func (mc *MentorCache) doRefresh() ([]*models.Mentor, error) {
+func (mc *MentorCache) doRefresh(ctx context.Context) ([]*models.Mentor, error) {
 	// Fetch from Airtable
-	mentors, err := mc.airtableClient.GetAllMentors()
+	mentors, err := mc.airtableClient.GetAllMentors(ctx)
 	if err != nil {
 		logger.Error("Failed to fetch mentors from Airtable", zap.Error(err))
 		return nil, err

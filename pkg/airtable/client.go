@@ -23,6 +23,18 @@ const (
 	TagsTableName           = "Tags"
 )
 
+// ClientInterface defines the interface for Airtable client operations.
+type ClientInterface interface {
+	GetAllMentors(ctx context.Context) ([]*models.Mentor, error)
+	GetMentorByID(ctx context.Context, id int) (*models.Mentor, error)
+	GetMentorBySlug(ctx context.Context, slug string) (*models.Mentor, error)
+	GetMentorByRecordID(ctx context.Context, recordID string) (*models.Mentor, error)
+	UpdateMentor(ctx context.Context, recordID string, updates map[string]interface{}) error
+	UpdateMentorImage(ctx context.Context, recordID, imageURL string) error
+	CreateClientRequest(ctx context.Context, req *models.ClientRequest) error
+	GetAllTags(ctx context.Context) (map[string]string, error)
+}
+
 // Client represents an Airtable client with circuit breaker protection
 type Client struct {
 	client         *airtable.Client
@@ -32,7 +44,7 @@ type Client struct {
 }
 
 // NewClient creates a new Airtable client using mehanizm/airtable library
-func NewClient(apiKey, baseID string, workOffline bool) (*Client, error) {
+func NewClient(apiKey, baseID string, workOffline bool) (ClientInterface, error) {
 	// Initialize circuit breaker with default config
 	cbConfig := circuitbreaker.DefaultConfig("airtable")
 	cb := circuitbreaker.NewCircuitBreaker(cbConfig)
@@ -71,7 +83,7 @@ func NewClient(apiKey, baseID string, workOffline bool) (*Client, error) {
 }
 
 // GetAllMentors fetches all approved mentors from Airtable with circuit breaker protection
-func (c *Client) GetAllMentors() ([]*models.Mentor, error) {
+func (c *Client) GetAllMentors(ctx context.Context) ([]*models.Mentor, error) {
 	if c.workOffline {
 		logger.Info("Returning test data in offline mode")
 		return c.getTestMentors(), nil
@@ -79,9 +91,10 @@ func (c *Client) GetAllMentors() ([]*models.Mentor, error) {
 
 	// Execute the request through the circuit breaker
 	return circuitbreaker.ExecuteWithFallback(
+		ctx,
 		c.circuitBreaker,
-		func() ([]*models.Mentor, error) {
-			return c.fetchAllMentors()
+		func(ctx context.Context) ([]*models.Mentor, error) {
+			return c.fetchAllMentors(ctx)
 		},
 		func() ([]*models.Mentor, error) {
 			// Fallback: return empty list and log warning
@@ -92,13 +105,9 @@ func (c *Client) GetAllMentors() ([]*models.Mentor, error) {
 }
 
 // fetchAllMentors performs the actual Airtable API call with retry logic
-func (c *Client) fetchAllMentors() ([]*models.Mentor, error) {
+func (c *Client) fetchAllMentors(ctx context.Context) ([]*models.Mentor, error) {
 	start := time.Now()
 	operation := "getAllMentors"
-
-	// Use retry logic with context timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 
 	retryConfig := retry.AirtableConfig()
 
@@ -174,8 +183,8 @@ func (c *Client) fetchAllMentors() ([]*models.Mentor, error) {
 }
 
 // GetMentorByID fetches a mentor by numeric ID
-func (c *Client) GetMentorByID(id int) (*models.Mentor, error) {
-	mentors, err := c.GetAllMentors()
+func (c *Client) GetMentorByID(ctx context.Context, id int) (*models.Mentor, error) {
+	mentors, err := c.GetAllMentors(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -190,8 +199,8 @@ func (c *Client) GetMentorByID(id int) (*models.Mentor, error) {
 }
 
 // GetMentorBySlug fetches a mentor by slug
-func (c *Client) GetMentorBySlug(slug string) (*models.Mentor, error) {
-	mentors, err := c.GetAllMentors()
+func (c *Client) GetMentorBySlug(ctx context.Context, slug string) (*models.Mentor, error) {
+	mentors, err := c.GetAllMentors(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -206,9 +215,8 @@ func (c *Client) GetMentorBySlug(slug string) (*models.Mentor, error) {
 }
 
 // GetMentorByRecordID fetches a mentor by Airtable record ID
-func (c *Client) GetMentorByRecordID(recordID string) (*models.Mentor, error) {
-	// Just fetch all mentors and filter - simpler than using the API filter
-	mentors, err := c.GetAllMentors()
+func (c *Client) GetMentorByRecordID(ctx context.Context, recordID string) (*models.Mentor, error) {
+	mentors, err := c.GetAllMentors(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +231,7 @@ func (c *Client) GetMentorByRecordID(recordID string) (*models.Mentor, error) {
 }
 
 // UpdateMentor updates a mentor record in Airtable with retry logic
-func (c *Client) UpdateMentor(recordID string, updates map[string]interface{}) error {
+func (c *Client) UpdateMentor(ctx context.Context, recordID string, updates map[string]interface{}) error {
 	if c.workOffline {
 		logger.Info("Skipping Airtable update in offline mode", zap.String("record_id", recordID))
 		return nil
@@ -231,10 +239,6 @@ func (c *Client) UpdateMentor(recordID string, updates map[string]interface{}) e
 
 	start := time.Now()
 	operation := "updateMentor"
-
-	// Use retry logic with context timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 
 	retryConfig := retry.AirtableConfig()
 
@@ -275,16 +279,16 @@ func (c *Client) UpdateMentor(recordID string, updates map[string]interface{}) e
 }
 
 // UpdateMentorImage updates a mentor's profile image
-func (c *Client) UpdateMentorImage(recordID, imageURL string) error {
+func (c *Client) UpdateMentorImage(ctx context.Context, recordID, imageURL string) error {
 	updates := map[string]interface{}{
 		"Image_Attachment": []map[string]string{{"url": imageURL}},
 	}
 
-	return c.UpdateMentor(recordID, updates)
+	return c.UpdateMentor(ctx, recordID, updates)
 }
 
 // CreateClientRequest creates a new client request in Airtable with retry logic
-func (c *Client) CreateClientRequest(req *models.ClientRequest) error {
+func (c *Client) CreateClientRequest(ctx context.Context, req *models.ClientRequest) error {
 	if c.workOffline {
 		logger.Info("Skipping client request creation in offline mode")
 		return nil
@@ -292,10 +296,6 @@ func (c *Client) CreateClientRequest(req *models.ClientRequest) error {
 
 	start := time.Now()
 	operation := "createClientRequest"
-
-	// Use retry logic with context timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 
 	retryConfig := retry.AirtableConfig()
 
@@ -347,16 +347,17 @@ func (c *Client) CreateClientRequest(req *models.ClientRequest) error {
 }
 
 // GetAllTags fetches all tags from Airtable with circuit breaker protection
-func (c *Client) GetAllTags() (map[string]string, error) {
+func (c *Client) GetAllTags(ctx context.Context) (map[string]string, error) {
 	if c.workOffline {
 		return c.getTestTags(), nil
 	}
 
 	// Execute through circuit breaker with fallback
 	return circuitbreaker.ExecuteWithFallback(
+		ctx,
 		c.circuitBreaker,
-		func() (map[string]string, error) {
-			return c.fetchAllTags()
+		func(ctx context.Context) (map[string]string, error) {
+			return c.fetchAllTags(ctx)
 		},
 		func() (map[string]string, error) {
 			// Fallback: return empty map
@@ -367,13 +368,9 @@ func (c *Client) GetAllTags() (map[string]string, error) {
 }
 
 // fetchAllTags performs the actual Airtable API call with retry logic
-func (c *Client) fetchAllTags() (map[string]string, error) {
+func (c *Client) fetchAllTags(ctx context.Context) (map[string]string, error) {
 	start := time.Now()
 	operation := "getAllTags"
-
-	// Use retry logic with context timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 
 	retryConfig := retry.AirtableConfig()
 
