@@ -261,6 +261,7 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN", "token1")
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN_INNO", "token2")
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN_AIKB", "token3")
+	os.Setenv("WEBHOOK_SECRET", "webhook-secret")
 	os.Setenv("RECAPTCHA_V2_SECRET_KEY", "recaptcha-secret")
 	os.Setenv("NEXTJS_BASE_URL", "https://example.com")
 
