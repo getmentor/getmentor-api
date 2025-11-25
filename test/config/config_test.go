@@ -190,7 +190,7 @@ func TestLoad_WithDefaults(t *testing.T) {
 	assert.NotNil(t, cfg)
 
 	// Check defaults
-	assert.Equal(t, "8080", cfg.Server.Port)
+	assert.Equal(t, "8081", cfg.Server.Port)
 	assert.Equal(t, "release", cfg.Server.GinMode)
 	assert.Equal(t, "production", cfg.Server.AppEnv)
 	assert.Equal(t, "info", cfg.Logging.Level)

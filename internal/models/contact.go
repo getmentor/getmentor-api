@@ -2,13 +2,13 @@ package models
 
 // ContactMentorRequest represents a contact form submission
 type ContactMentorRequest struct {
-	Name             string `json:"name" binding:"required"`
-	Email            string `json:"email" binding:"required,email"`
-	Experience       string `json:"experience"`
-	MentorAirtableID string `json:"mentorAirtableId" binding:"required"`
-	Intro            string `json:"intro" binding:"required"`
-	TelegramUsername string `json:"telegramUsername" binding:"required"`
-	RecaptchaToken   string `json:"recaptchaToken" binding:"required"`
+	Name             string `json:"name" binding:"required,min=2,max=100"`
+	Email            string `json:"email" binding:"required,email,max=255"`
+	Experience       string `json:"experience" binding:"omitempty,oneof=junior middle senior"`
+	MentorAirtableID string `json:"mentorAirtableId" binding:"required,startswith=rec"`
+	Intro            string `json:"intro" binding:"required,min=10,max=2000"`
+	TelegramUsername string `json:"telegramUsername" binding:"omitempty,max=50,alphanum"`
+	RecaptchaToken   string `json:"recaptchaToken" binding:"required,min=20"`
 }
 
 // ContactMentorResponse represents the response after submitting a contact form
