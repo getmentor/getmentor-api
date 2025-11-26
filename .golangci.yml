@@ -1,5 +1,3 @@
-version: 2
-
 run:
   timeout: 5m
   tests: true
@@ -7,10 +5,12 @@ run:
 
 linters:
   enable:
+    - gofmt
     - govet
     - errcheck
     - staticcheck
     - unused
+    - gosimple
     - ineffassign
     - typecheck
     - copyloopvar
