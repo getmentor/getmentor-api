@@ -1,10 +1,11 @@
 package handlers_test
 
 import (
-	"github.com/getmentor/getmentor-api/internal/handlers"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/getmentor/getmentor-api/internal/handlers"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"

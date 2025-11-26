@@ -1,10 +1,11 @@
 package middleware_test
 
 import (
-	"github.com/getmentor/getmentor-api/internal/middleware"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/getmentor/getmentor-api/internal/middleware"
 
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/gin-gonic/gin"
