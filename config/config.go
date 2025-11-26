@@ -8,6 +8,8 @@ import (
 )
 
 // Config holds all application configuration
+//
+//nolint:govet // Field alignment optimization would reduce readability
 type Config struct {
 	Server        ServerConfig
 	Airtable      AirtableConfig
@@ -113,7 +115,7 @@ func Load() (*Config, error) {
 	v.SetConfigType("env")
 	v.AddConfigPath(".")
 	v.AddConfigPath("..")
-	_ = v.ReadInConfig() // Ignore error if file doesn't exist
+	_ = v.ReadInConfig() //nolint:errcheck // Ignore error if .env file doesn't exist
 
 	// Parse allowed CORS origins (comma-separated)
 	allowedOrigins := []string{}

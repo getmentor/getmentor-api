@@ -29,6 +29,32 @@ import (
 	"go.uber.org/zap"
 )
 
+// registerAPIRoutes registers common API routes for a given router group
+func registerAPIRoutes(
+	group *gin.RouterGroup,
+	cfg *config.Config,
+	generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter *middleware.RateLimiter,
+	mentorHandler *handlers.MentorHandler,
+	contactHandler *handlers.ContactHandler,
+	profileHandler *handlers.ProfileHandler,
+	logsHandler *handlers.LogsHandler,
+	webhookHandler *handlers.WebhookHandler,
+) {
+	publicTokens := []string{
+		cfg.Auth.MentorsAPIToken,
+		cfg.Auth.MentorsAPITokenInno,
+		cfg.Auth.MentorsAPITokenAIKB,
+	}
+	group.GET("/mentors", generalRateLimiter.Middleware(), middleware.TokenAuthMiddleware(publicTokens...), mentorHandler.GetPublicMentors)
+	group.GET("/mentor/:id", generalRateLimiter.Middleware(), middleware.TokenAuthMiddleware(cfg.Auth.MentorsAPIToken, cfg.Auth.MentorsAPITokenInno), mentorHandler.GetPublicMentorByID)
+	group.POST("/internal/mentors", generalRateLimiter.Middleware(), middleware.InternalAPIAuthMiddleware(cfg.Auth.InternalMentorsAPI), mentorHandler.GetInternalMentors)
+	group.POST("/contact-mentor", contactRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(100*1024), contactHandler.ContactMentor)
+	group.POST("/save-profile", profileRateLimiter.Middleware(), profileHandler.SaveProfile)
+	group.POST("/upload-profile-picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), profileHandler.UploadProfilePicture)
+	group.POST("/logs", generalRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(1*1024*1024), logsHandler.ReceiveFrontendLogs)
+	group.POST("/webhooks/airtable", webhookRateLimiter.Middleware(), middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
+}
+
 func main() {
 	// Load configuration
 	cfg, err := config.Load()
@@ -38,11 +64,12 @@ func main() {
 	}
 
 	// Initialize logger
-	if err := logger.Initialize(logger.Config{
+	err = logger.Initialize(logger.Config{
 		Level:       cfg.Logging.Level,
 		LogDir:      cfg.Logging.Dir,
 		Environment: cfg.Server.AppEnv,
-	}); err != nil {
+	})
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
@@ -67,8 +94,8 @@ func main() {
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := tracerShutdown(ctx); err != nil {
-			logger.Error("Failed to shutdown tracer", zap.Error(err))
+		if shutdownErr := tracerShutdown(ctx); shutdownErr != nil {
+			logger.Error("Failed to shutdown tracer", zap.Error(shutdownErr))
 		}
 	}()
 
@@ -169,63 +196,23 @@ func main() {
 
 	// API routes
 	api := router.Group("/api")
-	{
-		// Utility endpoints (not versioned - operational endpoints)
-		api.GET("/healthcheck", generalRateLimiter.Middleware(), healthHandler.Healthcheck)
-		api.GET("/metrics", generalRateLimiter.Middleware(), gin.WrapH(promhttp.Handler()))
-	}
+	// Utility endpoints (not versioned - operational endpoints)
+	api.GET("/healthcheck", generalRateLimiter.Middleware(), healthHandler.Healthcheck)
+	api.GET("/metrics", generalRateLimiter.Middleware(), gin.WrapH(promhttp.Handler()))
 
 	// API v1 routes
 	// SECURITY: Apply body size limits to prevent DoS attacks
 	v1 := router.Group("/api/v1")
 	v1.Use(middleware.BodySizeLimitMiddleware(1 * 1024 * 1024)) // Default 1 MB limit
-	{
-		// Public mentor endpoints
-		publicTokens := []string{
-			cfg.Auth.MentorsAPIToken,
-			cfg.Auth.MentorsAPITokenInno,
-			cfg.Auth.MentorsAPITokenAIKB,
-		}
-		v1.GET("/mentors", generalRateLimiter.Middleware(), middleware.TokenAuthMiddleware(publicTokens...), mentorHandler.GetPublicMentors)
-		v1.GET("/mentor/:id", generalRateLimiter.Middleware(), middleware.TokenAuthMiddleware(cfg.Auth.MentorsAPIToken, cfg.Auth.MentorsAPITokenInno), mentorHandler.GetPublicMentorByID)
-
-		// Internal mentor endpoint
-		v1.POST("/internal/mentors", generalRateLimiter.Middleware(), middleware.InternalAPIAuthMiddleware(cfg.Auth.InternalMentorsAPI), mentorHandler.GetInternalMentors)
-
-		// Contact endpoint (smaller limit for forms + stricter rate limit)
-		v1.POST("/contact-mentor", contactRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(100*1024), contactHandler.ContactMentor)
-
-		// Profile endpoints (moderate rate limit)
-		v1.POST("/save-profile", profileRateLimiter.Middleware(), profileHandler.SaveProfile)
-		// Profile picture upload needs larger limit for base64-encoded images (10 MB)
-		v1.POST("/upload-profile-picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), profileHandler.UploadProfilePicture)
-
-		// Logs endpoint - receive logs from frontend for centralized collection (moderate rate limit, 1 MB max)
-		v1.POST("/logs", generalRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(1*1024*1024), logsHandler.ReceiveFrontendLogs)
-
-		// Webhook endpoint (moderate rate limit)
-		v1.POST("/webhooks/airtable", webhookRateLimiter.Middleware(), middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
-	}
+	registerAPIRoutes(v1, cfg, generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter,
+		mentorHandler, contactHandler, profileHandler, logsHandler, webhookHandler)
 
 	// Backward compatibility: Alias old /api/* routes to /api/v1/* (DEPRECATED - to be removed in future)
 	// This allows gradual migration of clients to versioned endpoints
 	apiCompat := router.Group("/api")
 	apiCompat.Use(middleware.BodySizeLimitMiddleware(1 * 1024 * 1024))
-	{
-		publicTokens := []string{
-			cfg.Auth.MentorsAPIToken,
-			cfg.Auth.MentorsAPITokenInno,
-			cfg.Auth.MentorsAPITokenAIKB,
-		}
-		apiCompat.GET("/mentors", generalRateLimiter.Middleware(), middleware.TokenAuthMiddleware(publicTokens...), mentorHandler.GetPublicMentors)
-		apiCompat.GET("/mentor/:id", generalRateLimiter.Middleware(), middleware.TokenAuthMiddleware(cfg.Auth.MentorsAPIToken, cfg.Auth.MentorsAPITokenInno), mentorHandler.GetPublicMentorByID)
-		apiCompat.POST("/internal/mentors", generalRateLimiter.Middleware(), middleware.InternalAPIAuthMiddleware(cfg.Auth.InternalMentorsAPI), mentorHandler.GetInternalMentors)
-		apiCompat.POST("/contact-mentor", contactRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(100*1024), contactHandler.ContactMentor)
-		apiCompat.POST("/save-profile", profileRateLimiter.Middleware(), profileHandler.SaveProfile)
-		apiCompat.POST("/upload-profile-picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), profileHandler.UploadProfilePicture)
-		apiCompat.POST("/logs", generalRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(1*1024*1024), logsHandler.ReceiveFrontendLogs)
-		apiCompat.POST("/webhooks/airtable", webhookRateLimiter.Middleware(), middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
-	}
+	registerAPIRoutes(apiCompat, cfg, generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter,
+		mentorHandler, contactHandler, profileHandler, logsHandler, webhookHandler)
 
 	// Create HTTP server
 	// SECURITY: Bind to all interfaces for Docker Compose networking
