@@ -95,7 +95,7 @@ jobs:
             -e NEXTJS_BASE_URL=http://localhost:3000 \
             -e NEXTJS_REVALIDATE_SECRET=test \
             -e REVALIDATE_SECRET_TOKEN=test \
-            -p 8080:8080 \
+            -p 8081:8081 \
             getmentor-api:${{ github.sha }}
 
           # Wait for container to start
@@ -105,10 +105,10 @@ jobs:
           docker ps | grep test-container
 
           # Test health check endpoint
-          curl -f http://localhost:8080/api/healthcheck || exit 1
+          curl -f http://localhost:8081/api/healthcheck || exit 1
 
           # Test metrics endpoint
-          curl -f http://localhost:8080/api/metrics | grep "gm_api_" || exit 1
+          curl -f http://localhost:8081/api/metrics | grep "gm_api_" || exit 1
 
           # Show logs for debugging
           docker logs test-container
