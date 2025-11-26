@@ -40,6 +40,7 @@ func registerAPIRoutes(
 	logsHandler *handlers.LogsHandler,
 	webhookHandler *handlers.WebhookHandler,
 ) {
+
 	publicTokens := []string{
 		cfg.Auth.MentorsAPIToken,
 		cfg.Auth.MentorsAPITokenInno,

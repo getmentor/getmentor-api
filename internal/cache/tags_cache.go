@@ -69,7 +69,13 @@ func (tc *TagsCache) Get() (map[string]string, error) {
 	// Check cache
 	if data, found := tc.cache.Get(tagsCacheKey); found {
 		logger.Debug("Tags cache hit")
-		return data.(map[string]string), nil
+		tags, ok := data.(map[string]string)
+		if !ok {
+			logger.Error("Invalid tags cache data type")
+			tc.cache.Delete(tagsCacheKey)
+			return nil, fmt.Errorf("invalid cache data type")
+		}
+		return tags, nil
 	}
 
 	logger.Info("Tags cache miss, fetching from Airtable")

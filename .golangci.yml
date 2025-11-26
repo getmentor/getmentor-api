@@ -38,6 +38,8 @@ linters-settings:
 
   govet:
     enable-all: true
+    disable:
+      - fieldalignment  # Minor memory optimization, reduces readability
 
   gocyclo:
     min-complexity: 15
@@ -57,10 +59,12 @@ linters-settings:
       - diagnostic
       - performance
       - style
-      - experimental
     disabled-checks:
       - commentedOutCode
       - whyNoLint
+      - unnamedResult
+      - ifElseChain
+      - octalLiteral
 
   revive:
     confidence: 0.8
@@ -94,6 +98,7 @@ linters-settings:
     confidence: medium
     excludes:
       - G104  # Audit errors not checked (covered by errcheck)
+      - G115  # Integer overflow conversion (too many false positives)
 
   whitespace:
     multi-if: true

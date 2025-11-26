@@ -78,8 +78,8 @@ func (h *ProfileHandler) UploadProfilePicture(c *gin.Context) {
 	}
 
 	var req models.UploadProfilePictureRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		validationErrors := ParseValidationErrors(err)
+	if bindErr := c.ShouldBindJSON(&req); bindErr != nil {
+		validationErrors := ParseValidationErrors(bindErr)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Validation failed",
 			"details": validationErrors,
