@@ -29,22 +29,22 @@ jobs:
       - name: Check test coverage
         run: |
           echo "Checking test coverage..."
-          
-          pkgs=$(go list ./... | grep -v '/test/' || true)
 
-          if [ -z "$pkgs" ]; then
-            echo "No packages found for coverage (all matched /test/ exclusion)."
+          # Run tests on all packages to generate coverage
+          go test -covermode=count -coverprofile=coverage.out ./...
+
+          # If coverage.out is missing or empty, treat coverage as 0
+          if [ ! -s coverage.out ]; then
+            echo "No coverage data produced."
             coverage=0
-          else # Run coverage for selected packages and produce profile
-            go test -covermode=count -coverprofile=coverage.out $pkgs # If coverage.out is missing or empty, treat coverage as 0
-            if [ ! -s coverage.out ]; then
-              echo "No coverage data produced."
-              overage=0
-            else
-              coverage=$(go tool cover -func=coverage.out | awk '/^total:/ {print $3}' | sed 's/%//')
+          else
+            coverage=$(go tool cover -func=coverage.out | awk '/^total:/ {print $3}' | sed 's/%//')
+            # If coverage is empty, set to 0
+            if [ -z "$coverage" ]; then
+              coverage=0
             fi
           fi
-          
+
           echo "Total coverage: ${coverage}%"
 
           # Set minimum coverage threshold (currently lenient, increase over time)
@@ -77,9 +77,10 @@ jobs:
           args: '-no-fail -fmt sarif -out results.sarif ./...'
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: results.sarif
+        continue-on-error: true
 
   # Build verification
   build:
