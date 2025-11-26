@@ -64,7 +64,7 @@ docker-build:
 # Run Docker container
 docker-run:
 	@echo "Running Docker container..."
-	@docker run -p 8080:8080 --env-file .env getmentor-api:latest
+	@docker run -p 8081:8081 --env-file .env getmentor-api:latest
 
 # Build and test Docker image
 docker-test:
