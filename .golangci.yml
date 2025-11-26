@@ -25,7 +25,6 @@ linters:
     - bodyclose
     - sqlclosecheck
     - rowserrcheck
-    - exportloopref
     - whitespace
     - prealloc
     - goimports

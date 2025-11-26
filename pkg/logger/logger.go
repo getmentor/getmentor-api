@@ -48,9 +48,8 @@ func Initialize(cfg Config) error {
 	// Configure logging with rotation in production
 	if cfg.Environment == "production" && cfg.LogDir != "" {
 		// Ensure log directory exists
-		//nolint:gosec // G301: 0755 is appropriate for log directory to allow group/other read
-		if err := os.MkdirAll(cfg.LogDir, 0o755); err != nil {
-			return fmt.Errorf("failed to create log directory: %w", err)
+		if mkdirErr := os.MkdirAll(cfg.LogDir, 0o755); mkdirErr != nil {
+			return fmt.Errorf("failed to create log directory: %w", mkdirErr)
 		}
 
 		// Configure log rotation with lumberjack
@@ -154,7 +153,7 @@ func With(fields ...zap.Field) *zap.Logger {
 
 // Sync flushes any buffered log entries
 func Sync() {
-	_ = Log.Sync()
+	_ = Log.Sync() //nolint:errcheck // Best-effort sync on exit, failure is acceptable
 }
 
 // LogHTTPRequest logs an HTTP request with standard fields
