@@ -31,7 +31,8 @@ jobs:
           echo "Checking test coverage..."
 
           # Run tests on all packages to generate coverage
-          go test -covermode=count -coverprofile=coverage.out ./...
+          # Use -coverpkg to measure coverage across all packages, not just test packages
+          go test -covermode=count -coverprofile=coverage.out -coverpkg=./... ./...
 
           # If coverage.out is missing or empty, treat coverage as 0
           if [ ! -s coverage.out ]; then
