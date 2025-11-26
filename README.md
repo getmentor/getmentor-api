@@ -1,7 +1,5 @@
-[![Test](https://github.com/getmentor/getmentor-api/actions/workflows/test.yml/badge.svg)](https://github.com/YOUR_ORG/
-getmentor-api/actions/workflows/test.yml)
-[![PR Checks](https://github.com/getmentor/getmentor-api/actions/workflows/pr-checks.yml/badge.svg)](https://github.com
-/YOUR_ORG/getmentor-api/actions/workflows/pr-checks.yml)
+[![Test](https://github.com/getmentor/getmentor-api/actions/workflows/test.yml/badge.svg)](https://github.com/getmentor/getmentor-api/actions/workflows/test.yml)
+[![PR Checks](https://github.com/getmentor/getmentor-api/actions/workflows/pr-checks.yml/badge.svg)](https://github.com/getmentor/getmentor-api/actions/workflows/pr-checks.yml)
 
 # GetMentor API (Go)
 
