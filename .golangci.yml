@@ -1,5 +1,3 @@
-version: 2
-
 run:
   timeout: 5m
   tests: true
@@ -7,29 +5,101 @@ run:
 
 linters:
   enable:
+    - gofmt
     - govet
     - errcheck
     - staticcheck
     - unused
+    - gosimple
     - ineffassign
+    - typecheck
+    - copyloopvar
     - gocritic
     - gocyclo
     - misspell
     - revive
     - gosec
+    - unconvert
+    - unparam
+    - goconst
+    - dupl
+    - bodyclose
+    - noctx
+    - sqlclosecheck
+    - rowserrcheck
+    - exportloopref
+    - whitespace
+    - prealloc
+    - goimports
 
 linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  govet:
+    check-shadowing: true
+    enable-all: true
+
   gocyclo:
     min-complexity: 15
+
+  dupl:
+    threshold: 100
+
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+
+  misspell:
+    locale: US
+
   gocritic:
     enabled-tags:
       - diagnostic
       - performance
       - style
+      - experimental
+    disabled-checks:
+      - commentedOutCode
+      - whyNoLint
+
   revive:
+    confidence: 0.8
     rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: if-return
+      - name: increment-decrement
+      - name: var-naming
+      - name: var-declaration
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unused-parameter
+      - name: unreachable-code
+      - name: redefines-builtin-id
       - name: exported
         disabled: true
+
+  gosec:
+    severity: medium
+    confidence: medium
+    excludes:
+      - G104  # Audit errors not checked (covered by errcheck)
+
+  whitespace:
+    multi-if: true
+    multi-func: true
 
 issues:
   exclude-rules:
@@ -38,11 +108,28 @@ issues:
       linters:
         - gocyclo
         - errcheck
+        - dupl
         - gosec
+        - goconst
+
+    # Exclude known issues in generated code
+    - path: ".*\\.pb\\.go"
+      linters:
+        - all
+
+    # Exclude some staticcheck messages
+    - linters:
+        - staticcheck
+      text: "SA9003:"  # Empty branch
+
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false
+  fix: false
 
 output:
-  formats:
-    colored-line-number:
-      path: stdout
+  format: colored-line-number
   print-issued-lines: true
   print-linter-name: true
+  uniq-by-line: true
+  sort-results: true

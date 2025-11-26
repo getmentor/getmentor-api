@@ -1,3 +1,8 @@
+[![Test](https://github.com/getmentor/getmentor-api/actions/workflows/test.yml/badge.svg)](https://github.com/YOUR_ORG/
+getmentor-api/actions/workflows/test.yml)
+[![PR Checks](https://github.com/getmentor/getmentor-api/actions/workflows/pr-checks.yml/badge.svg)](https://github.com
+/YOUR_ORG/getmentor-api/actions/workflows/pr-checks.yml)
+
 # GetMentor API (Go)
 
 Backend API service for GetMentor.dev platform, written in Go. This service handles all backend operations including Airtable integration, caching, profile management, and contact form submissions.
