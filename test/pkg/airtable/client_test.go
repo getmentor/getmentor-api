@@ -1,8 +1,9 @@
 package airtable_test
 
 import (
-	"github.com/getmentor/getmentor-api/pkg/airtable"
 	"testing"
+
+	"github.com/getmentor/getmentor-api/pkg/airtable"
 
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/stretchr/testify/assert"
