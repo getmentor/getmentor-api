@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type HealthHandler struct{
+type HealthHandler struct {
 	mentorCacheReady func() bool
 }
 

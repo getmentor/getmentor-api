@@ -29,8 +29,22 @@ jobs:
       - name: Check test coverage
         run: |
           echo "Checking test coverage..."
-          go test -coverprofile=coverage.out ./...
-          coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          
+          pkgs=$(go list ./... | grep -v '/test/' || true)
+
+          if [ -z "$pkgs" ]; then
+            echo "No packages found for coverage (all matched /test/ exclusion)."
+            coverage=0
+          else # Run coverage for selected packages and produce profile
+            go test -covermode=count -coverprofile=coverage.out $pkgs # If coverage.out is missing or empty, treat coverage as 0
+            if [ ! -s coverage.out ]; then
+              echo "No coverage data produced."
+              overage=0
+            else
+              coverage=$(go tool cover -func=coverage.out | awk '/^total:/ {print $3}' | sed 's/%//')
+            fi
+          fi
+          
           echo "Total coverage: ${coverage}%"
 
           # Set minimum coverage threshold (currently lenient, increase over time)
@@ -58,7 +72,7 @@ jobs:
           go-version: '1.25'
 
       - name: Run Gosec Security Scanner
-        uses: securego/gosec@master
+        uses: securego/gosec@v2.22.10
         with:
           args: '-no-fail -fmt sarif -out results.sarif ./...'
 

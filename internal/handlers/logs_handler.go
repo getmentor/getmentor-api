@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/gin-gonic/gin"
 	"github.com/getmentor/getmentor-api/pkg/logger"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
