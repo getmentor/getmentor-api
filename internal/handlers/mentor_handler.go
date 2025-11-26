@@ -70,7 +70,7 @@ func (h *MentorHandler) GetInternalMentors(c *gin.Context) {
 		ShowHidden     bool `json:"show_hidden"`
 		DropLongFields bool `json:"drop_long_fields"`
 	}
-	_ = c.ShouldBindJSON(&body)
+	_ = c.ShouldBindJSON(&body) //nolint:errcheck // Optional body parameters, errors are not critical
 
 	opts := models.FilterOptions{
 		OnlyVisible:    body.OnlyVisible,
