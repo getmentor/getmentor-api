@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sony/gobreaker"
 	"github.com/getmentor/getmentor-api/pkg/logger"
+	"github.com/sony/gobreaker"
 	"go.uber.org/zap"
 )
 
@@ -42,11 +42,11 @@ func DefaultConfig(name string) Config {
 // NewCircuitBreaker creates a new circuit breaker with the given config
 func NewCircuitBreaker(cfg Config) *gobreaker.CircuitBreaker {
 	settings := gobreaker.Settings{
-		Name:        cfg.Name,
-		MaxRequests: cfg.MaxRequests,
-		Interval:    cfg.Interval,
-		Timeout:     cfg.Timeout,
-		ReadyToTrip: cfg.ReadyToTrip,
+		Name:          cfg.Name,
+		MaxRequests:   cfg.MaxRequests,
+		Interval:      cfg.Interval,
+		Timeout:       cfg.Timeout,
+		ReadyToTrip:   cfg.ReadyToTrip,
 		OnStateChange: cfg.OnStateChange,
 	}
 

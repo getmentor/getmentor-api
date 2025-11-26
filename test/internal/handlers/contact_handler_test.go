@@ -212,7 +212,7 @@ func TestContactHandler_ContactMentor_InvalidEmail(t *testing.T) {
 	router.POST("/contact", handler.ContactMentor)
 
 	reqBody := models.ContactMentorRequest{
-		Email:            "not-an-email",  // Invalid format
+		Email:            "not-an-email", // Invalid format
 		Name:             "Test User",
 		Experience:       "middle",
 		Intro:            "I want to learn",
@@ -245,7 +245,7 @@ func TestContactHandler_ContactMentor_InvalidExperience(t *testing.T) {
 	reqBody := models.ContactMentorRequest{
 		Email:            "test@example.com",
 		Name:             "Test User",
-		Experience:       "invalid-level",  // Should be junior, middle, or senior
+		Experience:       "invalid-level", // Should be junior, middle, or senior
 		Intro:            "I want to learn",
 		MentorAirtableID: "rec123",
 		RecaptchaToken:   "token123456789012345",
@@ -276,7 +276,7 @@ func TestContactHandler_ContactMentor_TooLongFields(t *testing.T) {
 	// Name too long (> 100 chars)
 	reqBody := models.ContactMentorRequest{
 		Email:            "test@example.com",
-		Name:             strings.Repeat("A", 101),  // 101 characters
+		Name:             strings.Repeat("A", 101), // 101 characters
 		Experience:       "middle",
 		Intro:            "I want to learn",
 		MentorAirtableID: "rec123",
@@ -305,7 +305,7 @@ func TestContactHandler_ContactMentor_TooShortIntro(t *testing.T) {
 		Email:            "test@example.com",
 		Name:             "Test User",
 		Experience:       "middle",
-		Intro:            "Short",  // Less than 10 characters
+		Intro:            "Short", // Less than 10 characters
 		MentorAirtableID: "rec123",
 		RecaptchaToken:   "token123456789012345",
 	}
@@ -334,8 +334,8 @@ func TestContactHandler_ContactMentor_CaptchaFailed(t *testing.T) {
 		Experience:       "middle",
 		Intro:            "I want to learn Go programming",
 		TelegramUsername: "testuser",
-		MentorAirtableID: "rec123abc",  // Valid format (starts with 'rec')
-		RecaptchaToken:   "invalid-but-valid-length-token-12345",  // Valid length (>= 20 chars)
+		MentorAirtableID: "rec123abc",                            // Valid format (starts with 'rec')
+		RecaptchaToken:   "invalid-but-valid-length-token-12345", // Valid length (>= 20 chars)
 	}
 
 	// Mock captcha failure
@@ -414,10 +414,10 @@ func TestContactHandler_ContactMentor_WithoutTelegram(t *testing.T) {
 	router.POST("/contact", handler.ContactMentor)
 
 	reqBody := models.ContactMentorRequest{
-		Email:            "test@example.com",
-		Name:             "Test User",
-		Experience:       "middle",
-		Intro:            "I want to learn Go programming",
+		Email:      "test@example.com",
+		Name:       "Test User",
+		Experience: "middle",
+		Intro:      "I want to learn Go programming",
 		// TelegramUsername omitted (optional field)
 		MentorAirtableID: "rec123",
 		RecaptchaToken:   "valid-token-12345678901234",
