@@ -1,4 +1,4 @@
-.PHONY: help build run test test-coverage test-race lint docker-build docker-run clean
+.PHONY: help build run test test-coverage test-race lint docker-build docker-run clean fmt fmt-check vet security staticcheck ci pre-commit install-tools
 
 # Default target
 help:
@@ -9,10 +9,20 @@ help:
 	@echo "  test-coverage  - Run tests with coverage report"
 	@echo "  test-race      - Run tests with race detection"
 	@echo "  lint           - Run linters"
+	@echo "  vet            - Run go vet"
+	@echo "  fmt            - Format code"
+	@echo "  fmt-check      - Check code formatting"
+	@echo "  security       - Run security scanner (gosec)"
+	@echo "  staticcheck    - Run staticcheck"
+	@echo "  ci             - Run all CI checks"
+	@echo "  pre-commit     - Run pre-commit checks"
+	@echo "  install-tools  - Install development tools"
 	@echo "  docker-build   - Build Docker image"
 	@echo "  docker-run     - Run Docker container"
 	@echo "  docker-test    - Build and test Docker image"
 	@echo "  clean          - Clean build artifacts"
+	@echo "  deps           - Download dependencies"
+	@echo "  tidy           - Tidy dependencies"
 
 # Build the application
 build:
@@ -78,3 +88,60 @@ deps:
 tidy:
 	@echo "Tidying dependencies..."
 	@go mod tidy
+
+# Format code
+fmt:
+	@echo "Formatting code..."
+	@gofmt -w .
+
+# Check formatting
+fmt-check:
+	@echo "Checking code formatting..."
+	@if [ -n "$$(gofmt -l .)" ]; then \
+		echo "❌ Code is not formatted. Run 'make fmt'"; \
+		gofmt -d .; \
+		exit 1; \
+	fi
+	@echo "✅ All files are properly formatted"
+
+# Run go vet
+vet:
+	@echo "Running go vet..."
+	@go vet ./...
+
+# Run security scanner
+security:
+	@echo "Running security scanner..."
+	@if command -v gosec >/dev/null 2>&1; then \
+		gosec ./...; \
+	else \
+		echo "gosec not installed. Install with: go install github.com/securego/gosec/v2/cmd/gosec@latest"; \
+		exit 1; \
+	fi
+
+# Run staticcheck
+staticcheck:
+	@echo "Running staticcheck..."
+	@if command -v staticcheck >/dev/null 2>&1; then \
+		staticcheck ./...; \
+	else \
+		echo "staticcheck not installed. Install with: go install honnef.co/go/tools/cmd/staticcheck@latest"; \
+		exit 1; \
+	fi
+
+# Run all CI checks
+ci: fmt-check vet lint test-race security
+	@echo ""
+	@echo "✅ All CI checks passed!"
+
+# Pre-commit hook
+pre-commit: fmt vet test
+	@echo "✅ Pre-commit checks passed!"
+
+# Install development tools
+install-tools:
+	@echo "Installing development tools..."
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@go install github.com/securego/gosec/v2/cmd/gosec@latest
+	@go install honnef.co/go/tools/cmd/staticcheck@latest
+	@echo "✅ All tools installed!"
