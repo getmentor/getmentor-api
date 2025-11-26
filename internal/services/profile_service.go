@@ -26,6 +26,7 @@ func NewProfileService(
 	azureClient *azure.StorageClient,
 	cfg *config.Config,
 ) *ProfileService {
+
 	return &ProfileService{
 		mentorRepo:  mentorRepo,
 		azureClient: azureClient,
@@ -112,13 +113,13 @@ func (s *ProfileService) UploadProfilePicture(ctx context.Context, id int, token
 	}
 
 	// Validate file type
-	if err := s.azureClient.ValidateImageType(req.ContentType); err != nil {
-		return "", err
+	if typeErr := s.azureClient.ValidateImageType(req.ContentType); typeErr != nil {
+		return "", typeErr
 	}
 
 	// Validate file size
-	if err := s.azureClient.ValidateImageSize(req.Image); err != nil {
-		return "", err
+	if sizeErr := s.azureClient.ValidateImageSize(req.Image); sizeErr != nil {
+		return "", sizeErr
 	}
 
 	// Generate filename

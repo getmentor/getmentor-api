@@ -64,7 +64,13 @@ func Execute[T any](cb *gobreaker.CircuitBreaker, fn func() (T, error)) (T, erro
 		return zero, err
 	}
 
-	return result.(T), nil
+	typedResult, ok := result.(T)
+	if !ok {
+		var zero T
+		return zero, fmt.Errorf("type assertion failed in circuit breaker")
+	}
+
+	return typedResult, nil
 }
 
 // ExecuteWithFallback executes a function with circuit breaker and fallback
