@@ -31,6 +31,7 @@ func NewContactService(
 	cfg *config.Config,
 	httpClient httpclient.Client,
 ) *ContactService {
+
 	return &ContactService{
 		clientRequestRepo: clientRequestRepo,
 		mentorRepo:        mentorRepo,
