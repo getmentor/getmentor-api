@@ -4,10 +4,10 @@ package models
 type ContactMentorRequest struct {
 	Name             string `json:"name" binding:"required,min=2,max=100"`
 	Email            string `json:"email" binding:"required,email,max=255"`
-	Experience       string `json:"experience" binding:"omitempty,oneof=junior middle senior"`
+	Experience       string `json:"experience" binding:"omitempty,oneof=Junior Middle Senior Менеджер 'Менеджер менеджеров' C-level"`
 	MentorAirtableID string `json:"mentorAirtableId" binding:"required,startswith=rec"`
 	Intro            string `json:"intro" binding:"required,min=10,max=2000"`
-	TelegramUsername string `json:"telegramUsername" binding:"omitempty,max=50,alphanum"`
+	TelegramUsername string `json:"telegramUsername" binding:"required,max=50"`
 	RecaptchaToken   string `json:"recaptchaToken" binding:"required,min=20"`
 }
 
