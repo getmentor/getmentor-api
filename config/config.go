@@ -8,6 +8,8 @@ import (
 )
 
 // Config holds all application configuration
+//
+//nolint:govet // Field alignment optimization would reduce readability
 type Config struct {
 	Server        ServerConfig
 	Airtable      AirtableConfig
@@ -22,9 +24,11 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port    string
-	GinMode string
-	AppEnv  string
+	Port           string
+	GinMode        string
+	AppEnv         string
+	BaseURL        string
+	AllowedOrigins []string
 }
 
 type AirtableConfig struct {
@@ -90,6 +94,8 @@ func Load() (*Config, error) {
 	v.SetDefault("PORT", "8081")
 	v.SetDefault("GIN_MODE", "release")
 	v.SetDefault("APP_ENV", "production")
+	v.SetDefault("BASE_URL", "https://гетментор.рф")
+	v.SetDefault("ALLOWED_CORS_ORIGINS", "https://гетментор.рф,https://www.гетментор.рф")
 	v.SetDefault("LOG_LEVEL", "info")
 	v.SetDefault("LOG_DIR", "/app/logs")
 	v.SetDefault("AIRTABLE_WORK_OFFLINE", false)
@@ -109,13 +115,27 @@ func Load() (*Config, error) {
 	v.SetConfigType("env")
 	v.AddConfigPath(".")
 	v.AddConfigPath("..")
-	_ = v.ReadInConfig() // Ignore error if file doesn't exist
+	_ = v.ReadInConfig() //nolint:errcheck // Ignore error if .env file doesn't exist
+
+	// Parse allowed CORS origins (comma-separated)
+	allowedOrigins := []string{}
+	originsStr := v.GetString("ALLOWED_CORS_ORIGINS")
+	if originsStr != "" {
+		for _, origin := range strings.Split(originsStr, ",") {
+			origin = strings.TrimSpace(origin)
+			if origin != "" {
+				allowedOrigins = append(allowedOrigins, origin)
+			}
+		}
+	}
 
 	cfg := &Config{
 		Server: ServerConfig{
-			Port:    v.GetString("PORT"),
-			GinMode: v.GetString("GIN_MODE"),
-			AppEnv:  v.GetString("APP_ENV"),
+			Port:           v.GetString("PORT"),
+			GinMode:        v.GetString("GIN_MODE"),
+			AppEnv:         v.GetString("APP_ENV"),
+			BaseURL:        v.GetString("BASE_URL"),
+			AllowedOrigins: allowedOrigins,
 		},
 		Airtable: AirtableConfig{
 			APIKey:      v.GetString("AIRTABLE_API_KEY"),
@@ -168,6 +188,7 @@ func Load() (*Config, error) {
 
 // Validate checks if required configuration values are set
 func (c *Config) Validate() error {
+	// Airtable configuration
 	if !c.Airtable.WorkOffline {
 		if c.Airtable.APIKey == "" {
 			return fmt.Errorf("AIRTABLE_API_KEY is required")
@@ -177,8 +198,31 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// Authentication tokens
 	if c.Auth.InternalMentorsAPI == "" {
 		return fmt.Errorf("INTERNAL_MENTORS_API is required")
+	}
+	if c.Auth.MentorsAPIToken == "" {
+		return fmt.Errorf("MENTORS_API_LIST_AUTH_TOKEN is required")
+	}
+	if c.Auth.WebhookSecret == "" {
+		return fmt.Errorf("WEBHOOK_SECRET is required")
+	}
+
+	// ReCAPTCHA configuration
+	if c.ReCAPTCHA.SecretKey == "" {
+		return fmt.Errorf("RECAPTCHA_V2_SECRET_KEY is required")
+	}
+
+	// Server configuration
+	if c.Server.Port == "" {
+		return fmt.Errorf("PORT is required")
+	}
+	if c.Server.BaseURL == "" {
+		return fmt.Errorf("BASE_URL is required")
+	}
+	if len(c.Server.AllowedOrigins) == 0 {
+		return fmt.Errorf("ALLOWED_CORS_ORIGINS is required")
 	}
 
 	return nil

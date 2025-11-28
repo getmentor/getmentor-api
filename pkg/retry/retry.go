@@ -204,7 +204,7 @@ func calculateDelay(attempt int, config Config) time.Duration {
 	// Add jitter if enabled (±25% randomness)
 	if config.Jitter {
 		jitterRange := delay * 0.25
-		jitter := (rand.Float64() * 2 * jitterRange) - jitterRange
+		jitter := (rand.Float64() * 2 * jitterRange) - jitterRange //nolint:gosec // Non-cryptographic jitter for retry backoff
 		delay += jitter
 	}
 

@@ -61,10 +61,10 @@ func InitTracer(serviceName, serviceNamespace, serviceVersion, environment, allo
 	// Create batch span processor with proper timeouts
 	// This ensures export failures don't block the application
 	bsp := sdktrace.NewBatchSpanProcessor(exporter,
-		sdktrace.WithBatchTimeout(2*time.Second),        // Export batch every 2 seconds
-		sdktrace.WithExportTimeout(5*time.Second),       // Timeout individual exports after 5s
-		sdktrace.WithMaxQueueSize(2048),                 // Max queue size before dropping
-		sdktrace.WithMaxExportBatchSize(512),            // Max spans per export batch
+		sdktrace.WithBatchTimeout(2*time.Second),  // Export batch every 2 seconds
+		sdktrace.WithExportTimeout(5*time.Second), // Timeout individual exports after 5s
+		sdktrace.WithMaxQueueSize(2048),           // Max queue size before dropping
+		sdktrace.WithMaxExportBatchSize(512),      // Max spans per export batch
 	)
 
 	// Create tracer provider

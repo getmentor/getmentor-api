@@ -24,8 +24,8 @@ type SaveProfileResponse struct {
 // UploadProfilePictureRequest represents a profile picture upload request
 type UploadProfilePictureRequest struct {
 	Image       string `json:"image" binding:"required"`
-	FileName    string `json:"fileName" binding:"required"`
-	ContentType string `json:"contentType" binding:"required"`
+	FileName    string `json:"fileName" binding:"required,max=255"`
+	ContentType string `json:"contentType" binding:"required,oneof=image/jpeg image/png image/webp"`
 }
 
 // UploadProfilePictureResponse represents the response after uploading a profile picture

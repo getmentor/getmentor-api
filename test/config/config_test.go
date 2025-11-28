@@ -99,11 +99,21 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "valid offline config",
 			cfg: &config.Config{
+				Server: config.ServerConfig{
+					Port:           "8081",
+					BaseURL:        "https://example.com",
+					AllowedOrigins: []string{"https://example.com"},
+				},
 				Airtable: config.AirtableConfig{
 					WorkOffline: true,
 				},
 				Auth: config.AuthConfig{
 					InternalMentorsAPI: "test-token",
+					MentorsAPIToken:    "public-token",
+					WebhookSecret:      "webhook-secret",
+				},
+				ReCAPTCHA: config.ReCAPTCHAConfig{
+					SecretKey: "recaptcha-secret",
 				},
 			},
 			expectError: false,
@@ -111,6 +121,11 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "valid online config",
 			cfg: &config.Config{
+				Server: config.ServerConfig{
+					Port:           "8081",
+					BaseURL:        "https://example.com",
+					AllowedOrigins: []string{"https://example.com"},
+				},
 				Airtable: config.AirtableConfig{
 					WorkOffline: false,
 					APIKey:      "test-key",
@@ -118,6 +133,11 @@ func TestConfig_Validate(t *testing.T) {
 				},
 				Auth: config.AuthConfig{
 					InternalMentorsAPI: "test-token",
+					MentorsAPIToken:    "public-token",
+					WebhookSecret:      "webhook-secret",
+				},
+				ReCAPTCHA: config.ReCAPTCHAConfig{
+					SecretKey: "recaptcha-secret",
 				},
 			},
 			expectError: false,
@@ -183,6 +203,9 @@ func TestLoad_WithDefaults(t *testing.T) {
 	// Set only required fields
 	os.Setenv("AIRTABLE_WORK_OFFLINE", "true")
 	os.Setenv("INTERNAL_MENTORS_API", "test-token")
+	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN", "public-token")
+	os.Setenv("WEBHOOK_SECRET", "webhook-secret")
+	os.Setenv("RECAPTCHA_V2_SECRET_KEY", "recaptcha-secret")
 
 	cfg, err := config.Load()
 
@@ -190,7 +213,7 @@ func TestLoad_WithDefaults(t *testing.T) {
 	assert.NotNil(t, cfg)
 
 	// Check defaults
-	assert.Equal(t, "8080", cfg.Server.Port)
+	assert.Equal(t, "8081", cfg.Server.Port)
 	assert.Equal(t, "release", cfg.Server.GinMode)
 	assert.Equal(t, "production", cfg.Server.AppEnv)
 	assert.Equal(t, "info", cfg.Logging.Level)
@@ -214,6 +237,7 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN", "token1")
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN_INNO", "token2")
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN_AIKB", "token3")
+	os.Setenv("WEBHOOK_SECRET", "webhook-secret")
 	os.Setenv("RECAPTCHA_V2_SECRET_KEY", "recaptcha-secret")
 	os.Setenv("NEXTJS_BASE_URL", "https://example.com")
 

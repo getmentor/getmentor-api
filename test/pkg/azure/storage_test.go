@@ -2,9 +2,10 @@ package azure_test
 
 import (
 	"encoding/base64"
-	"github.com/getmentor/getmentor-api/pkg/azure"
 	"strings"
 	"testing"
+
+	"github.com/getmentor/getmentor-api/pkg/azure"
 
 	"github.com/stretchr/testify/assert"
 )

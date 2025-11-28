@@ -18,7 +18,7 @@ func TokenAuthMiddleware(validTokens ...string) gin.HandlerFunc {
 				zap.String("path", c.Request.URL.Path),
 				zap.String("client_ip", c.ClientIP()),
 			)
-			c.JSON(http.StatusForbidden, gin.H{})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing authentication token"})
 			c.Abort()
 			return
 		}
@@ -36,7 +36,7 @@ func TokenAuthMiddleware(validTokens ...string) gin.HandlerFunc {
 				zap.String("path", c.Request.URL.Path),
 				zap.String("client_ip", c.ClientIP()),
 			)
-			c.JSON(http.StatusForbidden, gin.H{})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authentication token"})
 			c.Abort()
 			return
 		}
@@ -55,7 +55,7 @@ func InternalAPIAuthMiddleware(validToken string) gin.HandlerFunc {
 				zap.String("path", c.Request.URL.Path),
 				zap.String("client_ip", c.ClientIP()),
 			)
-			c.JSON(http.StatusForbidden, gin.H{})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or missing internal API token"})
 			c.Abort()
 			return
 		}
