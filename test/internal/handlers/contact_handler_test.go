@@ -43,7 +43,7 @@ func TestContactHandler_ContactMentor_Success(t *testing.T) {
 	reqBody := models.ContactMentorRequest{
 		Email:            "test@example.com",
 		Name:             "Test User",
-		Experience:       "middle",
+		Experience:       "Middle",
 		Intro:            "I want to learn Go programming",
 		TelegramUsername: "testuser",
 		MentorAirtableID: "rec123abc",
@@ -118,7 +118,7 @@ func TestContactHandler_ContactMentor_MissingRequiredFields(t *testing.T) {
 			name: "missing_email",
 			requestBody: models.ContactMentorRequest{
 				Name:             "Test User",
-				Experience:       "middle",
+				Experience:       "Middle",
 				Intro:            "I want to learn",
 				MentorAirtableID: "rec123",
 				RecaptchaToken:   "token",
@@ -129,7 +129,7 @@ func TestContactHandler_ContactMentor_MissingRequiredFields(t *testing.T) {
 			name: "missing_name",
 			requestBody: models.ContactMentorRequest{
 				Email:            "test@example.com",
-				Experience:       "middle",
+				Experience:       "Middle",
 				Intro:            "I want to learn",
 				MentorAirtableID: "rec123",
 				RecaptchaToken:   "token",
@@ -141,7 +141,7 @@ func TestContactHandler_ContactMentor_MissingRequiredFields(t *testing.T) {
 			requestBody: models.ContactMentorRequest{
 				Email:            "test@example.com",
 				Name:             "Test User",
-				Experience:       "middle",
+				Experience:       "Middle",
 				MentorAirtableID: "rec123",
 				RecaptchaToken:   "token",
 			},
@@ -152,7 +152,7 @@ func TestContactHandler_ContactMentor_MissingRequiredFields(t *testing.T) {
 			requestBody: models.ContactMentorRequest{
 				Email:          "test@example.com",
 				Name:           "Test User",
-				Experience:     "middle",
+				Experience:     "Middle",
 				Intro:          "I want to learn",
 				RecaptchaToken: "token",
 			},
@@ -163,7 +163,7 @@ func TestContactHandler_ContactMentor_MissingRequiredFields(t *testing.T) {
 			requestBody: models.ContactMentorRequest{
 				Email:            "test@example.com",
 				Name:             "Test User",
-				Experience:       "middle",
+				Experience:       "Middle",
 				Intro:            "I want to learn",
 				MentorAirtableID: "rec123",
 			},
@@ -214,7 +214,7 @@ func TestContactHandler_ContactMentor_InvalidEmail(t *testing.T) {
 	reqBody := models.ContactMentorRequest{
 		Email:            "not-an-email", // Invalid format
 		Name:             "Test User",
-		Experience:       "middle",
+		Experience:       "Middle",
 		Intro:            "I want to learn",
 		MentorAirtableID: "rec123",
 		RecaptchaToken:   "token123456789012345",
@@ -245,7 +245,7 @@ func TestContactHandler_ContactMentor_InvalidExperience(t *testing.T) {
 	reqBody := models.ContactMentorRequest{
 		Email:            "test@example.com",
 		Name:             "Test User",
-		Experience:       "invalid-level", // Should be junior, middle, or senior
+		Experience:       "invalid-level",
 		Intro:            "I want to learn",
 		MentorAirtableID: "rec123",
 		RecaptchaToken:   "token123456789012345",
@@ -277,7 +277,7 @@ func TestContactHandler_ContactMentor_TooLongFields(t *testing.T) {
 	reqBody := models.ContactMentorRequest{
 		Email:            "test@example.com",
 		Name:             strings.Repeat("A", 101), // 101 characters
-		Experience:       "middle",
+		Experience:       "Middle",
 		Intro:            "I want to learn",
 		MentorAirtableID: "rec123",
 		RecaptchaToken:   "token123456789012345",
@@ -304,7 +304,7 @@ func TestContactHandler_ContactMentor_TooShortIntro(t *testing.T) {
 	reqBody := models.ContactMentorRequest{
 		Email:            "test@example.com",
 		Name:             "Test User",
-		Experience:       "middle",
+		Experience:       "Middle",
 		Intro:            "Short", // Less than 10 characters
 		MentorAirtableID: "rec123",
 		RecaptchaToken:   "token123456789012345",
@@ -331,7 +331,7 @@ func TestContactHandler_ContactMentor_CaptchaFailed(t *testing.T) {
 	reqBody := models.ContactMentorRequest{
 		Email:            "test@example.com",
 		Name:             "Test User",
-		Experience:       "middle",
+		Experience:       "Middle",
 		Intro:            "I want to learn Go programming",
 		TelegramUsername: "testuser",
 		MentorAirtableID: "rec123abc",                            // Valid format (starts with 'rec')
@@ -375,7 +375,7 @@ func TestContactHandler_ContactMentor_ServiceError(t *testing.T) {
 	reqBody := models.ContactMentorRequest{
 		Email:            "test@example.com",
 		Name:             "Test User",
-		Experience:       "middle",
+		Experience:       "Middle",
 		Intro:            "I want to learn Go programming",
 		TelegramUsername: "testuser",
 		MentorAirtableID: "rec123",
@@ -405,7 +405,7 @@ func TestContactHandler_ContactMentor_ServiceError(t *testing.T) {
 	mockService.AssertExpectations(t)
 }
 
-// TestContactHandler_ContactMentor_WithoutTelegram tests optional telegram field
+// TestContactHandler_ContactMentor_WithoutTelegram tests required
 func TestContactHandler_ContactMentor_WithoutTelegram(t *testing.T) {
 	mockService := new(MockContactService)
 	handler := handlers.NewContactHandler(mockService)
@@ -416,21 +416,12 @@ func TestContactHandler_ContactMentor_WithoutTelegram(t *testing.T) {
 	reqBody := models.ContactMentorRequest{
 		Email:      "test@example.com",
 		Name:       "Test User",
-		Experience: "middle",
+		Experience: "Middle",
 		Intro:      "I want to learn Go programming",
-		// TelegramUsername omitted (optional field)
+		// TelegramUsername omitted (required)
 		MentorAirtableID: "rec123",
 		RecaptchaToken:   "valid-token-12345678901234",
 	}
-
-	// Mock successful response
-	mockService.On("SubmitContactForm", mock.Anything, mock.Anything).Return(
-		&models.ContactMentorResponse{
-			Success:     true,
-			CalendarURL: "https://calendly.com/mentor-slug",
-		},
-		nil,
-	)
 
 	body, _ := json.Marshal(reqBody)
 	req := httptest.NewRequest("POST", "/contact", bytes.NewReader(body))
@@ -439,7 +430,9 @@ func TestContactHandler_ContactMentor_WithoutTelegram(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	mockService.AssertExpectations(t)
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.Equal(t, "Validation failed", resp["error"])
 }
