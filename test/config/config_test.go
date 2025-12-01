@@ -290,14 +290,16 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 func TestLoad_ValidationFailure(t *testing.T) {
 	// Save current directory and change to a temp directory without .env file
 	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
 
 	tempDir := t.TempDir()
-	os.Chdir(tempDir)
+	_ = os.Chdir(tempDir)
 
 	// Clean environment - missing required fields
 	os.Clearenv()
-	os.Setenv("AIRTABLE_WORK_OFFLINE", "false")
+	_ = os.Setenv("AIRTABLE_WORK_OFFLINE", "false")
 	// Missing AIRTABLE_API_KEY, AIRTABLE_BASE_ID, and INTERNAL_MENTORS_API
 
 	cfg, err := config.Load()
