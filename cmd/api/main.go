@@ -116,12 +116,14 @@ func main() {
 	contactService := services.NewContactService(clientRequestRepo, mentorRepo, cfg)
 	profileService := services.NewProfileService(mentorRepo, azureClient, cfg)
 	webhookService := services.NewWebhookService(mentorRepo, cfg)
+	mcpService := services.NewMCPService(mentorRepo)
 
 	// Initialize handlers
 	mentorHandler := handlers.NewMentorHandler(mentorService)
 	contactHandler := handlers.NewContactHandler(contactService)
 	profileHandler := handlers.NewProfileHandler(profileService)
 	webhookHandler := handlers.NewWebhookHandler(webhookService)
+	mcpHandler := handlers.NewMCPHandler(mcpService)
 	healthHandler := handlers.NewHealthHandler(mentorCache.IsReady)
 	logsHandler := handlers.NewLogsHandler(cfg.Logging.Dir)
 
@@ -160,6 +162,7 @@ func main() {
 	contactRateLimiter := middleware.NewRateLimiter(5, 10)    // 5 req/sec, burst of 10 (prevent spam)
 	profileRateLimiter := middleware.NewRateLimiter(10, 20)   // 10 req/sec, burst of 20
 	webhookRateLimiter := middleware.NewRateLimiter(10, 20)   // 10 req/sec, burst of 20
+	mcpRateLimiter := middleware.NewRateLimiter(20, 40)       // 20 req/sec, burst of 40 (for AI tool usage)
 
 	// API routes
 	// SECURITY: Apply body size limits to prevent DoS attacks
@@ -181,6 +184,9 @@ func main() {
 
 		// Internal mentor endpoint
 		api.POST("/internal/mentors", generalRateLimiter.Middleware(), middleware.InternalAPIAuthMiddleware(cfg.Auth.InternalMentorsAPI), mentorHandler.GetInternalMentors)
+
+		// MCP endpoint (for AI tools to search mentors)
+		api.POST("/internal/mcp", mcpRateLimiter.Middleware(), middleware.TokenAuthMiddleware(cfg.Auth.MCPAuthToken), mcpHandler.HandleMCPRequest)
 
 		// Contact endpoint (smaller limit for forms + stricter rate limit)
 		api.POST("/contact-mentor", contactRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(100*1024), contactHandler.ContactMentor)

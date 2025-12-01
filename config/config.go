@@ -44,6 +44,7 @@ type AuthConfig struct {
 	MentorsAPITokenInno string
 	MentorsAPITokenAIKB string
 	InternalMentorsAPI  string
+	MCPAuthToken        string
 	RevalidateSecret    string
 	WebhookSecret       string
 }
@@ -132,6 +133,7 @@ func Load() (*Config, error) {
 			MentorsAPITokenInno: v.GetString("MENTORS_API_LIST_AUTH_TOKEN_INNO"),
 			MentorsAPITokenAIKB: v.GetString("MENTORS_API_LIST_AUTH_TOKEN_AIKB"),
 			InternalMentorsAPI:  v.GetString("INTERNAL_MENTORS_API"),
+			MCPAuthToken:        v.GetString("MCP_AUTH_TOKEN"),
 			RevalidateSecret:    v.GetString("REVALIDATE_SECRET_TOKEN"),
 			WebhookSecret:       v.GetString("WEBHOOK_SECRET"),
 		},
@@ -179,6 +181,10 @@ func (c *Config) Validate() error {
 
 	if c.Auth.InternalMentorsAPI == "" {
 		return fmt.Errorf("INTERNAL_MENTORS_API is required")
+	}
+
+	if c.Auth.MCPAuthToken == "" {
+		return fmt.Errorf("MCP_AUTH_TOKEN is required")
 	}
 
 	return nil

@@ -129,6 +129,49 @@ var (
 		[]string{"status"},
 	)
 
+	// MCP Metrics
+	MCPRequestTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gm_api_mcp_request_total",
+			Help: "Total number of MCP requests",
+		},
+		[]string{"method", "status"},
+	)
+
+	MCPRequestDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "gm_api_mcp_request_duration_seconds",
+			Help:    "MCP request duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"method"},
+	)
+
+	MCPToolInvocations = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gm_api_mcp_tool_invocations_total",
+			Help: "Total number of MCP tool invocations",
+		},
+		[]string{"tool", "status"},
+	)
+
+	MCPSearchKeywords = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gm_api_mcp_search_keywords_total",
+			Help: "Total number of MCP search queries (tracks keyword usage)",
+		},
+		[]string{"keyword_count_range"}, // "1-2", "3-5", "6-10", "10+"
+	)
+
+	MCPResultsReturned = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "gm_api_mcp_results_returned",
+			Help:    "Number of results returned by MCP tools",
+			Buckets: []float64{0, 1, 5, 10, 20, 50, 100, 200},
+		},
+		[]string{"tool"},
+	)
+
 	// Infrastructure Metrics
 	GoRoutines = promauto.NewGauge(
 		prometheus.GaugeOpts{
