@@ -9,21 +9,25 @@ import (
 )
 
 type ContactHandler struct {
-	service *services.ContactService
+	service services.ContactServiceInterface
 }
 
-func NewContactHandler(service *services.ContactService) *ContactHandler {
+func NewContactHandler(service services.ContactServiceInterface) *ContactHandler {
 	return &ContactHandler{service: service}
 }
 
 func (h *ContactHandler) ContactMentor(c *gin.Context) {
 	var req models.ContactMentorRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "details": err.Error()})
+		validationErrors := ParseValidationErrors(err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Validation failed",
+			"details": validationErrors,
+		})
 		return
 	}
 
-	resp, err := h.service.SubmitContactForm(&req)
+	resp, err := h.service.SubmitContactForm(c.Request.Context(), &req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return

@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"context"
+
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/pkg/airtable"
 )
@@ -18,6 +20,6 @@ func NewClientRequestRepository(airtableClient *airtable.Client) *ClientRequestR
 }
 
 // Create creates a new client request in Airtable
-func (r *ClientRequestRepository) Create(req *models.ClientRequest) error {
+func (r *ClientRequestRepository) Create(ctx context.Context, req *models.ClientRequest) error {
 	return r.airtableClient.CreateClientRequest(req)
 }

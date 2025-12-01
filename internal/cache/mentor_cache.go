@@ -45,7 +45,7 @@ func NewMentorCache(airtableClient *airtable.Client, ttlSeconds int) *MentorCach
 	}
 
 	// Set up expiration callback to auto-refresh in background
-	cache.OnEvicted(func(key string, value interface{}) {
+	cache.OnEvicted(func(key string, _ interface{}) {
 		if key == mentorsCacheKey {
 			logger.Info("Mentor cache expired, triggering background refresh")
 			go func() {
@@ -92,7 +92,12 @@ func (mc *MentorCache) Get() ([]*models.Mentor, error) {
 		metrics.CacheHits.WithLabelValues(mentorsCacheName).Inc()
 		logger.Debug("Mentor cache hit")
 
-		mentors := data.([]*models.Mentor)
+		mentors, ok := data.([]*models.Mentor)
+		if !ok {
+			logger.Error("Invalid cache data type")
+			mc.cache.Delete(mentorsCacheKey)
+			return nil, fmt.Errorf("invalid cache data type")
+		}
 		metrics.CacheSize.WithLabelValues(mentorsCacheName).Set(float64(len(mentors)))
 
 		return mentors, nil
@@ -130,7 +135,12 @@ func (mc *MentorCache) refreshSync() ([]*models.Mentor, error) {
 		// Return stale data if available
 		if data, found := mc.cache.Get(mentorsCacheKey); found {
 			logger.Info("Returning stale cache data while refresh is in progress")
-			return data.([]*models.Mentor), nil
+			mentors, ok := data.([]*models.Mentor)
+			if !ok {
+				logger.Error("Invalid cache data type")
+				return nil, fmt.Errorf("invalid cache data type")
+			}
+			return mentors, nil
 		}
 
 		// No stale data available, wait for refresh to complete
@@ -138,7 +148,12 @@ func (mc *MentorCache) refreshSync() ([]*models.Mentor, error) {
 		time.Sleep(2 * time.Second)
 
 		if data, found := mc.cache.Get(mentorsCacheKey); found {
-			return data.([]*models.Mentor), nil
+			mentors, ok := data.([]*models.Mentor)
+			if !ok {
+				logger.Error("Invalid cache data type after waiting")
+				return nil, fmt.Errorf("invalid cache data type")
+			}
+			return mentors, nil
 		}
 
 		return nil, fmt.Errorf("cache refresh in progress and no stale data available")

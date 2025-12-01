@@ -1,10 +1,11 @@
 package middleware_test
 
 import (
-	"github.com/getmentor/getmentor-api/internal/middleware"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/getmentor/getmentor-api/internal/middleware"
 
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -71,7 +72,7 @@ func TestTokenAuthMiddleware_InvalidToken(t *testing.T) {
 
 	// Assert
 	assert.False(t, handlerCalled, "Handler should not be called for invalid token")
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestTokenAuthMiddleware_MissingToken(t *testing.T) {
@@ -96,7 +97,7 @@ func TestTokenAuthMiddleware_MissingToken(t *testing.T) {
 
 	// Assert
 	assert.False(t, handlerCalled, "Handler should not be called when token is missing")
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestTokenAuthMiddleware_EmptyTokenList(t *testing.T) {
@@ -121,7 +122,7 @@ func TestTokenAuthMiddleware_EmptyTokenList(t *testing.T) {
 
 	// Assert
 	assert.False(t, handlerCalled, "Handler should not be called when no valid tokens are configured")
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestInternalAPIAuthMiddleware_ValidToken(t *testing.T) {
@@ -173,7 +174,7 @@ func TestInternalAPIAuthMiddleware_InvalidToken(t *testing.T) {
 
 	// Assert
 	assert.False(t, handlerCalled, "Handler should not be called for invalid internal token")
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestInternalAPIAuthMiddleware_MissingToken(t *testing.T) {
@@ -198,7 +199,7 @@ func TestInternalAPIAuthMiddleware_MissingToken(t *testing.T) {
 
 	// Assert
 	assert.False(t, handlerCalled, "Handler should not be called when internal token is missing")
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestWebhookAuthMiddleware_ValidSecret(t *testing.T) {

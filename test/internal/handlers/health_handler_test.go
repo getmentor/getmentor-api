@@ -1,10 +1,11 @@
 package handlers_test
 
 import (
-	"github.com/getmentor/getmentor-api/internal/handlers"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/getmentor/getmentor-api/internal/handlers"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,8 @@ func init() {
 
 func TestHealthHandler_Healthcheck(t *testing.T) {
 	// Setup
-	handler := handlers.NewHealthHandler()
+	mockReadyFunc := func() bool { return true }
+	handler := handlers.NewHealthHandler(mockReadyFunc)
 	router := gin.New()
 	router.GET("/healthcheck", handler.Healthcheck)
 
@@ -31,5 +33,5 @@ func TestHealthHandler_Healthcheck(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "application/json; charset=utf-8", w.Header().Get("Content-Type"))
 	assert.Equal(t, "no-cache, no-store, max-age=0, must-revalidate", w.Header().Get("Cache-Control"))
-	assert.JSONEq(t, "{}", w.Body.String())
+	assert.JSONEq(t, `{"status":"ok"}`, w.Body.String())
 }
