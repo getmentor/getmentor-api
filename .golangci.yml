@@ -12,6 +12,7 @@ linters:
     - unused
     - gosimple
     - ineffassign
+    - typecheck
     - copyloopvar
     - gocritic
     - gocyclo
