@@ -11,10 +11,12 @@ import (
 	"go.uber.org/zap"
 )
 
+// MCPService handles MCP (Model Context Protocol) operations for mentor search
 type MCPService struct {
 	repo *repository.MentorRepository
 }
 
+// NewMCPService creates a new MCP service instance
 func NewMCPService(repo *repository.MentorRepository) *MCPService {
 	return &MCPService{
 		repo: repo,

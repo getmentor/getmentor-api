@@ -1,6 +1,6 @@
 package models
 
-// JSON-RPC 2.0 Request
+// MCPRequest represents a JSON-RPC 2.0 request
 type MCPRequest struct {
 	JSONRPC string                 `json:"jsonrpc"` // Must be "2.0"
 	Method  string                 `json:"method"`
@@ -8,7 +8,7 @@ type MCPRequest struct {
 	ID      interface{}            `json:"id"` // Can be string, number, or null
 }
 
-// JSON-RPC 2.0 Response
+// MCPResponse represents a JSON-RPC 2.0 response
 type MCPResponse struct {
 	JSONRPC string      `json:"jsonrpc"` // Must be "2.0"
 	Result  interface{} `json:"result,omitempty"`
@@ -16,7 +16,7 @@ type MCPResponse struct {
 	ID      interface{} `json:"id"`
 }
 
-// JSON-RPC 2.0 Error
+// MCPError represents a JSON-RPC 2.0 error
 type MCPError struct {
 	Code    int         `json:"code"`
 	Message string      `json:"message"`
@@ -32,14 +32,14 @@ const (
 	InternalError  = -32603
 )
 
-// MCP Tool definitions following MCP protocol
+// MCPTool represents a tool definition following MCP protocol
 type MCPTool struct {
 	Name        string                 `json:"name"`
 	Description string                 `json:"description"`
 	InputSchema map[string]interface{} `json:"inputSchema"`
 }
 
-// MCP list_mentors parameters
+// ListMentorsParams represents parameters for the list_mentors tool
 type ListMentorsParams struct {
 	Tags       []string `json:"tags,omitempty"`       // Filter by tags
 	Experience string   `json:"experience,omitempty"` // Filter by experience level
@@ -49,13 +49,13 @@ type ListMentorsParams struct {
 	Limit      int      `json:"limit,omitempty"`      // Limit results (default: 50, max: 200)
 }
 
-// MCP get_mentor parameters
+// GetMentorParams represents parameters for the get_mentor tool
 type GetMentorParams struct {
 	ID   *int    `json:"id,omitempty"`   // Mentor ID
 	Slug *string `json:"slug,omitempty"` // Mentor slug
 }
 
-// MCP search_mentors parameters
+// SearchMentorsParams represents parameters for the search_mentors tool
 type SearchMentorsParams struct {
 	Query      string   `json:"query"`                // Search keywords (space-separated)
 	Tags       []string `json:"tags,omitempty"`       // Filter by tags
@@ -66,7 +66,7 @@ type SearchMentorsParams struct {
 	Limit      int      `json:"limit,omitempty"`      // Limit results (default: 20, max: 100)
 }
 
-// MCP Mentor response (basic info for list_mentors)
+// MCPMentorBasic represents basic mentor information for list_mentors tool
 type MCPMentorBasic struct {
 	ID           int      `json:"id"`
 	Slug         string   `json:"slug"`
@@ -81,7 +81,7 @@ type MCPMentorBasic struct {
 	DoneSessions int      `json:"doneSessions"`
 }
 
-// MCP Mentor response (extended info for get_mentor and search results)
+// MCPMentorExtended represents extended mentor information for get_mentor and search results
 type MCPMentorExtended struct {
 	ID           int      `json:"id"`
 	Slug         string   `json:"slug"`
@@ -98,22 +98,24 @@ type MCPMentorExtended struct {
 	About        string   `json:"about"`
 }
 
-// Response structures
+// ListMentorsResult represents the result of list_mentors tool invocation
 type ListMentorsResult struct {
 	Mentors []MCPMentorBasic `json:"mentors"`
 	Count   int              `json:"count"`
 }
 
+// GetMentorResult represents the result of get_mentor tool invocation
 type GetMentorResult struct {
 	Mentor *MCPMentorExtended `json:"mentor"`
 }
 
+// SearchMentorsResult represents the result of search_mentors tool invocation
 type SearchMentorsResult struct {
 	Mentors []MCPMentorExtended `json:"mentors"`
 	Count   int                 `json:"count"`
 }
 
-// Helper function to convert Mentor to MCPMentorBasic
+// ToMCPBasic converts a Mentor to MCPMentorBasic format
 func (m *Mentor) ToMCPBasic() MCPMentorBasic {
 	return MCPMentorBasic{
 		ID:           m.ID,
@@ -130,7 +132,7 @@ func (m *Mentor) ToMCPBasic() MCPMentorBasic {
 	}
 }
 
-// Helper function to convert Mentor to MCPMentorExtended
+// ToMCPExtended converts a Mentor to MCPMentorExtended format
 func (m *Mentor) ToMCPExtended() MCPMentorExtended {
 	return MCPMentorExtended{
 		ID:           m.ID,

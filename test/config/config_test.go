@@ -200,9 +200,9 @@ func TestLoad_WithDefaults(t *testing.T) {
 	os.Clearenv()
 
 	// Set only required fields
-	os.Setenv("AIRTABLE_WORK_OFFLINE", "true")
-	os.Setenv("INTERNAL_MENTORS_API", "test-token")
-	os.Setenv("MCP_AUTH_TOKEN", "test-mcp-token")
+	_ = os.Setenv("AIRTABLE_WORK_OFFLINE", "true")
+	_ = os.Setenv("INTERNAL_MENTORS_API", "test-token")
+	_ = os.Setenv("MCP_AUTH_TOKEN", "test-mcp-token")
 
 	cfg, err := config.Load()
 
@@ -223,20 +223,20 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	os.Clearenv()
 
 	// Set environment variables
-	os.Setenv("PORT", "9000")
-	os.Setenv("GIN_MODE", "debug")
-	os.Setenv("APP_ENV", "development")
-	os.Setenv("LOG_LEVEL", "debug")
-	os.Setenv("AIRTABLE_WORK_OFFLINE", "false")
-	os.Setenv("AIRTABLE_API_KEY", "test-key-123")
-	os.Setenv("AIRTABLE_BASE_ID", "test-base-456")
-	os.Setenv("INTERNAL_MENTORS_API", "internal-token-789")
-	os.Setenv("MCP_AUTH_TOKEN", "mcp-token-xyz")
-	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN", "token1")
-	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN_INNO", "token2")
-	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN_AIKB", "token3")
-	os.Setenv("RECAPTCHA_V2_SECRET_KEY", "recaptcha-secret")
-	os.Setenv("NEXTJS_BASE_URL", "https://example.com")
+	_ = os.Setenv("PORT", "9000")
+	_ = os.Setenv("GIN_MODE", "debug")
+	_ = os.Setenv("APP_ENV", "development")
+	_ = os.Setenv("LOG_LEVEL", "debug")
+	_ = os.Setenv("AIRTABLE_WORK_OFFLINE", "false")
+	_ = os.Setenv("AIRTABLE_API_KEY", "test-key-123")
+	_ = os.Setenv("AIRTABLE_BASE_ID", "test-base-456")
+	_ = os.Setenv("INTERNAL_MENTORS_API", "internal-token-789")
+	_ = os.Setenv("MCP_AUTH_TOKEN", "mcp-token-xyz")
+	_ = os.Setenv("MENTORS_API_LIST_AUTH_TOKEN", "token1")
+	_ = os.Setenv("MENTORS_API_LIST_AUTH_TOKEN_INNO", "token2")
+	_ = os.Setenv("MENTORS_API_LIST_AUTH_TOKEN_AIKB", "token3")
+	_ = os.Setenv("RECAPTCHA_V2_SECRET_KEY", "recaptcha-secret")
+	_ = os.Setenv("NEXTJS_BASE_URL", "https://example.com")
 
 	cfg, err := config.Load()
 
@@ -263,14 +263,16 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 func TestLoad_ValidationFailure(t *testing.T) {
 	// Save current directory and change to a temp directory without .env file
 	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
 
 	tempDir := t.TempDir()
-	os.Chdir(tempDir)
+	_ = os.Chdir(tempDir)
 
 	// Clean environment - missing required fields
 	os.Clearenv()
-	os.Setenv("AIRTABLE_WORK_OFFLINE", "false")
+	_ = os.Setenv("AIRTABLE_WORK_OFFLINE", "false")
 	// Missing AIRTABLE_API_KEY, AIRTABLE_BASE_ID, and INTERNAL_MENTORS_API
 
 	cfg, err := config.Load()

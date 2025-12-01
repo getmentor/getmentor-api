@@ -1,3 +1,5 @@
+version: 2
+
 run:
   timeout: 5m
   tests: true
@@ -5,15 +7,11 @@ run:
 
 linters:
   enable:
-    - gofmt
     - govet
     - errcheck
     - staticcheck
     - unused
-    - gosimple
     - ineffassign
-    - typecheck
-    - copyloopvar
     - gocritic
     - gocyclo
     - misspell
@@ -44,6 +42,7 @@ issues:
 
 output:
   formats:
-    - format: colored-line-number
+    line-number:
+      path: stdout
   print-issued-lines: true
   print-linter-name: true
