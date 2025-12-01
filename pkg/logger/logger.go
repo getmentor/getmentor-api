@@ -48,6 +48,7 @@ func Initialize(cfg Config) error {
 	// Configure logging with rotation in production
 	if cfg.Environment == "production" && cfg.LogDir != "" {
 		// Ensure log directory exists
+		//nolint:gosec // G301: 0755 is appropriate for log directory to allow group/other read
 		if err := os.MkdirAll(cfg.LogDir, 0o755); err != nil {
 			return fmt.Errorf("failed to create log directory: %w", err)
 		}

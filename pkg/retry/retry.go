@@ -204,6 +204,7 @@ func calculateDelay(attempt int, config Config) time.Duration {
 	// Add jitter if enabled (±25% randomness)
 	if config.Jitter {
 		jitterRange := delay * 0.25
+		//nolint:gosec // G404: math/rand is sufficient for retry jitter, crypto/rand not needed
 		jitter := (rand.Float64() * 2 * jitterRange) - jitterRange
 		delay += jitter
 	}

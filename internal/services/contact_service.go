@@ -13,12 +13,14 @@ import (
 	"go.uber.org/zap"
 )
 
+// ContactService handles contact form submissions and mentor contact requests
 type ContactService struct {
 	clientRequestRepo *repository.ClientRequestRepository
 	mentorRepo        *repository.MentorRepository
 	config            *config.Config
 }
 
+// NewContactService creates a new contact service instance
 func NewContactService(
 	clientRequestRepo *repository.ClientRequestRepository,
 	mentorRepo *repository.MentorRepository,
@@ -31,6 +33,7 @@ func NewContactService(
 	}
 }
 
+// SubmitContactForm processes a contact form submission with reCAPTCHA verification
 func (s *ContactService) SubmitContactForm(req *models.ContactMentorRequest) (*models.ContactMentorResponse, error) {
 	// Verify ReCAPTCHA
 	if err := s.verifyRecaptcha(req.RecaptchaToken); err != nil {
@@ -92,7 +95,9 @@ func (s *ContactService) verifyRecaptcha(token string) error {
 	if err != nil {
 		return fmt.Errorf("failed to verify recaptcha: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	var result models.ReCAPTCHAResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {

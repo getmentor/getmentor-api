@@ -11,11 +11,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// WebhookService handles webhook events and revalidation requests
 type WebhookService struct {
 	mentorRepo *repository.MentorRepository
 	config     *config.Config
 }
 
+// NewWebhookService creates a new webhook service instance
 func NewWebhookService(mentorRepo *repository.MentorRepository, cfg *config.Config) *WebhookService {
 	return &WebhookService{
 		mentorRepo: mentorRepo,
@@ -23,6 +25,7 @@ func NewWebhookService(mentorRepo *repository.MentorRepository, cfg *config.Conf
 	}
 }
 
+// HandleAirtableWebhook processes incoming Airtable webhook events
 func (s *WebhookService) HandleAirtableWebhook(payload *models.WebhookPayload) error {
 	logger.Info("Received Airtable webhook", zap.String("record_id", payload.RecordID))
 
@@ -56,16 +59,19 @@ func (s *WebhookService) revalidateNextJS(slug string) error {
 	if err != nil {
 		return fmt.Errorf("failed to call Next.js revalidate: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Next.js revalidate returned status %d", resp.StatusCode)
+		return fmt.Errorf("next.js revalidate returned status %d", resp.StatusCode)
 	}
 
 	logger.Info("Next.js revalidation triggered", zap.String("slug", slug))
 	return nil
 }
 
+// RevalidateNextJSManual manually triggers Next.js ISR revalidation with secret validation
 func (s *WebhookService) RevalidateNextJSManual(slug, secret string) error {
 	if secret != s.config.Auth.RevalidateSecret {
 		return fmt.Errorf("invalid secret")
