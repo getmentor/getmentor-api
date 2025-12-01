@@ -112,6 +112,7 @@ func TestConfig_Validate(t *testing.T) {
 					MCPAuthToken:       "test-mcp-token",
 					MentorsAPIToken:    "public-token",
 					WebhookSecret:      "webhook-secret",
+					MCPAuthToken:       "test-mcp-token",
 				},
 				ReCAPTCHA: config.ReCAPTCHAConfig{
 					SecretKey: "recaptcha-secret",
