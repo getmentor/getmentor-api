@@ -86,6 +86,7 @@ jobs:
             -e AIRTABLE_API_KEY=test \
             -e AIRTABLE_BASE_ID=test \
             -e INTERNAL_MENTORS_API=test-token \
+            -e MCP_AUTH_TOKEN=test-mcp-token \
             -e MENTORS_API_LIST_AUTH_TOKEN=test-token-1 \
             -e MENTORS_API_LIST_AUTH_TOKEN_INNO=test-token-2 \
             -e MENTORS_API_LIST_AUTH_TOKEN_AIKB=test-token-3 \
@@ -132,5 +133,5 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: v2.5.0
           args: --timeout=5m
