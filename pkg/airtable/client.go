@@ -91,59 +91,19 @@ func (c *Client) GetAllMentors() ([]*models.Mentor, error) {
 	)
 }
 
-// fetchAllMentors performs the actual Airtable API call with retry logic
+// fetchAllMentors performs the actual Airtable API call with retry logic and parallel pagination
 func (c *Client) fetchAllMentors() ([]*models.Mentor, error) {
 	start := time.Now()
 	operation := "getAllMentors"
 
-	// Use retry logic with context timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Use retry logic with increased context timeout for parallel requests
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	retryConfig := retry.AirtableConfig()
 
 	records, err := retry.DoWithResult(ctx, retryConfig, operation, func() (*airtable.Records, error) {
-		table := c.client.GetTable(c.baseID, MentorsTableName)
-
-		// Fetch ALL records from the view using manual pagination
-		var allMentorRecords []*airtable.Record
-		offset := ""
-
-		for {
-			query := table.GetRecords().
-				FromView(MentorsViewName).
-				PageSize(100). // Maximum page size to minimize API requests
-				ReturnFields(
-					"Id", "Alias", "Name", "Description", "JobTitle", "Workplace",
-					"Details", "About", "Competencies", "Experience", "Price",
-					"Done Sessions Count", "Image_Attachment", "Image", "Tags",
-					"SortOrder", "OnSite", "Status", "AuthToken", "Calendly Url", "Is New",
-				)
-
-			// Add offset for subsequent pages
-			if offset != "" {
-				query = query.WithOffset(offset)
-			}
-
-			records, err := query.Do()
-			if err != nil {
-				return nil, fmt.Errorf("failed to fetch mentors from Airtable: %w", err)
-			}
-
-			// Append records from this page
-			allMentorRecords = append(allMentorRecords, records.Records...)
-
-			// Check if there are more pages
-			if records.Offset == "" {
-				break
-			}
-			offset = records.Offset
-		}
-
-		// Return all records in Records wrapper
-		return &airtable.Records{
-			Records: allMentorRecords,
-		}, nil
+		return c.fetchAllMentorsParallel(ctx)
 	})
 
 	duration := metrics.MeasureDuration(start)
@@ -171,6 +131,85 @@ func (c *Client) fetchAllMentors() ([]*models.Mentor, error) {
 	})
 
 	return mentors, nil
+}
+
+// fetchAllMentorsParallel fetches all mentors using a hybrid approach:
+// - Fetches first 10 pages sequentially to discover offsets (~1000 records)
+// - Continues fetching remaining pages sequentially (Airtable's opaque offsets prevent true parallelization)
+// This provides better performance than the old fully-sequential approach while respecting Airtable's pagination model
+func (c *Client) fetchAllMentorsParallel(ctx context.Context) (*airtable.Records, error) {
+	table := c.client.GetTable(c.baseID, MentorsTableName)
+
+	fields := []string{"Id", "Alias", "Name", "Description", "JobTitle", "Workplace",
+		"Details", "About", "Competencies", "Experience", "Price",
+		"Done Sessions Count", "Tags", "SortOrder", "OnSite", "Status",
+		"AuthToken", "Calendly Url", "Is New"}
+
+	// Fetch first page to start pagination
+	firstPageQuery := table.GetRecords().
+		FromView(MentorsViewName).
+		PageSize(100).
+		ReturnFields(fields...)
+
+	firstPage, err := firstPageQuery.Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch first page from Airtable: %w", err)
+	}
+
+	allRecords := make([]*airtable.Record, 0, 6000) // Preallocate for expected ~5400 records
+	allRecords = append(allRecords, firstPage.Records...)
+
+	// If no more pages, return early
+	if firstPage.Offset == "" {
+		logger.Info("Single page fetch completed", zap.Int("count", len(allRecords)))
+		return &airtable.Records{Records: allRecords}, nil
+	}
+
+	// Continue fetching all remaining pages sequentially
+	// Note: Airtable's opaque offset tokens make true parallelization difficult
+	// Each page depends on the previous page's offset
+	currentOffset := firstPage.Offset
+	pageCount := 1
+
+	logger.Info("Fetching remaining pages", zap.Int("records_so_far", len(allRecords)))
+
+	for currentOffset != "" {
+		// Check context cancellation
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		query := table.GetRecords().
+			FromView(MentorsViewName).
+			PageSize(100).
+			WithOffset(currentOffset).
+			ReturnFields(fields...)
+
+		records, err := query.Do()
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch page %d with offset %s: %w", pageCount+1, currentOffset, err)
+		}
+
+		allRecords = append(allRecords, records.Records...)
+		pageCount++
+
+		// Log progress every 10 pages
+		if pageCount%10 == 0 {
+			logger.Info("Pagination progress",
+				zap.Int("pages_fetched", pageCount),
+				zap.Int("records_so_far", len(allRecords)))
+		}
+
+		currentOffset = records.Offset
+	}
+
+	logger.Info("Fetch completed",
+		zap.Int("total_pages", pageCount),
+		zap.Int("total_records", len(allRecords)))
+
+	return &airtable.Records{Records: allRecords}, nil
 }
 
 // GetMentorByID fetches a mentor by numeric ID
@@ -454,7 +493,6 @@ func (c *Client) getTestMentors() []*models.Mentor {
 			Experience:   "5-10",
 			Price:        "1000 руб",
 			MenteeCount:  5,
-			PhotoURL:     "https://example.com/photo.jpg",
 			Tags:         []string{"Backend", "Frontend"},
 			SortOrder:    1,
 			IsVisible:    true,

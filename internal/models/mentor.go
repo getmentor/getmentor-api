@@ -20,7 +20,6 @@ type Mentor struct {
 	Experience   string   `json:"experience"`
 	Price        string   `json:"price"`
 	MenteeCount  int      `json:"menteeCount"`
-	PhotoURL     string   `json:"photo_url"`
 	Tags         []string `json:"tags"`
 	SortOrder    int      `json:"sortOrder"`
 	IsVisible    bool     `json:"isVisible"`
@@ -63,7 +62,6 @@ func (m *Mentor) ToPublicResponse(baseURL string) PublicMentorResponse {
 		Experience:   m.Experience,
 		Price:        m.Price,
 		DoneSessions: m.MenteeCount,
-		Photo:        m.PhotoURL,
 		Tags:         strings.Join(m.Tags, ","),
 		Link:         baseURL + "/mentor/" + m.Slug,
 	}
@@ -93,17 +91,13 @@ type AirtableRecord struct {
 		Experience        string `json:"Experience"`
 		Price             string `json:"Price"`
 		DoneSessionsCount int    `json:"Done Sessions Count"`
-		ImageAttachment   []struct {
-			URL string `json:"url"`
-		} `json:"Image_Attachment"`
-		Image       string `json:"Image"`
-		Tags        string `json:"Tags"`
-		SortOrder   int    `json:"SortOrder"`
-		OnSite      int    `json:"OnSite"`
-		Status      string `json:"Status"`
-		AuthToken   string `json:"AuthToken"`
-		CalendlyURL string `json:"Calendly Url"`
-		IsNew       int    `json:"Is New"`
+		Tags              string `json:"Tags"`
+		SortOrder         int    `json:"SortOrder"`
+		OnSite            int    `json:"OnSite"`
+		Status            string `json:"Status"`
+		AuthToken         string `json:"AuthToken"`
+		CalendlyURL       string `json:"Calendly Url"`
+		IsNew             int    `json:"Is New"`
 	}
 }
 
@@ -122,12 +116,6 @@ func (ar *AirtableRecord) ToMentor() *Mentor {
 
 	// Determine visibility
 	isVisible := ar.Fields.OnSite == 1 && ar.Fields.Status == "active"
-
-	// Get photo URL
-	photoURL := ar.Fields.Image
-	if photoURL == "" && len(ar.Fields.ImageAttachment) > 0 {
-		photoURL = ar.Fields.ImageAttachment[0].URL
-	}
 
 	// Determine calendar type
 	calendarType := GetCalendarType(ar.Fields.CalendlyURL)
@@ -148,7 +136,6 @@ func (ar *AirtableRecord) ToMentor() *Mentor {
 		Experience:   ar.Fields.Experience,
 		Price:        ar.Fields.Price,
 		MenteeCount:  ar.Fields.DoneSessionsCount,
-		PhotoURL:     photoURL,
 		Tags:         tags,
 		SortOrder:    ar.Fields.SortOrder,
 		IsVisible:    isVisible,
@@ -235,21 +222,14 @@ func AirtableRecordToMentor(record *airtable.Record) *Mentor {
 	}
 
 	// Determine visibility
+	// The "All Approved" view in Airtable already filters approved mentors
+	// If Status or OnSite fields are empty, trust the view's filtering
 	onSite := getInt("OnSite")
 	status := getString("Status")
-	isVisible := onSite == 1 && status == "active"
 
-	// Get photo URL - try Image field first, then Image_Attachment
-	photoURL := getString("Image")
-	if photoURL == "" {
-		if attachments, ok := record.Fields["Image_Attachment"].([]interface{}); ok && len(attachments) > 0 {
-			if attachment, ok := attachments[0].(map[string]interface{}); ok {
-				if url, ok := attachment["url"].(string); ok {
-					photoURL = url
-				}
-			}
-		}
-	}
+	// Default to visible if both fields are empty (view handles filtering)
+	// Otherwise check the explicit values
+	isVisible := (onSite == 1 && status == "active") || (status == "" && onSite == 0)
 
 	// Calendar URL
 	calendlyURL := getString("Calendly Url")
@@ -274,7 +254,6 @@ func AirtableRecordToMentor(record *airtable.Record) *Mentor {
 		Experience:   getString("Experience"),
 		Price:        getString("Price"),
 		MenteeCount:  getInt("Done Sessions Count"),
-		PhotoURL:     photoURL,
 		Tags:         tags,
 		SortOrder:    getInt("SortOrder"),
 		IsVisible:    isVisible,
