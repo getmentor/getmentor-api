@@ -127,17 +127,13 @@ func TestAirtableRecordToMentor(t *testing.T) {
 					Experience        string `json:"Experience"`
 					Price             string `json:"Price"`
 					DoneSessionsCount int    `json:"Done Sessions Count"`
-					ImageAttachment   []struct {
-						URL string `json:"url"`
-					} `json:"Image_Attachment"`
-					Image       string `json:"Image"`
-					Tags        string `json:"Tags"`
-					SortOrder   int    `json:"SortOrder"`
-					OnSite      int    `json:"OnSite"`
-					Status      string `json:"Status"`
-					AuthToken   string `json:"AuthToken"`
-					CalendlyURL string `json:"Calendly Url"`
-					IsNew       int    `json:"Is New"`
+					Tags              string `json:"Tags"`
+					SortOrder         int    `json:"SortOrder"`
+					OnSite            int    `json:"OnSite"`
+					Status            string `json:"Status"`
+					AuthToken         string `json:"AuthToken"`
+					CalendlyURL       string `json:"Calendly Url"`
+					IsNew             int    `json:"Is New"`
 				}{
 					Id:                1,
 					Alias:             "john-doe",
@@ -151,7 +147,6 @@ func TestAirtableRecordToMentor(t *testing.T) {
 					Experience:        "10 years",
 					Price:             "$100/hour",
 					DoneSessionsCount: 25,
-					Image:             "https://example.com/photo.jpg",
 					Tags:              "React, JavaScript, Ontico",
 					SortOrder:         1,
 					OnSite:            1,
@@ -174,7 +169,6 @@ func TestAirtableRecordToMentor(t *testing.T) {
 				Experience:   "10 years",
 				Price:        "$100/hour",
 				MenteeCount:  25,
-				PhotoURL:     "https://example.com/photo.jpg",
 				Tags:         []string{"React", "JavaScript", "Ontico"},
 				SortOrder:    1,
 				IsVisible:    true,
@@ -202,17 +196,13 @@ func TestAirtableRecordToMentor(t *testing.T) {
 					Experience        string `json:"Experience"`
 					Price             string `json:"Price"`
 					DoneSessionsCount int    `json:"Done Sessions Count"`
-					ImageAttachment   []struct {
-						URL string `json:"url"`
-					} `json:"Image_Attachment"`
-					Image       string `json:"Image"`
-					Tags        string `json:"Tags"`
-					SortOrder   int    `json:"SortOrder"`
-					OnSite      int    `json:"OnSite"`
-					Status      string `json:"Status"`
-					AuthToken   string `json:"AuthToken"`
-					CalendlyURL string `json:"Calendly Url"`
-					IsNew       int    `json:"Is New"`
+					Tags              string `json:"Tags"`
+					SortOrder         int    `json:"SortOrder"`
+					OnSite            int    `json:"OnSite"`
+					Status            string `json:"Status"`
+					AuthToken         string `json:"AuthToken"`
+					CalendlyURL       string `json:"Calendly Url"`
+					IsNew             int    `json:"Is New"`
 				}{
 					Id:        2,
 					Alias:     "jane-doe",
@@ -253,27 +243,17 @@ func TestAirtableRecordToMentor(t *testing.T) {
 					Experience        string `json:"Experience"`
 					Price             string `json:"Price"`
 					DoneSessionsCount int    `json:"Done Sessions Count"`
-					ImageAttachment   []struct {
-						URL string `json:"url"`
-					} `json:"Image_Attachment"`
-					Image       string `json:"Image"`
-					Tags        string `json:"Tags"`
-					SortOrder   int    `json:"SortOrder"`
-					OnSite      int    `json:"OnSite"`
-					Status      string `json:"Status"`
-					AuthToken   string `json:"AuthToken"`
-					CalendlyURL string `json:"Calendly Url"`
-					IsNew       int    `json:"Is New"`
+					Tags              string `json:"Tags"`
+					SortOrder         int    `json:"SortOrder"`
+					OnSite            int    `json:"OnSite"`
+					Status            string `json:"Status"`
+					AuthToken         string `json:"AuthToken"`
+					CalendlyURL       string `json:"Calendly Url"`
+					IsNew             int    `json:"Is New"`
 				}{
-					Id:    3,
-					Alias: "bob-smith",
-					Name:  "Bob Smith",
-					ImageAttachment: []struct {
-						URL string `json:"url"`
-					}{
-						{URL: "https://example.com/attachment.jpg"},
-					},
-					Image:     "",
+					Id:        3,
+					Alias:     "bob-smith",
+					Name:      "Bob Smith",
 					OnSite:    1,
 					Status:    "active",
 					Tags:      "Go, Backend",
@@ -285,7 +265,6 @@ func TestAirtableRecordToMentor(t *testing.T) {
 				AirtableID:   "rec789",
 				Slug:         "bob-smith",
 				Name:         "Bob Smith",
-				PhotoURL:     "https://example.com/attachment.jpg",
 				Tags:         []string{"Go", "Backend"},
 				SortOrder:    3,
 				IsVisible:    true,
@@ -311,17 +290,13 @@ func TestAirtableRecordToMentor(t *testing.T) {
 					Experience        string `json:"Experience"`
 					Price             string `json:"Price"`
 					DoneSessionsCount int    `json:"Done Sessions Count"`
-					ImageAttachment   []struct {
-						URL string `json:"url"`
-					} `json:"Image_Attachment"`
-					Image       string `json:"Image"`
-					Tags        string `json:"Tags"`
-					SortOrder   int    `json:"SortOrder"`
-					OnSite      int    `json:"OnSite"`
-					Status      string `json:"Status"`
-					AuthToken   string `json:"AuthToken"`
-					CalendlyURL string `json:"Calendly Url"`
-					IsNew       int    `json:"Is New"`
+					Tags              string `json:"Tags"`
+					SortOrder         int    `json:"SortOrder"`
+					OnSite            int    `json:"OnSite"`
+					Status            string `json:"Status"`
+					AuthToken         string `json:"AuthToken"`
+					CalendlyURL       string `json:"Calendly Url"`
+					IsNew             int    `json:"Is New"`
 				}{
 					Id:        4,
 					Alias:     "alice",
@@ -369,7 +344,6 @@ func TestMentorToPublicResponse(t *testing.T) {
 		Experience:   "10 years",
 		Price:        "$100/hour",
 		MenteeCount:  25,
-		PhotoURL:     "https://example.com/photo.jpg",
 		Tags:         []string{"React", "JavaScript", "Frontend"},
 		SortOrder:    1,
 		IsVisible:    true,
@@ -391,7 +365,6 @@ func TestMentorToPublicResponse(t *testing.T) {
 		Experience:   "10 years",
 		Price:        "$100/hour",
 		DoneSessions: 25,
-		Photo:        "https://example.com/photo.jpg",
 		Tags:         "React,JavaScript,Frontend",
 		Link:         "https://getmentor.dev/mentor/john-doe",
 	}

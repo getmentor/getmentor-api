@@ -116,8 +116,8 @@ func (c *Client) fetchAllMentors() ([]*models.Mentor, error) {
 				ReturnFields(
 					"Id", "Alias", "Name", "Description", "JobTitle", "Workplace",
 					"Details", "About", "Competencies", "Experience", "Price",
-					"Done Sessions Count", "Image_Attachment", "Image", "Tags",
-					"SortOrder", "OnSite", "Status", "AuthToken", "Calendly Url", "Is New",
+					"Done Sessions Count", "Tags", "SortOrder", "OnSite", "Status",
+					"AuthToken", "Calendly Url", "Is New",
 				)
 
 			// Add offset for subsequent pages
@@ -454,7 +454,6 @@ func (c *Client) getTestMentors() []*models.Mentor {
 			Experience:   "5-10",
 			Price:        "1000 руб",
 			MenteeCount:  5,
-			PhotoURL:     "https://example.com/photo.jpg",
 			Tags:         []string{"Backend", "Frontend"},
 			SortOrder:    1,
 			IsVisible:    true,
