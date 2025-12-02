@@ -50,6 +50,7 @@ type AuthConfig struct {
 	InternalMentorsAPI  string
 	RevalidateSecret    string
 	WebhookSecret       string
+	MCPAPIToken         string
 }
 
 type ReCAPTCHAConfig struct {
@@ -154,6 +155,7 @@ func Load() (*Config, error) {
 			InternalMentorsAPI:  v.GetString("INTERNAL_MENTORS_API"),
 			RevalidateSecret:    v.GetString("REVALIDATE_SECRET_TOKEN"),
 			WebhookSecret:       v.GetString("WEBHOOK_SECRET"),
+			MCPAPIToken:         v.GetString("MCP_API_TOKEN"),
 		},
 		ReCAPTCHA: ReCAPTCHAConfig{
 			SecretKey: v.GetString("RECAPTCHA_V2_SECRET_KEY"),
@@ -207,6 +209,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Auth.WebhookSecret == "" {
 		return fmt.Errorf("WEBHOOK_SECRET is required")
+	}
+	if c.Auth.MCPAPIToken == "" {
+		return fmt.Errorf("MCP_API_TOKEN is required")
 	}
 
 	// ReCAPTCHA configuration

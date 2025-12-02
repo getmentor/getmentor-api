@@ -111,6 +111,7 @@ func TestConfig_Validate(t *testing.T) {
 					InternalMentorsAPI: "test-token",
 					MentorsAPIToken:    "public-token",
 					WebhookSecret:      "webhook-secret",
+					MCPAPIToken:        "mcp-token",
 				},
 				ReCAPTCHA: config.ReCAPTCHAConfig{
 					SecretKey: "recaptcha-secret",
@@ -135,6 +136,7 @@ func TestConfig_Validate(t *testing.T) {
 					InternalMentorsAPI: "test-token",
 					MentorsAPIToken:    "public-token",
 					WebhookSecret:      "webhook-secret",
+					MCPAPIToken:        "mcp-token",
 				},
 				ReCAPTCHA: config.ReCAPTCHAConfig{
 					SecretKey: "recaptcha-secret",
@@ -205,6 +207,7 @@ func TestLoad_WithDefaults(t *testing.T) {
 	os.Setenv("INTERNAL_MENTORS_API", "test-token")
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN", "public-token")
 	os.Setenv("WEBHOOK_SECRET", "webhook-secret")
+	os.Setenv("MCP_API_TOKEN", "mcp-token")
 	os.Setenv("RECAPTCHA_V2_SECRET_KEY", "recaptcha-secret")
 
 	cfg, err := config.Load()
@@ -238,6 +241,7 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN_INNO", "token2")
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN_AIKB", "token3")
 	os.Setenv("WEBHOOK_SECRET", "webhook-secret")
+	os.Setenv("MCP_API_TOKEN", "mcp-token")
 	os.Setenv("RECAPTCHA_V2_SECRET_KEY", "recaptcha-secret")
 	os.Setenv("NEXTJS_BASE_URL", "https://example.com")
 

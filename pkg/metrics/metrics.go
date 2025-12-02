@@ -129,6 +129,32 @@ var (
 		[]string{"status"},
 	)
 
+	// MCP (Model Context Protocol) Metrics
+	MCPToolInvocations = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gm_api_mcp_tool_invocations_total",
+			Help: "Total number of MCP tool invocations",
+		},
+		[]string{"tool_name", "status"},
+	)
+
+	MCPToolDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "gm_api_mcp_tool_duration_seconds",
+			Help:    "MCP tool execution duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"tool_name"},
+	)
+
+	MCPErrors = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gm_api_mcp_errors_total",
+			Help: "Total number of MCP errors by error type",
+		},
+		[]string{"error_type"},
+	)
+
 	// Infrastructure Metrics
 	GoRoutines = promauto.NewGauge(
 		prometheus.GaugeOpts{
