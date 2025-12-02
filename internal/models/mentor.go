@@ -44,7 +44,6 @@ type PublicMentorResponse struct {
 	Experience   string `json:"experience"`
 	Price        string `json:"price"`
 	DoneSessions int    `json:"doneSessions"`
-	Photo        string `json:"photo"`
 	Tags         string `json:"tags"`
 	Link         string `json:"link"`
 }
