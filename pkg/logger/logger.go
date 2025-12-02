@@ -56,16 +56,16 @@ func Initialize(cfg Config) error {
 		appLogWriter := &lumberjack.Logger{
 			Filename:   filepath.Join(cfg.LogDir, "app.log"),
 			MaxSize:    100, // MB
-			MaxBackups: 3,
-			MaxAge:     28, // days
+			MaxBackups: 7,
+			MaxAge:     7, // days
 			Compress:   true,
 		}
 
 		errorLogWriter := &lumberjack.Logger{
 			Filename:   filepath.Join(cfg.LogDir, "error.log"),
 			MaxSize:    100, // MB
-			MaxBackups: 3,
-			MaxAge:     28, // days
+			MaxBackups: 7,
+			MaxAge:     7, // days
 			Compress:   true,
 		}
 
