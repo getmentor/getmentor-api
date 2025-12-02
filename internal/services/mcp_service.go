@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -24,7 +25,7 @@ func NewMCPService(repo *repository.MentorRepository) *MCPService {
 }
 
 // ListMentors returns all active mentors with optional filtering
-func (s *MCPService) ListMentors(params models.ListMentorsParams) (*models.ListMentorsResult, error) {
+func (s *MCPService) ListMentors(ctx context.Context, params models.ListMentorsParams) (*models.ListMentorsResult, error) {
 	// Set default limit
 	if params.Limit <= 0 {
 		params.Limit = 50
@@ -41,14 +42,14 @@ func (s *MCPService) ListMentors(params models.ListMentorsParams) (*models.ListM
 		ForceRefresh:   false,
 	}
 
-	mentors, err := s.repo.GetAll(opts)
+	mentors, err := s.repo.GetAll(ctx, opts)
 	if err != nil {
 		logger.Error("Failed to fetch mentors for MCP list", zap.Error(err))
 		return nil, err
 	}
 
 	// Apply filters
-	filtered := s.filterMentors(mentors, params.Tags, params.Experience, params.MinPrice, params.MaxPrice, params.Workplace)
+	filtered := s.filterMentors(ctx, mentors, params.Tags, params.Experience, params.MinPrice, params.MaxPrice, params.Workplace)
 
 	// Apply limit
 	if len(filtered) > params.Limit {
@@ -68,7 +69,7 @@ func (s *MCPService) ListMentors(params models.ListMentorsParams) (*models.ListM
 }
 
 // GetMentor returns extended information for a specific mentor
-func (s *MCPService) GetMentor(params models.GetMentorParams) (*models.GetMentorResult, error) {
+func (s *MCPService) GetMentor(ctx context.Context, params models.GetMentorParams) (*models.GetMentorResult, error) {
 	if params.ID == nil && params.Slug == nil {
 		return nil, fmt.Errorf("either id or slug must be provided")
 	}
@@ -84,9 +85,9 @@ func (s *MCPService) GetMentor(params models.GetMentorParams) (*models.GetMentor
 	var err error
 
 	if params.ID != nil {
-		mentor, err = s.repo.GetByID(*params.ID, opts)
+		mentor, err = s.repo.GetByID(ctx, *params.ID, opts)
 	} else {
-		mentor, err = s.repo.GetBySlug(*params.Slug, opts)
+		mentor, err = s.repo.GetBySlug(ctx, *params.Slug, opts)
 	}
 
 	if err != nil {
@@ -106,7 +107,7 @@ func (s *MCPService) GetMentor(params models.GetMentorParams) (*models.GetMentor
 }
 
 // SearchMentors performs keyword search with optional filtering
-func (s *MCPService) SearchMentors(params models.SearchMentorsParams) (*models.SearchMentorsResult, error) {
+func (s *MCPService) SearchMentors(ctx context.Context, params models.SearchMentorsParams) (*models.SearchMentorsResult, error) {
 	if params.Query == "" {
 		return nil, fmt.Errorf("query parameter is required")
 	}
@@ -127,14 +128,14 @@ func (s *MCPService) SearchMentors(params models.SearchMentorsParams) (*models.S
 		ForceRefresh:   false,
 	}
 
-	mentors, err := s.repo.GetAll(opts)
+	mentors, err := s.repo.GetAll(ctx, opts)
 	if err != nil {
 		logger.Error("Failed to fetch mentors for MCP search", zap.Error(err))
 		return nil, err
 	}
 
 	// Apply filters first
-	filtered := s.filterMentors(mentors, params.Tags, params.Experience, params.MinPrice, params.MaxPrice, params.Workplace)
+	filtered := s.filterMentors(ctx, mentors, params.Tags, params.Experience, params.MinPrice, params.MaxPrice, params.Workplace)
 
 	// Apply keyword search
 	keywords := s.parseKeywords(params.Query)
@@ -264,7 +265,7 @@ func (s *MCPService) GetAvailableTools() []models.MCPTool {
 }
 
 // filterMentors applies filters to a list of mentors
-func (s *MCPService) filterMentors(mentors []*models.Mentor, tags []string, experience, minPrice, maxPrice, workplace string) []*models.Mentor {
+func (s *MCPService) filterMentors(ctx context.Context, mentors []*models.Mentor, tags []string, experience, minPrice, maxPrice, workplace string) []*models.Mentor {
 	filtered := make([]*models.Mentor, 0, len(mentors))
 
 	for _, mentor := range mentors {

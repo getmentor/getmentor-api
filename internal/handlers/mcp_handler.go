@@ -176,7 +176,7 @@ func (h *MCPHandler) handleListMentors(c *gin.Context, id interface{}, args map[
 		return
 	}
 
-	result, err := h.service.ListMentors(params)
+	result, err := h.service.ListMentors(c.Request.Context(), params)
 	if err != nil {
 		logger.Error("Failed to list mentors",
 			zap.Error(err),
@@ -235,7 +235,7 @@ func (h *MCPHandler) handleGetMentor(c *gin.Context, id interface{}, args map[st
 		return
 	}
 
-	result, err := h.service.GetMentor(params)
+	result, err := h.service.GetMentor(c.Request.Context(), params)
 	if err != nil {
 		logger.Error("Failed to get mentor",
 			zap.Error(err),
@@ -316,7 +316,7 @@ func (h *MCPHandler) handleSearchMentors(c *gin.Context, id interface{}, args ma
 		return
 	}
 
-	result, err := h.service.SearchMentors(params)
+	result, err := h.service.SearchMentors(c.Request.Context(), params)
 	if err != nil {
 		logger.Error("Failed to search mentors",
 			zap.Error(err),
