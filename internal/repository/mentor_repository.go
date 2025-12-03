@@ -30,6 +30,7 @@ func (r *MentorRepository) GetAll(ctx context.Context, opts models.FilterOptions
 	var mentors []*models.Mentor
 	var err error
 
+	// ForceRefresh triggers background refresh but returns current data
 	if opts.ForceRefresh {
 		mentors, err = r.mentorCache.ForceRefresh()
 	} else {
@@ -47,6 +48,7 @@ func (r *MentorRepository) GetAll(ctx context.Context, opts models.FilterOptions
 }
 
 // GetByID retrieves a mentor by numeric ID
+// Note: O(n) complexity is acceptable as per requirements
 func (r *MentorRepository) GetByID(ctx context.Context, id int, opts models.FilterOptions) (*models.Mentor, error) {
 	mentors, err := r.GetAll(ctx, opts)
 	if err != nil {
@@ -62,20 +64,23 @@ func (r *MentorRepository) GetByID(ctx context.Context, id int, opts models.Filt
 	return nil, fmt.Errorf("mentor with ID %d not found", id)
 }
 
-// GetBySlug retrieves a mentor by slug
+// GetBySlug retrieves a mentor by slug with O(1) complexity
 func (r *MentorRepository) GetBySlug(ctx context.Context, slug string, opts models.FilterOptions) (*models.Mentor, error) {
-	mentors, err := r.GetAll(ctx, opts)
+	// Note: ForceRefresh is ignored for single lookups
+	// Only webhook/profile updates trigger single-mentor refresh
+
+	mentor, err := r.mentorCache.GetBySlug(slug)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, mentor := range mentors {
-		if mentor.Slug == slug {
-			return mentor, nil
-		}
+	// Apply filters to single mentor
+	filtered := r.applySingleMentorFilters(mentor, opts)
+	if filtered == nil {
+		return nil, fmt.Errorf("mentor with slug %s not found or not visible", slug)
 	}
 
-	return nil, fmt.Errorf("mentor with slug %s not found", slug)
+	return filtered, nil
 }
 
 // GetByRecordID retrieves a mentor by Airtable record ID
@@ -122,36 +127,66 @@ func (r *MentorRepository) GetAllTags(ctx context.Context) (map[string]string, e
 
 // applyFilters applies filtering options to a mentor list
 func (r *MentorRepository) applyFilters(mentors []*models.Mentor, opts models.FilterOptions) []*models.Mentor {
-	result := make([]*models.Mentor, 0)
+	result := make([]*models.Mentor, 0, len(mentors))
 
 	for _, mentor := range mentors {
-		// Filter by visibility
-		if opts.OnlyVisible && !mentor.IsVisible {
-			continue
+		filtered := r.applySingleMentorFilters(mentor, opts)
+		if filtered != nil {
+			result = append(result, filtered)
 		}
-
-		// Make a copy to avoid modifying cached data
-		m := *mentor
-
-		// Drop long fields if requested
-		if opts.DropLongFields {
-			m.About = ""
-			m.Description = ""
-		}
-
-		// Hide secure fields unless explicitly requested
-		if !opts.ShowHidden {
-			m.AuthToken = ""
-			m.CalendarURL = ""
-		}
-
-		result = append(result, &m)
 	}
 
 	return result
 }
 
+// applySingleMentorFilters applies filtering options to a single mentor
+// Returns nil if mentor should be filtered out
+func (r *MentorRepository) applySingleMentorFilters(mentor *models.Mentor, opts models.FilterOptions) *models.Mentor {
+	// Filter by visibility
+	if opts.OnlyVisible && !mentor.IsVisible {
+		return nil
+	}
+
+	// Only copy if modifications are needed
+	if opts.DropLongFields || !opts.ShowHidden {
+		m := *mentor // Copy only when necessary
+
+		if opts.DropLongFields {
+			m.About = ""
+			m.Description = ""
+		}
+
+		if !opts.ShowHidden {
+			m.AuthToken = ""
+			m.CalendarURL = ""
+		}
+
+		return &m
+	}
+
+	// Return original pointer if no modifications needed
+	return mentor
+}
+
 // InvalidateCache forces cache invalidation
 func (r *MentorRepository) InvalidateCache() {
 	r.mentorCache.Clear()
+}
+
+// UpdateSingleMentorCache updates a single mentor in cache
+// Called by webhook or profile update flow
+func (r *MentorRepository) UpdateSingleMentorCache(slug string) error {
+	return r.mentorCache.UpdateSingleMentor(slug)
+}
+
+// RemoveMentorFromCache removes a mentor from cache
+// Called when a mentor is deleted
+func (r *MentorRepository) RemoveMentorFromCache(slug string) error {
+	return r.mentorCache.RemoveMentor(slug)
+}
+
+// RefreshCache triggers a background cache refresh
+func (r *MentorRepository) RefreshCache() error {
+	_, err := r.mentorCache.ForceRefresh()
+	return err
 }
