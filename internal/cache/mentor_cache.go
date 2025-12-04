@@ -299,10 +299,7 @@ func (mc *MentorCache) refreshInBackground() error {
 	}
 
 	// Update cache atomically
-	if err := mc.populateCache(mentors); err != nil {
-		logger.Error("Failed to populate cache in background refresh", zap.Error(err))
-		return err
-	}
+	mc.populateCache(mentors)
 
 	mc.mu.Lock()
 	mc.lastRefresh = time.Now()
@@ -342,13 +339,7 @@ func (mc *MentorCache) refreshWithRetry() error {
 		}
 
 		// Populate cache
-		if populateErr := mc.populateCache(mentors); populateErr != nil {
-			err = populateErr
-			logger.Error("Cache population attempt failed",
-				zap.Int("attempt", attempt+1),
-				zap.Error(err))
-			continue
-		}
+		mc.populateCache(mentors)
 
 		return nil
 	}
@@ -357,7 +348,7 @@ func (mc *MentorCache) refreshWithRetry() error {
 }
 
 // populateCache stores all mentors in cache with individual keys
-func (mc *MentorCache) populateCache(mentors []*models.Mentor) error {
+func (mc *MentorCache) populateCache(mentors []*models.Mentor) {
 	slugs := make([]string, 0, len(mentors))
 
 	for _, mentor := range mentors {
@@ -383,8 +374,6 @@ func (mc *MentorCache) populateCache(mentors []*models.Mentor) error {
 	metrics.CacheSize.WithLabelValues("mentors").Set(float64(len(mentors)))
 
 	logger.Info("Cache populated successfully", zap.Int("count", len(mentors)))
-
-	return nil
 }
 
 // ensureMentorInListLocked ensures slug is in all-mentors list
