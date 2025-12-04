@@ -211,6 +211,10 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("WEBHOOK_SECRET is required")
 	}
 
+	if c.Auth.MCPAuthToken == "" {
+		return fmt.Errorf("MCP_AUTH_TOKEN is required")
+	}
+
 	// ReCAPTCHA configuration
 	if c.ReCAPTCHA.SecretKey == "" {
 		return fmt.Errorf("RECAPTCHA_V2_SECRET_KEY is required")
@@ -225,10 +229,6 @@ func (c *Config) Validate() error {
 	}
 	if len(c.Server.AllowedOrigins) == 0 {
 		return fmt.Errorf("ALLOWED_CORS_ORIGINS is required")
-	}
-
-	if c.Auth.MCPAuthToken == "" {
-		return fmt.Errorf("MCP_AUTH_TOKEN is required")
 	}
 
 	return nil

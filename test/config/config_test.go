@@ -195,6 +195,8 @@ func TestConfig_Validate(t *testing.T) {
 				},
 				Auth: config.AuthConfig{
 					InternalMentorsAPI: "test-token",
+					MentorsAPIToken:    "public-token",
+					WebhookSecret:      "webhook-secret",
 				},
 			},
 			expectError: true,
@@ -255,6 +257,7 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	os.Setenv("AIRTABLE_BASE_ID", "test-base-456")
 	os.Setenv("INTERNAL_MENTORS_API", "internal-token-789")
 	os.Setenv("MCP_AUTH_TOKEN", "mcp-token-xyz")
+	os.Setenv("WEBHOOK_SECRET", "webhook-secret")
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN", "token1")
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN_INNO", "token2")
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN_AIKB", "token3")

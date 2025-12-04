@@ -227,7 +227,7 @@ func (s *MCPService) GetAvailableTools() []models.MCPTool {
 				"properties": map[string]interface{}{
 					"query": map[string]interface{}{
 						"type":        "string",
-						"description": "Search keywords (space-separated). Searches in competencies, description, and about fields.",
+						"description": "Search keywords (comma-separated). Searches in competencies, description, and about fields.",
 					},
 					"tags": map[string]interface{}{
 						"type":        "array",
@@ -323,7 +323,7 @@ func (s *MCPService) priceInRange(mentorPrice, comparePrice string, isMin bool) 
 
 // parseKeywords splits query into keywords
 func (s *MCPService) parseKeywords(query string) []string {
-	keywords := strings.Fields(strings.ToLower(query))
+	keywords := strings.Split(strings.ToLower(query), ",")
 	// Remove duplicates
 	seen := make(map[string]bool)
 	unique := make([]string, 0, len(keywords))
