@@ -130,18 +130,6 @@ func Load() (*Config, error) {
 		}
 	}
 
-	// Parse allowed CORS origins (comma-separated)
-	allowedOrigins := []string{}
-	originsStr := v.GetString("ALLOWED_CORS_ORIGINS")
-	if originsStr != "" {
-		for _, origin := range strings.Split(originsStr, ",") {
-			origin = strings.TrimSpace(origin)
-			if origin != "" {
-				allowedOrigins = append(allowedOrigins, origin)
-			}
-		}
-	}
-
 	cfg := &Config{
 		Server: ServerConfig{
 			Port:           v.GetString("PORT"),

@@ -77,7 +77,6 @@ type MCPMentorBasic struct {
 	Tags         []string `json:"tags"`
 	Competencies string   `json:"competencies"`
 	Price        string   `json:"price"`
-	PhotoURL     string   `json:"photoUrl,omitempty"`
 	DoneSessions int      `json:"doneSessions"`
 }
 
@@ -92,7 +91,6 @@ type MCPMentorExtended struct {
 	Tags         []string `json:"tags"`
 	Competencies string   `json:"competencies"`
 	Price        string   `json:"price"`
-	PhotoURL     string   `json:"photoUrl,omitempty"`
 	DoneSessions int      `json:"doneSessions"`
 	Description  string   `json:"description"`
 	About        string   `json:"about"`
@@ -127,7 +125,6 @@ func (m *Mentor) ToMCPBasic() MCPMentorBasic {
 		Tags:         m.Tags,
 		Competencies: m.Competencies,
 		Price:        m.Price,
-		PhotoURL:     m.PhotoURL,
 		DoneSessions: m.MenteeCount,
 	}
 }
@@ -144,7 +141,6 @@ func (m *Mentor) ToMCPExtended() MCPMentorExtended {
 		Tags:         m.Tags,
 		Competencies: m.Competencies,
 		Price:        m.Price,
-		PhotoURL:     m.PhotoURL,
 		DoneSessions: m.MenteeCount,
 		Description:  m.Description,
 		About:        m.About,
