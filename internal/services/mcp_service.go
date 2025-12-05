@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/getmentor/getmentor-api/internal/models"
@@ -25,7 +26,7 @@ func NewMCPService(repo *repository.MentorRepository) *MCPService {
 }
 
 // ListMentors returns all active mentors with optional filtering
-func (s *MCPService) ListMentors(ctx context.Context, params models.ListMentorsParams) (*models.ListMentorsResult, error) {
+func (s *MCPService) ListMentors(ctx context.Context, params *models.ListMentorsParams) (*models.ListMentorsResult, error) {
 	// Set default limit
 	if params.Limit <= 0 {
 		params.Limit = 50
@@ -49,7 +50,7 @@ func (s *MCPService) ListMentors(ctx context.Context, params models.ListMentorsP
 	}
 
 	// Apply filters
-	filtered := s.filterMentors(ctx, mentors, params.Tags, params.Experience, params.MinPrice, params.MaxPrice, params.Workplace)
+	filtered := s.filterMentors(mentors, params.Tags, params.Experience, params.MinPrice, params.MaxPrice, params.Workplace)
 
 	// Apply limit
 	if len(filtered) > params.Limit {
@@ -69,7 +70,7 @@ func (s *MCPService) ListMentors(ctx context.Context, params models.ListMentorsP
 }
 
 // GetMentor returns extended information for a specific mentor
-func (s *MCPService) GetMentor(ctx context.Context, params models.GetMentorParams) (*models.GetMentorResult, error) {
+func (s *MCPService) GetMentor(ctx context.Context, params *models.GetMentorParams) (*models.GetMentorResult, error) {
 	if params.ID == nil && params.Slug == nil {
 		return nil, fmt.Errorf("either id or slug must be provided")
 	}
@@ -107,7 +108,7 @@ func (s *MCPService) GetMentor(ctx context.Context, params models.GetMentorParam
 }
 
 // SearchMentors performs keyword search with optional filtering
-func (s *MCPService) SearchMentors(ctx context.Context, params models.SearchMentorsParams) (*models.SearchMentorsResult, error) {
+func (s *MCPService) SearchMentors(ctx context.Context, params *models.SearchMentorsParams) (*models.SearchMentorsResult, error) {
 	if params.Query == "" {
 		return nil, fmt.Errorf("query parameter is required")
 	}
@@ -135,7 +136,7 @@ func (s *MCPService) SearchMentors(ctx context.Context, params models.SearchMent
 	}
 
 	// Apply filters first
-	filtered := s.filterMentors(ctx, mentors, params.Tags, params.Experience, params.MinPrice, params.MaxPrice, params.Workplace)
+	filtered := s.filterMentors(mentors, params.Tags, params.Experience, params.MinPrice, params.MaxPrice, params.Workplace)
 
 	// Apply keyword search
 	keywords := s.parseKeywords(params.Query)
@@ -265,7 +266,7 @@ func (s *MCPService) GetAvailableTools() []models.MCPTool {
 }
 
 // filterMentors applies filters to a list of mentors
-func (s *MCPService) filterMentors(ctx context.Context, mentors []*models.Mentor, tags []string, experience, minPrice, maxPrice, workplace string) []*models.Mentor {
+func (s *MCPService) filterMentors(mentors []*models.Mentor, tags []string, experience, minPrice, maxPrice, workplace string) []*models.Mentor {
 	filtered := make([]*models.Mentor, 0, len(mentors))
 
 	for _, mentor := range mentors {
@@ -313,12 +314,20 @@ func (s *MCPService) hasAnyTag(mentorTags, filterTags []string) bool {
 // priceInRange checks if mentor price is within range
 // Simple string comparison - assumes consistent price format
 func (s *MCPService) priceInRange(mentorPrice, comparePrice string, isMin bool) bool {
-	// Simple lexicographic comparison for now
-	// Could be enhanced with numeric parsing if needed
-	if isMin {
-		return mentorPrice >= comparePrice
+	mp, err := strconv.Atoi(mentorPrice)
+	if err != nil {
+		mp = 0
 	}
-	return mentorPrice <= comparePrice
+	cp, err := strconv.Atoi(comparePrice)
+	if err != nil {
+		cp = 0
+	}
+
+	if isMin {
+		return mp >= cp
+	}
+
+	return mp <= cp
 }
 
 // parseKeywords splits query into keywords
