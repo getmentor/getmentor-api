@@ -204,7 +204,7 @@ func main() {
 	api.GET("/healthcheck", generalRateLimiter.Middleware(), healthHandler.Healthcheck)
 	api.GET("/metrics", generalRateLimiter.Middleware(), gin.WrapH(promhttp.Handler()))
 	// MCP endpoint (for AI tools to search mentors)
-	api.POST("/internal/mcp", mcpRateLimiter.Middleware(), middleware.MCPServerAuthMiddleware(cfg.Auth.MCPAuthToken), mcpHandler.HandleMCPRequest)
+	api.POST("/internal/mcp", mcpRateLimiter.Middleware(), middleware.MCPServerAuthMiddleware(cfg.Auth.MCPAuthToken, cfg.Auth.MCPAllowAll), mcpHandler.HandleMCPRequest)
 
 	// API v1 routes
 	// SECURITY: Apply body size limits to prevent DoS attacks
