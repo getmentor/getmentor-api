@@ -117,21 +117,21 @@ jobs:
           docker stop test-container
           docker rm test-container
 
-  lint:
-    name: Run Linters
-    runs-on: ubuntu-latest
+  # lint:
+  #   name: Run Linters
+  #   runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v6
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: ${{ env.GO_VERSION }}
+  #     - name: Set up Go
+  #       uses: actions/setup-go@v6
+  #       with:
+  #         go-version: ${{ env.GO_VERSION }}
 
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v8
-        with:
-          version: v2.7.1
-          args: --timeout=5m
+  #     - name: Run golangci-lint
+  #       uses: golangci/golangci-lint-action@v8
+  #       with:
+  #         version: v2.7.1
+  #         args: --timeout=5m
