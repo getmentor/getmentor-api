@@ -105,16 +105,6 @@ linters-settings:
     multi-if: true
     multi-func: true
 
-  gosec:
-    severity: medium
-    confidence: medium
-    excludes:
-      - G104  # Audit errors not checked (covered by errcheck)
-
-  whitespace:
-    multi-if: true
-    multi-func: true
-
 issues:
   exclude-rules:
     # Exclude some linters from running on tests files
