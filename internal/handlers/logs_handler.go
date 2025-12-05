@@ -63,17 +63,21 @@ func (h *LogsHandler) writeLogsToFile(logs []LogEntry) error {
 	defer h.mu.Unlock()
 
 	// Ensure log directory exists
+	//nolint:gosec // G301: 0755 is appropriate for log directory to allow group/other read
 	if err := os.MkdirAll(h.logDir, 0755); err != nil {
 		return fmt.Errorf("failed to create log directory: %w", err)
 	}
 
 	// Open frontend log file in append mode
 	logPath := filepath.Join(h.logDir, "frontend.log")
+	//nolint:gosec // G302: 0644 is appropriate for log files (group/other read for log aggregators)
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open frontend log file: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	// Write each log entry as a JSON line
 	encoder := json.NewEncoder(f)

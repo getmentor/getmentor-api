@@ -109,6 +109,7 @@ func TestConfig_Validate(t *testing.T) {
 				},
 				Auth: config.AuthConfig{
 					InternalMentorsAPI: "test-token",
+					MCPAuthToken:       "test-mcp-token",
 					MentorsAPIToken:    "public-token",
 					WebhookSecret:      "webhook-secret",
 				},
@@ -135,6 +136,7 @@ func TestConfig_Validate(t *testing.T) {
 					InternalMentorsAPI: "test-token",
 					MentorsAPIToken:    "public-token",
 					WebhookSecret:      "webhook-secret",
+					MCPAuthToken:       "test-mcp-token",
 				},
 				ReCAPTCHA: config.ReCAPTCHAConfig{
 					SecretKey: "recaptcha-secret",
@@ -151,6 +153,7 @@ func TestConfig_Validate(t *testing.T) {
 				},
 				Auth: config.AuthConfig{
 					InternalMentorsAPI: "test-token",
+					MCPAuthToken:       "test-mcp-token",
 				},
 			},
 			expectError: true,
@@ -165,6 +168,7 @@ func TestConfig_Validate(t *testing.T) {
 				},
 				Auth: config.AuthConfig{
 					InternalMentorsAPI: "test-token",
+					MCPAuthToken:       "test-mcp-token",
 				},
 			},
 			expectError: true,
@@ -176,10 +180,27 @@ func TestConfig_Validate(t *testing.T) {
 				Airtable: config.AirtableConfig{
 					WorkOffline: true,
 				},
-				Auth: config.AuthConfig{},
+				Auth: config.AuthConfig{
+					MCPAuthToken: "test-mcp-token",
+				},
 			},
 			expectError: true,
 			errorMsg:    "INTERNAL_MENTORS_API is required",
+		},
+		{
+			name: "missing MCP auth token",
+			cfg: &config.Config{
+				Airtable: config.AirtableConfig{
+					WorkOffline: true,
+				},
+				Auth: config.AuthConfig{
+					InternalMentorsAPI: "test-token",
+					MentorsAPIToken:    "public-token",
+					WebhookSecret:      "webhook-secret",
+				},
+			},
+			expectError: true,
+			errorMsg:    "MCP_AUTH_TOKEN is required",
 		},
 	}
 
@@ -205,7 +226,9 @@ func TestLoad_WithDefaults(t *testing.T) {
 	os.Setenv("INTERNAL_MENTORS_API", "test-token")
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN", "public-token")
 	os.Setenv("WEBHOOK_SECRET", "webhook-secret")
+	os.Setenv("MCP_AUTH_TOKEN", "mcp-token")
 	os.Setenv("RECAPTCHA_V2_SECRET_KEY", "recaptcha-secret")
+	os.Setenv("MCP_AUTH_TOKEN", "test-mcp-token")
 
 	cfg, err := config.Load()
 
@@ -234,6 +257,8 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	os.Setenv("AIRTABLE_API_KEY", "test-key-123")
 	os.Setenv("AIRTABLE_BASE_ID", "test-base-456")
 	os.Setenv("INTERNAL_MENTORS_API", "internal-token-789")
+	os.Setenv("MCP_AUTH_TOKEN", "mcp-token-xyz")
+	os.Setenv("WEBHOOK_SECRET", "webhook-secret")
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN", "token1")
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN_INNO", "token2")
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN_AIKB", "token3")
@@ -255,6 +280,7 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	assert.Equal(t, "test-base-456", cfg.Airtable.BaseID)
 	assert.False(t, cfg.Airtable.WorkOffline)
 	assert.Equal(t, "internal-token-789", cfg.Auth.InternalMentorsAPI)
+	assert.Equal(t, "mcp-token-xyz", cfg.Auth.MCPAuthToken)
 	assert.Equal(t, "token1", cfg.Auth.MentorsAPIToken)
 	assert.Equal(t, "token2", cfg.Auth.MentorsAPITokenInno)
 	assert.Equal(t, "token3", cfg.Auth.MentorsAPITokenAIKB)
