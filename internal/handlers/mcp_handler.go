@@ -200,19 +200,21 @@ func (h *MCPHandler) handleListMentors(c *gin.Context, id interface{}, args map[
 		zap.Float64("duration_seconds", duration),
 		zap.Any("filters", params))
 
+	structuredContent := map[string]interface{}{
+		"mentors": result.Mentors,
+		"count":   result.Count,
+	}
+
 	// Format as MCP tool result
 	toolResult := map[string]interface{}{
 		"content": []map[string]interface{}{
 			{
 				"type": "text",
-				"text": fmt.Sprintf("Found %d mentors matching the criteria.", result.Count),
+				"text": fmt.Sprintf("%s", structuredContent),
 			},
 		},
-		"isError": false,
-		"_meta": map[string]interface{}{
-			"mentors": result.Mentors,
-			"count":   result.Count,
-		},
+		"isError":           false,
+		"structuredContent": structuredContent,
 	}
 
 	h.sendSuccess(c, id, toolResult)
@@ -266,6 +268,10 @@ func (h *MCPHandler) handleGetMentor(c *gin.Context, id interface{}, args map[st
 			zap.Any("params", params))
 	}
 
+	structuredContent := map[string]interface{}{
+		"mentor": result.Mentor,
+	}
+
 	// Format as MCP tool result
 	var toolResult map[string]interface{}
 	if result.Mentor != nil {
@@ -273,13 +279,11 @@ func (h *MCPHandler) handleGetMentor(c *gin.Context, id interface{}, args map[st
 			"content": []map[string]interface{}{
 				{
 					"type": "text",
-					"text": fmt.Sprintf("Found mentor: %s (%s at %s)", result.Mentor.Name, result.Mentor.JobTitle, result.Mentor.Workplace),
+					"text": fmt.Sprintf("%s", structuredContent),
 				},
 			},
-			"isError": false,
-			"_meta": map[string]interface{}{
-				"mentor": result.Mentor,
-			},
+			"isError":           false,
+			"structuredContent": structuredContent,
 		}
 	} else {
 		toolResult = map[string]interface{}{
@@ -290,7 +294,7 @@ func (h *MCPHandler) handleGetMentor(c *gin.Context, id interface{}, args map[st
 				},
 			},
 			"isError": false,
-			"_meta": map[string]interface{}{
+			"structuredContent": map[string]interface{}{
 				"mentor": nil,
 			},
 		}
@@ -347,20 +351,22 @@ func (h *MCPHandler) handleSearchMentors(c *gin.Context, id interface{}, args ma
 		zap.Float64("duration_seconds", duration),
 		zap.Any("filters", params))
 
+	structuredContent := map[string]interface{}{
+		"mentors": result.Mentors,
+		"count":   result.Count,
+		"query":   params.Query,
+	}
+
 	// Format as MCP tool result
 	toolResult := map[string]interface{}{
 		"content": []map[string]interface{}{
 			{
 				"type": "text",
-				"text": fmt.Sprintf("Found %d mentors matching search query '%s'.", result.Count, params.Query),
+				"text": fmt.Sprintf("%s", structuredContent),
 			},
 		},
-		"isError": false,
-		"_meta": map[string]interface{}{
-			"mentors": result.Mentors,
-			"count":   result.Count,
-			"query":   params.Query,
-		},
+		"isError":           false,
+		"structuredContent": structuredContent,
 	}
 
 	h.sendSuccess(c, id, toolResult)

@@ -153,7 +153,7 @@ func main() {
 	contactService := services.NewContactService(clientRequestRepo, mentorRepo, cfg, httpClient)
 	profileService := services.NewProfileService(mentorRepo, azureClient, cfg)
 	webhookService := services.NewWebhookService(mentorRepo, cfg)
-	mcpService := services.NewMCPService(mentorRepo)
+	mcpService := services.NewMCPService(mentorRepo, cfg.Server.BaseURL)
 
 	// Initialize handlers
 	mentorHandler := handlers.NewMentorHandler(mentorService, cfg.Server.BaseURL)

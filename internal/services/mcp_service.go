@@ -15,13 +15,15 @@ import (
 
 // MCPService handles MCP (Model Context Protocol) operations for mentor search
 type MCPService struct {
-	repo *repository.MentorRepository
+	repo    *repository.MentorRepository
+	baseURL string
 }
 
 // NewMCPService creates a new MCP service instance
-func NewMCPService(repo *repository.MentorRepository) *MCPService {
+func NewMCPService(repo *repository.MentorRepository, baseURL string) *MCPService {
 	return &MCPService{
-		repo: repo,
+		repo:    repo,
+		baseURL: baseURL,
 	}
 }
 
@@ -60,7 +62,7 @@ func (s *MCPService) ListMentors(ctx context.Context, params *models.ListMentors
 	// Convert to MCP basic response
 	result := make([]models.MCPMentorBasic, 0, len(filtered))
 	for _, mentor := range filtered {
-		result = append(result, mentor.ToMCPBasic())
+		result = append(result, mentor.ToMCPBasic(s.baseURL))
 	}
 
 	return &models.ListMentorsResult{
@@ -103,7 +105,7 @@ func (s *MCPService) GetMentor(ctx context.Context, params *models.GetMentorPara
 		return &models.GetMentorResult{Mentor: nil}, nil
 	}
 
-	extended := mentor.ToMCPExtended()
+	extended := mentor.ToMCPExtended(s.baseURL)
 	return &models.GetMentorResult{Mentor: &extended}, nil
 }
 
@@ -150,7 +152,7 @@ func (s *MCPService) SearchMentors(ctx context.Context, params *models.SearchMen
 	// Convert to MCP extended response
 	result := make([]models.MCPMentorExtended, 0, len(searched))
 	for _, mentor := range searched {
-		result = append(result, mentor.ToMCPExtended())
+		result = append(result, mentor.ToMCPExtended(s.baseURL))
 	}
 
 	return &models.SearchMentorsResult{

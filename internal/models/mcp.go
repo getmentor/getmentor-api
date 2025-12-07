@@ -78,6 +78,7 @@ type MCPMentorBasic struct {
 	Competencies string   `json:"competencies"`
 	Price        string   `json:"price"`
 	DoneSessions int      `json:"doneSessions"`
+	MentorURL    string   `json:"mentorUrl"`
 }
 
 // MCPMentorExtended represents extended mentor information for get_mentor and search results
@@ -94,6 +95,7 @@ type MCPMentorExtended struct {
 	DoneSessions int      `json:"doneSessions"`
 	Description  string   `json:"description"`
 	About        string   `json:"about"`
+	MentorURL    string   `json:"mentorUrl"`
 }
 
 // ListMentorsResult represents the result of list_mentors tool invocation
@@ -114,7 +116,7 @@ type SearchMentorsResult struct {
 }
 
 // ToMCPBasic converts a Mentor to MCPMentorBasic format
-func (m *Mentor) ToMCPBasic() MCPMentorBasic {
+func (m *Mentor) ToMCPBasic(baseURL string) MCPMentorBasic {
 	return MCPMentorBasic{
 		ID:           m.ID,
 		Slug:         m.Slug,
@@ -126,11 +128,12 @@ func (m *Mentor) ToMCPBasic() MCPMentorBasic {
 		Competencies: m.Competencies,
 		Price:        m.Price,
 		DoneSessions: m.MenteeCount,
+		MentorURL:    baseURL + "/mentor/" + m.Slug,
 	}
 }
 
 // ToMCPExtended converts a Mentor to MCPMentorExtended format
-func (m *Mentor) ToMCPExtended() MCPMentorExtended {
+func (m *Mentor) ToMCPExtended(baseURL string) MCPMentorExtended {
 	return MCPMentorExtended{
 		ID:           m.ID,
 		Slug:         m.Slug,
@@ -144,5 +147,6 @@ func (m *Mentor) ToMCPExtended() MCPMentorExtended {
 		DoneSessions: m.MenteeCount,
 		Description:  m.Description,
 		About:        m.About,
+		MentorURL:    baseURL + "/mentor/" + m.Slug,
 	}
 }
