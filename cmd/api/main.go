@@ -212,12 +212,6 @@ func main() {
 	registerAPIRoutes(v1, cfg, generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter,
 		mentorHandler, contactHandler, profileHandler, logsHandler, webhookHandler)
 
-	// Backward compatibility: Alias old /api/* routes to /api/v1/* (DEPRECATED - to be removed in future)
-	// This allows gradual migration of clients to versioned endpoints
-	apiCompat := router.Group("/api")
-	registerAPIRoutes(apiCompat, cfg, generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter,
-		mentorHandler, contactHandler, profileHandler, logsHandler, webhookHandler)
-
 	// Create HTTP server
 	// SECURITY: Bind to all interfaces for Docker Compose networking
 	// Network isolation is enforced by Docker Compose (backend has no public ports)
