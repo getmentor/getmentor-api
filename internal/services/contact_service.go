@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// ContactService handles contact form submissions and mentor contact requests
 type ContactService struct {
 	clientRequestRepo *repository.ClientRequestRepository
 	mentorRepo        *repository.MentorRepository
@@ -23,6 +24,7 @@ type ContactService struct {
 	httpClient        httpclient.Client
 }
 
+// NewContactService creates a new contact service instance
 func NewContactService(
 	clientRequestRepo *repository.ClientRequestRepository,
 	mentorRepo *repository.MentorRepository,

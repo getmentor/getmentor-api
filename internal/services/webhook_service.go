@@ -11,11 +11,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// WebhookService handles webhook events and revalidation requests
 type WebhookService struct {
 	mentorRepo *repository.MentorRepository
 	config     *config.Config
 }
 
+// NewWebhookService creates a new webhook service instance
 func NewWebhookService(mentorRepo *repository.MentorRepository, cfg *config.Config) *WebhookService {
 	return &WebhookService{
 		mentorRepo: mentorRepo,

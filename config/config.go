@@ -48,6 +48,8 @@ type AuthConfig struct {
 	MentorsAPITokenInno string
 	MentorsAPITokenAIKB string
 	InternalMentorsAPI  string
+	MCPAuthToken        string
+	MCPAllowAll         bool
 	RevalidateSecret    string
 	WebhookSecret       string
 }
@@ -94,8 +96,8 @@ func Load() (*Config, error) {
 	v.SetDefault("PORT", "8081")
 	v.SetDefault("GIN_MODE", "release")
 	v.SetDefault("APP_ENV", "production")
-	v.SetDefault("BASE_URL", "https://гетментор.рф")
-	v.SetDefault("ALLOWED_CORS_ORIGINS", "https://гетментор.рф,https://www.гетментор.рф")
+	v.SetDefault("BASE_URL", "https://getmentor.dev")
+	v.SetDefault("ALLOWED_CORS_ORIGINS", "https://getmentor.dev,https://www.getmentor.dev")
 	v.SetDefault("LOG_LEVEL", "info")
 	v.SetDefault("LOG_DIR", "/app/logs")
 	v.SetDefault("AIRTABLE_WORK_OFFLINE", false)
@@ -105,6 +107,7 @@ func Load() (*Config, error) {
 	v.SetDefault("O11Y_SERVICE_NAMESPACE", "getmentor-dev")
 	v.SetDefault("O11Y_BE_SERVICE_VERSION", "1.0.0")
 	v.SetDefault("MENTOR_CACHE_TTL", 600) // 10 minutes in seconds
+	v.SetDefault("MCP_ALLOW_ALL", false)
 
 	// Automatically read environment variables
 	v.AutomaticEnv()
@@ -152,6 +155,8 @@ func Load() (*Config, error) {
 			MentorsAPITokenInno: v.GetString("MENTORS_API_LIST_AUTH_TOKEN_INNO"),
 			MentorsAPITokenAIKB: v.GetString("MENTORS_API_LIST_AUTH_TOKEN_AIKB"),
 			InternalMentorsAPI:  v.GetString("INTERNAL_MENTORS_API"),
+			MCPAuthToken:        v.GetString("MCP_AUTH_TOKEN"),
+			MCPAllowAll:         v.GetBool("MCP_ALLOW_ALL"),
 			RevalidateSecret:    v.GetString("REVALIDATE_SECRET_TOKEN"),
 			WebhookSecret:       v.GetString("WEBHOOK_SECRET"),
 		},
@@ -207,6 +212,10 @@ func (c *Config) Validate() error {
 	}
 	if c.Auth.WebhookSecret == "" {
 		return fmt.Errorf("WEBHOOK_SECRET is required")
+	}
+
+	if c.Auth.MCPAuthToken == "" && !c.Auth.MCPAllowAll {
+		return fmt.Errorf("MCP_AUTH_TOKEN is required")
 	}
 
 	// ReCAPTCHA configuration

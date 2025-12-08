@@ -1609,7 +1609,7 @@ func (h *MentorHandler) GetPublicMentors(c *gin.Context) {
 
     publicMentors := make([]models.PublicMentorResponse, 0, len(mentors))
     for _, mentor := range mentors {
-        publicMentors = append(publicMentors, mentor.ToPublicResponse("https://гетментор.рф"))
+        publicMentors = append(publicMentors, mentor.ToPublicResponse("https://getmentor.dev"))
     }
 
     response.Success(c, gin.H{"mentors": publicMentors})

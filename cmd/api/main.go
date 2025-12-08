@@ -153,12 +153,14 @@ func main() {
 	contactService := services.NewContactService(clientRequestRepo, mentorRepo, cfg, httpClient)
 	profileService := services.NewProfileService(mentorRepo, azureClient, cfg)
 	webhookService := services.NewWebhookService(mentorRepo, cfg)
+	mcpService := services.NewMCPService(mentorRepo, cfg.Server.BaseURL)
 
 	// Initialize handlers
 	mentorHandler := handlers.NewMentorHandler(mentorService, cfg.Server.BaseURL)
 	contactHandler := handlers.NewContactHandler(contactService)
 	profileHandler := handlers.NewProfileHandler(profileService)
 	webhookHandler := handlers.NewWebhookHandler(webhookService)
+	mcpHandler := handlers.NewMCPHandler(mcpService)
 	healthHandler := handlers.NewHealthHandler(mentorCache.IsReady)
 	logsHandler := handlers.NewLogsHandler(cfg.Logging.Dir)
 
@@ -194,12 +196,15 @@ func main() {
 	contactRateLimiter := middleware.NewRateLimiter(5, 10)    // 5 req/sec, burst of 10 (prevent spam)
 	profileRateLimiter := middleware.NewRateLimiter(10, 20)   // 10 req/sec, burst of 20
 	webhookRateLimiter := middleware.NewRateLimiter(10, 20)   // 10 req/sec, burst of 20
+	mcpRateLimiter := middleware.NewRateLimiter(20, 40)       // 20 req/sec, burst of 40 (for AI tool usage)
 
 	// API routes
 	api := router.Group("/api")
 	// Utility endpoints (not versioned - operational endpoints)
 	api.GET("/healthcheck", generalRateLimiter.Middleware(), healthHandler.Healthcheck)
 	api.GET("/metrics", generalRateLimiter.Middleware(), gin.WrapH(promhttp.Handler()))
+	// MCP endpoint (for AI tools to search mentors)
+	api.POST("/internal/mcp", mcpRateLimiter.Middleware(), middleware.MCPServerAuthMiddleware(cfg.Auth.MCPAuthToken, cfg.Auth.MCPAllowAll), mcpHandler.HandleMCPRequest)
 
 	// API v1 routes
 	// SECURITY: Apply body size limits to prevent DoS attacks
