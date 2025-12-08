@@ -209,14 +209,12 @@ func main() {
 	// API v1 routes
 	// SECURITY: Apply body size limits to prevent DoS attacks
 	v1 := router.Group("/api/v1")
-	// v1.Use(middleware.BodySizeLimitMiddleware(1 * 1024 * 1024)) // Default 1 MB limit
 	registerAPIRoutes(v1, cfg, generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter,
 		mentorHandler, contactHandler, profileHandler, logsHandler, webhookHandler)
 
 	// Backward compatibility: Alias old /api/* routes to /api/v1/* (DEPRECATED - to be removed in future)
 	// This allows gradual migration of clients to versioned endpoints
 	apiCompat := router.Group("/api")
-	apiCompat.Use(middleware.BodySizeLimitMiddleware(1 * 1024 * 1024))
 	registerAPIRoutes(apiCompat, cfg, generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter,
 		mentorHandler, contactHandler, profileHandler, logsHandler, webhookHandler)
 
