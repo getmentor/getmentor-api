@@ -842,7 +842,7 @@ type SaveProfileRequest struct {
     Tags         []string `json:"tags" binding:"max=20,dive,max=50"`
     Description  string   `json:"description" binding:"required,max=5000"`
     About        string   `json:"about" binding:"required,max=5000"`
-    Competencies string   `json:"competencies" binding:"required,max=2000"`
+    Competencies string   `json:"competencies" binding:"required,max=4000"`
     CalendarURL  string   `json:"calendarUrl" binding:"omitempty,url,max=500"`
 }
 
