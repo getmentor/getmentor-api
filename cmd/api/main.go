@@ -126,9 +126,13 @@ func main() {
 		}
 	}
 
+	// Initialize data sources (using Airtable adapters for now, can switch to PostgreSQL)
+	mentorDataSource := repository.NewAirtableMentorDataSource(airtableClient)
+	tagsDataSource := repository.NewAirtableTagsDataSource(airtableClient)
+
 	// Initialize caches
-	mentorCache := cache.NewMentorCache(airtableClient, cfg.Cache.MentorTTLSeconds)
-	tagsCache := cache.NewTagsCache(airtableClient)
+	mentorCache := cache.NewMentorCache(mentorDataSource, cfg.Cache.MentorTTLSeconds)
+	tagsCache := cache.NewTagsCache(tagsDataSource)
 
 	// Initialize mentor cache synchronously before accepting requests
 	// This ensures the cache is populated before the container is marked as healthy
