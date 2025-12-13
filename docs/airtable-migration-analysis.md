@@ -48,8 +48,13 @@ The application uses 3 Airtable tables:
 | Telegram | String | Telegram username |
 | Level | String | Experience level (optional) |
 | Mentor | Link | Reference to Mentors table |
+| Status | String | Request status: "active", "in_progress", "done" |
 
 **Source:** `pkg/airtable/client.go:305-312`
+
+**Note:** The Client Requests table is accessed by a **Telegram chatbot** which:
+- Fetches requests for a given mentor
+- Updates the status field through the request lifecycle (active → in_progress → done)
 
 #### Tags Table (~50 records estimated)
 | Field | Type | Description |
@@ -76,6 +81,7 @@ The application uses 3 Airtable tables:
 
 ### 1.3 Query Patterns
 
+#### API Server (this codebase)
 | Operation | Frequency | Pattern |
 |-----------|-----------|---------|
 | Get all mentors | Every 10 min (cache refresh) | Fetch all → cache |
@@ -83,6 +89,14 @@ The application uses 3 Airtable tables:
 | Create client request | Low (~10/day) | Single INSERT |
 | Update mentor profile | Low (~5/day) | Single UPDATE |
 | Get all tags | Every 24h (cache refresh) | Fetch all → cache |
+
+#### Telegram Chatbot (external system)
+| Operation | Frequency | Pattern |
+|-----------|-----------|---------|
+| Get requests by mentor | Moderate | Filter by mentor_id |
+| Update request status | Moderate | Single UPDATE (status field) |
+
+**Important:** The Telegram bot directly accesses Airtable. After migration, it will need PostgreSQL access or an API endpoint.
 
 ### 1.4 Current Architecture
 
@@ -328,12 +342,17 @@ CREATE TABLE client_requests (
     telegram VARCHAR(100),
     level VARCHAR(50),
     mentor_id INTEGER REFERENCES mentors(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    status VARCHAR(20) DEFAULT 'active',  -- active, in_progress, done
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_client_requests_mentor_id ON client_requests(mentor_id);
 CREATE INDEX idx_client_requests_email ON client_requests(email);
 CREATE INDEX idx_client_requests_created_at ON client_requests(created_at);
+CREATE INDEX idx_client_requests_status ON client_requests(status);
+-- Composite index for Telegram bot: get active requests for a mentor
+CREATE INDEX idx_client_requests_mentor_status ON client_requests(mentor_id, status);
 
 -- Updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -346,6 +365,11 @@ $$ language 'plpgsql';
 
 CREATE TRIGGER update_mentors_updated_at
     BEFORE UPDATE ON mentors
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_client_requests_updated_at
+    BEFORE UPDATE ON client_requests
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 ```
@@ -541,6 +565,8 @@ func main() {
 | Create client request | Record created, returns calendar URL |
 | Update mentor profile | Fields updated correctly |
 | Cache refresh | Cache populated from PostgreSQL |
+| Get requests by mentor (bot) | Returns filtered requests with status |
+| Update request status (bot) | Status updated, updated_at changed |
 
 ### 5.6 Phase 5: Cutover & Monitoring
 
@@ -586,9 +612,11 @@ Add Prometheus metrics for PostgreSQL:
 |------|---------|
 | `internal/database/postgres/client.go` | PostgreSQL connection pool |
 | `internal/database/postgres/mentor_queries.go` | Mentor SQL queries |
-| `internal/database/postgres/request_queries.go` | Client request queries |
+| `internal/database/postgres/request_queries.go` | Client request queries (incl. status updates) |
 | `internal/database/migrations/*.sql` | Database migrations |
 | `cmd/migrate/main.go` | Data migration script |
+| `internal/handlers/request_handler.go` | API endpoints for Telegram bot |
+| `internal/services/request_service.go` | Business logic for request operations |
 
 ### 6.3 Files to Modify
 
@@ -618,28 +646,59 @@ Add Prometheus metrics for PostgreSQL:
 ## 8. Success Criteria
 
 - [ ] All 6,000 mentors migrated with data integrity
-- [ ] All 100,000 client requests migrated
+- [ ] All 100,000 client requests migrated (including status field)
 - [ ] API response format unchanged
 - [ ] Response latency ≤ current (with caching)
 - [ ] Zero data loss
 - [ ] Successful load test at 10+ RPS
 - [ ] Monitoring and alerting in place
+- [ ] Telegram bot API endpoints functional
+- [ ] Bot can query requests by mentor and update status
 
 ---
 
-## 9. Questions for Stakeholders
+## 9. Stakeholder Clarifications (Resolved)
 
-Before proceeding, please clarify:
+The following questions have been answered:
 
-1. **Airtable Client Requests**: The current code only creates client requests but doesn't seem to read them from the API. Is there any external process (Airtable automations, Zapier, etc.) that reads from this table that we need to consider?
+| Question | Answer | Impact |
+|----------|--------|--------|
+| **Client Requests access** | Telegram chatbot reads requests by mentor and updates status (active → in_progress → done) | Added status field, indexes, and API considerations |
+| **Mentor updates** | Self-edit via profile page + manual admin edits via Airtable UI | **Future requirement:** Admin interface needed post-migration |
+| **Image storage** | Already in Yandex Object Storage | No migration needed for images |
+| **Downtime tolerance** | Some downtime is acceptable | Simplifies cutover (no dual-write needed) |
+| **Tags management** | Tags are mostly static, rarely change | Can simplify tags handling, no complex sync needed |
 
-2. **Airtable Webhooks**: The app has webhook handling for Airtable updates. After migration, how will mentor updates be triggered? (Admin panel, direct DB updates, etc.)
+## 10. Additional Scope Considerations
 
-3. **Image Storage**: Currently images are stored in Azure Blob and URLs stored in Airtable. Should this pattern continue, or should we consider Yandex Object Storage?
+### 10.1 Telegram Bot Migration (Required)
 
-4. **Downtime tolerance**: Is a brief maintenance window (15-30 min) acceptable for cutover, or do we need zero-downtime migration?
+The Telegram chatbot currently accesses Airtable directly. Post-migration options:
 
-5. **Tags management**: How are tags currently added/managed? Is there an admin interface in Airtable?
+**Option A: Direct PostgreSQL access**
+- Bot connects to PostgreSQL directly
+- Simpler implementation
+- Requires network access to database
+
+**Option B: API endpoints in this service**
+- Add REST endpoints for bot operations:
+  - `GET /api/v1/requests?mentor_id={id}&status={status}`
+  - `PATCH /api/v1/requests/{id}/status`
+- Better separation of concerns
+- Existing auth patterns can be reused
+
+**Recommendation:** Option B (API endpoints) - cleaner architecture, single point of database access.
+
+### 10.2 Admin Interface (Future - Out of Scope)
+
+After migration, you'll lose Airtable's convenient UI for manual data edits. Future options:
+
+1. **Minimal CLI tool** - Quick to build, script-based admin operations
+2. **Simple web admin panel** - React/Vue dashboard with basic CRUD
+3. **Off-the-shelf solution** - Tools like [pgAdmin](https://www.pgadmin.org/), [Retool](https://retool.com/), or [Directus](https://directus.io/)
+4. **Database IDE** - Use DataGrip, DBeaver, or similar for direct SQL access
+
+**Note:** This is explicitly out of scope for this migration but should be planned as a follow-up.
 
 ---
 
