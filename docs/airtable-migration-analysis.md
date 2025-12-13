@@ -37,24 +37,59 @@ The application uses 3 Airtable tables:
 | Is New | Integer | New mentor flag |
 | Image_Attachment | Array | Profile image attachment |
 
-**Source:** `internal/models/mentor.go:77-101`
+**Additional fields used by Telegram Bot:**
+| Field | Type | Description |
+|-------|------|-------------|
+| TgSecret | String | 8-char Telegram auth code |
+| Telegram Chat Id | String | Telegram chat ID (links bot user to mentor) |
+| Telegram | String | Telegram username |
+
+**Source:** `internal/models/mentor.go:77-101`, `getmentor-bot/lib/models/Mentor.ts`
 
 #### Client Requests Table (100,000 records)
+
+**Fields used by API (this codebase):**
 | Field | Type | Description |
 |-------|------|-------------|
 | Email | String | Client email |
 | Name | String | Client name |
 | Description | String | Contact request message |
-| Telegram | String | Telegram username |
+| Telegram | String | Telegram username (@ prefix stripped) |
 | Level | String | Experience level (optional) |
 | Mentor | Link | Reference to Mentors table |
-| Status | String | Request status: "active", "in_progress", "done" |
 
 **Source:** `pkg/airtable/client.go:305-312`
 
-**Note:** The Client Requests table is accessed by a **Telegram chatbot** which:
-- Fetches requests for a given mentor
-- Updates the status field through the request lifecycle (active → in_progress → done)
+**Additional fields used by Telegram Bot** (from [getmentor-bot](https://github.com/getmentor/getmentor-bot)):
+| Field | Type | Description |
+|-------|------|-------------|
+| Status | Enum | Request status (see workflow below) |
+| Review | String | Session review (legacy) |
+| Review2 | String | Session review (preferred) |
+| ReviewFormUrl | String | URL to mentee review form |
+| Created Time | DateTime | Request creation timestamp |
+| Last Modified Time | DateTime | Last update timestamp |
+| Scheduled At | DateTime | Meeting scheduled time |
+| Last Status Change | DateTime | Last status change timestamp |
+
+**Source:** `getmentor-bot/lib/models/MentorClientRequest.ts:31-45`
+
+**Status Workflow (from bot):**
+```
+pending → contacted → working → done
+    ↓         ↓          ↓
+declined  declined   declined
+              ↓          ↓
+         unavailable  unavailable
+              ↑
+              └── can revert to contacted
+```
+
+Valid status values: `pending`, `contacted`, `working`, `done`, `declined`, `unavailable`, `reschedule`
+
+**Bot Query Patterns:**
+- **Active requests:** `mentor_id = X AND status NOT IN ('done', 'declined', 'unavailable')` ORDER BY `created_time ASC`
+- **Archived requests:** `mentor_id = X AND status NOT IN ('pending', 'working', 'contacted')` ORDER BY `last_modified_time DESC`
 
 #### Tags Table (~50 records estimated)
 | Field | Type | Description |
@@ -312,6 +347,11 @@ CREATE TABLE mentors (
     calendar_url VARCHAR(500),
     is_new BOOLEAN DEFAULT false,
     image_url VARCHAR(500),
+    -- Telegram bot fields
+    telegram_username VARCHAR(100),
+    telegram_chat_id VARCHAR(50),
+    tg_secret VARCHAR(20),
+    --
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -321,6 +361,8 @@ CREATE INDEX idx_mentors_mentor_id ON mentors(mentor_id);
 CREATE INDEX idx_mentors_is_visible ON mentors(is_visible);
 CREATE INDEX idx_mentors_status ON mentors(status);
 CREATE INDEX idx_mentors_sort_order ON mentors(sort_order);
+CREATE INDEX idx_mentors_telegram_chat_id ON mentors(telegram_chat_id);
+CREATE INDEX idx_mentors_tg_secret ON mentors(tg_secret);
 
 -- Mentor-Tags junction table (many-to-many)
 CREATE TABLE mentor_tags (
@@ -332,17 +374,38 @@ CREATE TABLE mentor_tags (
 CREATE INDEX idx_mentor_tags_mentor_id ON mentor_tags(mentor_id);
 CREATE INDEX idx_mentor_tags_tag_id ON mentor_tags(tag_id);
 
+-- Request status enum
+CREATE TYPE request_status AS ENUM (
+    'pending',      -- New request, not yet contacted
+    'contacted',    -- Mentor contacted mentee
+    'working',      -- Meeting scheduled
+    'done',         -- Session completed (terminal)
+    'declined',     -- Mentor declined (terminal)
+    'unavailable',  -- Couldn't reach mentee
+    'reschedule'    -- Meeting rescheduled
+);
+
 -- Client requests table
 CREATE TABLE client_requests (
     id SERIAL PRIMARY KEY,
     airtable_id VARCHAR(50) UNIQUE,  -- For migration reference
+    -- Core fields (used by API)
     email VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     telegram VARCHAR(100),
     level VARCHAR(50),
     mentor_id INTEGER REFERENCES mentors(id),
-    status VARCHAR(20) DEFAULT 'active',  -- active, in_progress, done
+    -- Status workflow (used by bot)
+    status request_status DEFAULT 'pending',
+    status_changed_at TIMESTAMP WITH TIME ZONE,
+    -- Scheduling (used by bot)
+    scheduled_at TIMESTAMP WITH TIME ZONE,
+    -- Reviews (used by bot)
+    review TEXT,                     -- Legacy review field
+    review2 TEXT,                    -- Current review field (preferred)
+    review_form_url VARCHAR(500),
+    -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -351,8 +414,11 @@ CREATE INDEX idx_client_requests_mentor_id ON client_requests(mentor_id);
 CREATE INDEX idx_client_requests_email ON client_requests(email);
 CREATE INDEX idx_client_requests_created_at ON client_requests(created_at);
 CREATE INDEX idx_client_requests_status ON client_requests(status);
--- Composite index for Telegram bot: get active requests for a mentor
-CREATE INDEX idx_client_requests_mentor_status ON client_requests(mentor_id, status);
+-- Composite indexes for Telegram bot queries
+CREATE INDEX idx_client_requests_mentor_active ON client_requests(mentor_id, created_at)
+    WHERE status NOT IN ('done', 'declined', 'unavailable');
+CREATE INDEX idx_client_requests_mentor_archived ON client_requests(mentor_id, updated_at DESC)
+    WHERE status NOT IN ('pending', 'working', 'contacted');
 
 -- Updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -615,8 +681,11 @@ Add Prometheus metrics for PostgreSQL:
 | `internal/database/postgres/request_queries.go` | Client request queries (incl. status updates) |
 | `internal/database/migrations/*.sql` | Database migrations |
 | `cmd/migrate/main.go` | Data migration script |
-| `internal/handlers/request_handler.go` | API endpoints for Telegram bot |
-| `internal/services/request_service.go` | Business logic for request operations |
+| **Bot API endpoints:** | |
+| `internal/handlers/bot_handler.go` | Bot API endpoints (mentors + requests) |
+| `internal/services/bot_service.go` | Business logic for bot operations |
+| `internal/middleware/bot_auth.go` | Bot API key authentication |
+| `internal/models/request.go` | ClientRequest model with status workflow |
 
 ### 6.3 Files to Modify
 
@@ -673,21 +742,67 @@ The following questions have been answered:
 
 ### 10.1 Telegram Bot Migration (Required)
 
-The Telegram chatbot currently accesses Airtable directly. Post-migration options:
+The Telegram chatbot currently accesses Airtable directly. **Decision: API endpoints (Option B)**
 
-**Option A: Direct PostgreSQL access**
-- Bot connects to PostgreSQL directly
-- Simpler implementation
-- Requires network access to database
+#### Required API Endpoints
 
-**Option B: API endpoints in this service**
-- Add REST endpoints for bot operations:
-  - `GET /api/v1/requests?mentor_id={id}&status={status}`
-  - `PATCH /api/v1/requests/{id}/status`
-- Better separation of concerns
-- Existing auth patterns can be reused
+**Authentication:**
+- Bot will use a service API key (different from mentor auth tokens)
+- Add `X-Bot-API-Key` header validation
 
-**Recommendation:** Option B (API endpoints) - cleaner architecture, single point of database access.
+**Mentor Endpoints (for bot auth flow):**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/bot/mentors/by-telegram-chat/{chatId}` | Get mentor by Telegram chat ID |
+| `GET` | `/api/v1/bot/mentors/by-secret/{code}` | Get mentor by TgSecret code |
+| `PATCH` | `/api/v1/bot/mentors/{id}/telegram-chat` | Set mentor's Telegram chat ID |
+| `PATCH` | `/api/v1/bot/mentors/{id}/status` | Update mentor status |
+
+**Client Request Endpoints:**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/bot/mentors/{mentorId}/requests/active` | Get active requests (status NOT IN done,declined,unavailable) |
+| `GET` | `/api/v1/bot/mentors/{mentorId}/requests/archived` | Get archived requests (status NOT IN pending,working,contacted) |
+| `GET` | `/api/v1/bot/requests/{id}` | Get single request by ID |
+| `PATCH` | `/api/v1/bot/requests/{id}/status` | Update request status |
+
+**Request Status Update Rules (enforce in API):**
+```
+- Cannot change status if current is 'done' or 'declined'
+- Valid transitions:
+  - pending → contacted, declined
+  - contacted → working, declined, unavailable
+  - working → done, declined, unavailable
+  - unavailable → contacted (revert)
+```
+
+**Response Format (match bot expectations):**
+```json
+// GET /api/v1/bot/mentors/{mentorId}/requests/active
+{
+  "requests": [
+    {
+      "id": "123",
+      "name": "John Doe",
+      "email": "john@example.com",
+      "telegram": "johndoe",
+      "description": "Looking for career advice",
+      "level": "Junior",
+      "status": "pending",
+      "review": null,
+      "review2": null,
+      "reviewFormUrl": "https://...",
+      "createdAt": "2025-01-15T10:30:00Z",
+      "updatedAt": "2025-01-15T10:30:00Z",
+      "scheduledAt": null,
+      "statusChangedAt": null,
+      "mentorId": "456"
+    }
+  ]
+}
+```
 
 ### 10.2 Admin Interface (Future - Out of Scope)
 
