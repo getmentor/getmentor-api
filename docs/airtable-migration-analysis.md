@@ -64,15 +64,21 @@ The application uses 3 Airtable tables:
 | Field | Type | Description |
 |-------|------|-------------|
 | Status | Enum | Request status (see workflow below) |
-| Review | String | Session review (legacy) |
-| Review2 | String | Session review (preferred) |
-| ReviewFormUrl | String | URL to mentee review form |
+| Review | String | Session review from mentee |
+| ~~Review2~~ | ~~String~~ | ~~Deprecated, use Review~~ |
+| ~~ReviewFormUrl~~ | ~~String~~ | ~~Formula field, will be dropped~~ |
 | Created Time | DateTime | Request creation timestamp |
 | Last Modified Time | DateTime | Last update timestamp |
-| Scheduled At | DateTime | Meeting scheduled time |
+| Scheduled At | DateTime | Meeting scheduled time (kept but not actively used) |
 | Last Status Change | DateTime | Last status change timestamp |
 
 **Source:** `getmentor-bot/lib/models/MentorClientRequest.ts:31-45`
+
+**Fields to drop during migration:**
+- `Review2` → consolidated into `Review`
+- `ReviewFormUrl` → Airtable formula field, not needed
+
+**Future requirement:** Review submission page (currently uses Airtable form)
 
 **Status Workflow (from bot):**
 ```
@@ -399,12 +405,11 @@ CREATE TABLE client_requests (
     -- Status workflow (used by bot)
     status request_status DEFAULT 'pending',
     status_changed_at TIMESTAMP WITH TIME ZONE,
-    -- Scheduling (used by bot)
-    scheduled_at TIMESTAMP WITH TIME ZONE,
-    -- Reviews (used by bot)
-    review TEXT,                     -- Legacy review field
-    review2 TEXT,                    -- Current review field (preferred)
-    review_form_url VARCHAR(500),
+    -- Scheduling
+    scheduled_at TIMESTAMP WITH TIME ZONE,  -- Kept for future use
+    -- Review (populated via future review page)
+    review TEXT,
+    review_token UUID DEFAULT gen_random_uuid(),  -- For secure review submission links
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -414,6 +419,7 @@ CREATE INDEX idx_client_requests_mentor_id ON client_requests(mentor_id);
 CREATE INDEX idx_client_requests_email ON client_requests(email);
 CREATE INDEX idx_client_requests_created_at ON client_requests(created_at);
 CREATE INDEX idx_client_requests_status ON client_requests(status);
+CREATE UNIQUE INDEX idx_client_requests_review_token ON client_requests(review_token);
 -- Composite indexes for Telegram bot queries
 CREATE INDEX idx_client_requests_mentor_active ON client_requests(mentor_id, created_at)
     WHERE status NOT IN ('done', 'declined', 'unavailable');
@@ -792,8 +798,6 @@ The Telegram chatbot currently accesses Airtable directly. **Decision: API endpo
       "level": "Junior",
       "status": "pending",
       "review": null,
-      "review2": null,
-      "reviewFormUrl": "https://...",
       "createdAt": "2025-01-15T10:30:00Z",
       "updatedAt": "2025-01-15T10:30:00Z",
       "scheduledAt": null,
@@ -804,7 +808,21 @@ The Telegram chatbot currently accesses Airtable directly. **Decision: API endpo
 }
 ```
 
-### 10.2 Admin Interface (Future - Out of Scope)
+### 10.2 Review Submission Page (Future - Out of Scope)
+
+Currently, mentee reviews are submitted via an Airtable form (linked via `ReviewFormUrl` formula field). After migration, this needs replacement:
+
+**Required functionality:**
+- Public page where mentee can submit review for a specific request
+- Updates the `review` field in `client_requests` table
+- Likely needs a unique token/link per request for security
+
+**Suggested approach:**
+- Add `review_token` field to `client_requests` (UUID, generated on creation)
+- Create endpoint: `POST /api/v1/reviews/{token}` with review text
+- Frontend page at `/review/{token}`
+
+### 10.3 Admin Interface (Future - Out of Scope)
 
 After migration, you'll lose Airtable's convenient UI for manual data edits. Future options:
 
