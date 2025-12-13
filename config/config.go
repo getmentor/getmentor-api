@@ -13,6 +13,7 @@ import (
 type Config struct {
 	Server        ServerConfig
 	Airtable      AirtableConfig
+	Postgres      PostgresConfig
 	Azure         AzureConfig
 	Auth          AuthConfig
 	ReCAPTCHA     ReCAPTCHAConfig
@@ -37,6 +38,21 @@ type AirtableConfig struct {
 	WorkOffline bool
 }
 
+type PostgresConfig struct {
+	Enabled      bool
+	Host         string
+	Port         int
+	Database     string
+	User         string
+	Password     string
+	SSLMode      string
+	MaxConns     int
+	MinConns     int
+	MaxConnLife  int // seconds
+	MaxConnIdle  int // seconds
+	HealthPeriod int // seconds
+}
+
 type AzureConfig struct {
 	ConnectionString string
 	ContainerName    string
@@ -52,6 +68,7 @@ type AuthConfig struct {
 	MCPAllowAll         bool
 	RevalidateSecret    string
 	WebhookSecret       string
+	BotAPIKey           string
 }
 
 type ReCAPTCHAConfig struct {
@@ -109,6 +126,19 @@ func Load() (*Config, error) {
 	v.SetDefault("MENTOR_CACHE_TTL", 600) // 10 minutes in seconds
 	v.SetDefault("MCP_ALLOW_ALL", false)
 
+	// PostgreSQL defaults
+	v.SetDefault("POSTGRES_ENABLED", false)
+	v.SetDefault("POSTGRES_HOST", "localhost")
+	v.SetDefault("POSTGRES_PORT", 5432)
+	v.SetDefault("POSTGRES_DB", "getmentor")
+	v.SetDefault("POSTGRES_USER", "getmentor")
+	v.SetDefault("POSTGRES_SSLMODE", "prefer")
+	v.SetDefault("POSTGRES_MAX_CONNS", 10)
+	v.SetDefault("POSTGRES_MIN_CONNS", 2)
+	v.SetDefault("POSTGRES_MAX_CONN_LIFE", 3600) // 1 hour
+	v.SetDefault("POSTGRES_MAX_CONN_IDLE", 1800) // 30 minutes
+	v.SetDefault("POSTGRES_HEALTH_PERIOD", 60)   // 1 minute
+
 	// Automatically read environment variables
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -145,6 +175,20 @@ func Load() (*Config, error) {
 			BaseID:      v.GetString("AIRTABLE_BASE_ID"),
 			WorkOffline: v.GetBool("AIRTABLE_WORK_OFFLINE"),
 		},
+		Postgres: PostgresConfig{
+			Enabled:      v.GetBool("POSTGRES_ENABLED"),
+			Host:         v.GetString("POSTGRES_HOST"),
+			Port:         v.GetInt("POSTGRES_PORT"),
+			Database:     v.GetString("POSTGRES_DB"),
+			User:         v.GetString("POSTGRES_USER"),
+			Password:     v.GetString("POSTGRES_PASSWORD"),
+			SSLMode:      v.GetString("POSTGRES_SSLMODE"),
+			MaxConns:     v.GetInt("POSTGRES_MAX_CONNS"),
+			MinConns:     v.GetInt("POSTGRES_MIN_CONNS"),
+			MaxConnLife:  v.GetInt("POSTGRES_MAX_CONN_LIFE"),
+			MaxConnIdle:  v.GetInt("POSTGRES_MAX_CONN_IDLE"),
+			HealthPeriod: v.GetInt("POSTGRES_HEALTH_PERIOD"),
+		},
 		Azure: AzureConfig{
 			ConnectionString: v.GetString("AZURE_STORAGE_CONNECTION_STRING"),
 			ContainerName:    v.GetString("AZURE_STORAGE_CONTAINER_NAME"),
@@ -159,6 +203,7 @@ func Load() (*Config, error) {
 			MCPAllowAll:         v.GetBool("MCP_ALLOW_ALL"),
 			RevalidateSecret:    v.GetString("REVALIDATE_SECRET_TOKEN"),
 			WebhookSecret:       v.GetString("WEBHOOK_SECRET"),
+			BotAPIKey:           v.GetString("BOT_API_KEY"),
 		},
 		ReCAPTCHA: ReCAPTCHAConfig{
 			SecretKey: v.GetString("RECAPTCHA_V2_SECRET_KEY"),

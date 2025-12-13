@@ -15,6 +15,7 @@ import (
 
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/cache"
+	"github.com/getmentor/getmentor-api/internal/database/postgres"
 	"github.com/getmentor/getmentor-api/internal/handlers"
 	"github.com/getmentor/getmentor-api/internal/middleware"
 	"github.com/getmentor/getmentor-api/internal/repository"
@@ -56,6 +57,7 @@ func registerAPIRoutes(
 	group.POST("/webhooks/airtable", webhookRateLimiter.Middleware(), middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
 }
 
+//nolint:gocyclo // Main initialization function has expected complexity
 func main() {
 	// Load configuration
 	cfg, err := config.Load()
@@ -126,6 +128,42 @@ func main() {
 		}
 	}
 
+	// Initialize PostgreSQL client (optional - for bot API and future migration)
+	var pgClient *postgres.Client
+	if cfg.Postgres.Enabled {
+		logger.Info("Initializing PostgreSQL client",
+			zap.String("host", cfg.Postgres.Host),
+			zap.Int("port", cfg.Postgres.Port),
+			zap.String("database", cfg.Postgres.Database),
+		)
+
+		pgConfig := &postgres.Config{
+			Host:         cfg.Postgres.Host,
+			Port:         cfg.Postgres.Port,
+			Database:     cfg.Postgres.Database,
+			User:         cfg.Postgres.User,
+			Password:     cfg.Postgres.Password,
+			SSLMode:      cfg.Postgres.SSLMode,
+			MaxConns:     int32(cfg.Postgres.MaxConns),
+			MinConns:     int32(cfg.Postgres.MinConns),
+			MaxConnLife:  time.Duration(cfg.Postgres.MaxConnLife) * time.Second,
+			MaxConnIdle:  time.Duration(cfg.Postgres.MaxConnIdle) * time.Second,
+			HealthPeriod: time.Duration(cfg.Postgres.HealthPeriod) * time.Second,
+		}
+
+		pgClient, err = postgres.NewClient(context.Background(), pgConfig)
+		if err != nil {
+			logger.Fatal("Failed to initialize PostgreSQL client", zap.Error(err))
+		}
+		defer pgClient.Close()
+
+		// Verify connection
+		if err := pgClient.Ping(context.Background()); err != nil {
+			logger.Fatal("Failed to ping PostgreSQL", zap.Error(err))
+		}
+		logger.Info("PostgreSQL client initialized successfully")
+	}
+
 	// Initialize data sources (using Airtable adapters for now, can switch to PostgreSQL)
 	mentorDataSource := repository.NewAirtableMentorDataSource(airtableClient)
 	tagsDataSource := repository.NewAirtableTagsDataSource(airtableClient)
@@ -167,6 +205,14 @@ func main() {
 	mcpHandler := handlers.NewMCPHandler(mcpService)
 	healthHandler := handlers.NewHealthHandler(mentorCache.IsReady)
 	logsHandler := handlers.NewLogsHandler(cfg.Logging.Dir)
+
+	// Initialize bot handler (only if PostgreSQL is enabled)
+	var botHandler *handlers.BotHandler
+	if pgClient != nil {
+		botService := services.NewBotService(pgClient)
+		botHandler = handlers.NewBotHandler(botService)
+		logger.Info("Bot API enabled")
+	}
 
 	// Set up Gin router
 	gin.SetMode(cfg.Server.GinMode)
@@ -215,6 +261,31 @@ func main() {
 	v1 := router.Group("/api/v1")
 	registerAPIRoutes(v1, cfg, generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter,
 		mentorHandler, contactHandler, profileHandler, logsHandler, webhookHandler)
+
+	// Bot API routes (only if PostgreSQL is enabled)
+	if botHandler != nil {
+		botRateLimiter := middleware.NewRateLimiter(50, 100) // 50 req/sec, burst of 100
+		bot := v1.Group("/bot")
+		bot.Use(middleware.BotAPIAuthMiddleware(cfg.Auth.BotAPIKey))
+		bot.Use(botRateLimiter.Middleware())
+
+		// Authentication
+		bot.POST("/auth", botHandler.GetMentorByTgSecret)
+
+		// Mentor operations
+		bot.GET("/mentor/:id", botHandler.GetMentorByID)
+		bot.GET("/mentor/chat/:chatId", botHandler.GetMentorByTelegramChatID)
+		bot.POST("/mentor/:id/telegram", botHandler.SetMentorTelegramChatID)
+		bot.POST("/mentor/:id/status", botHandler.SetMentorStatus)
+
+		// Request operations
+		bot.GET("/mentor/:id/requests/active", botHandler.GetActiveRequestsForMentor)
+		bot.GET("/mentor/:id/requests/archived", botHandler.GetArchivedRequestsForMentor)
+		bot.GET("/request/:id", botHandler.GetRequestByID)
+		bot.POST("/request/:id/status", botHandler.UpdateRequestStatus)
+
+		logger.Info("Bot API routes registered")
+	}
 
 	// Create HTTP server
 	// SECURITY: Bind to all interfaces for Docker Compose networking
