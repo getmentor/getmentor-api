@@ -283,6 +283,79 @@ func (c *Client) UpdateMentorImage(recordID, imageURL string) error {
 	return c.UpdateMentor(recordID, updates)
 }
 
+// CreateMentor creates a new mentor record in Airtable with retry logic
+// Returns: recordID (Airtable rec*), mentorID (numeric ID), error
+func (c *Client) CreateMentor(fields map[string]interface{}) (string, int, error) {
+	if c.workOffline {
+		logger.Info("Skipping mentor creation in offline mode")
+		return "rec_dev_test", 9999, nil
+	}
+
+	start := time.Now()
+	operation := "createMentor"
+
+	// Use retry logic with context timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	retryConfig := retry.AirtableConfig()
+
+	var recordID string
+	var mentorID int
+
+	err := retry.Do(ctx, retryConfig, operation, func() error {
+		table := c.client.GetTable(c.baseID, MentorsTableName)
+
+		records := &airtable.Records{
+			Records: []*airtable.Record{
+				{
+					Fields: fields,
+				},
+			},
+		}
+
+		createdRecords, err := table.AddRecords(records)
+		if err != nil {
+			return fmt.Errorf("failed to create mentor: %w", err)
+		}
+
+		if len(createdRecords.Records) == 0 {
+			return fmt.Errorf("no record returned from Airtable")
+		}
+
+		createdRecord := createdRecords.Records[0]
+		recordID = createdRecord.ID
+
+		// Extract mentor ID from created record fields
+		if id, ok := createdRecord.Fields["Id"].(float64); ok {
+			mentorID = int(id)
+		} else if id, ok := createdRecord.Fields["Id"].(int); ok {
+			mentorID = id
+		} else {
+			return fmt.Errorf("mentor ID not found in created record")
+		}
+
+		return nil
+	})
+
+	duration := metrics.MeasureDuration(start)
+
+	if err != nil {
+		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
+		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
+		logger.LogAPICall("airtable", operation, "error", duration, zap.Error(err))
+		return "", 0, err
+	}
+
+	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
+	metrics.AirtableRequestTotal.WithLabelValues(operation, "success").Inc()
+	logger.LogAPICall("airtable", operation, "success", duration,
+		zap.String("record_id", recordID),
+		zap.Int("mentor_id", mentorID))
+
+	return recordID, mentorID, nil
+}
+
 // CreateClientRequest creates a new client request in Airtable with retry logic
 func (c *Client) CreateClientRequest(req *models.ClientRequest) error {
 	if c.workOffline {

@@ -115,6 +115,12 @@ func (r *MentorRepository) UpdateImage(ctx context.Context, recordID, imageURL s
 	return r.airtableClient.UpdateMentorImage(recordID, imageURL)
 }
 
+// CreateMentor creates a new mentor record in Airtable
+// Returns: recordID (Airtable rec*), mentorID (numeric ID), error
+func (r *MentorRepository) CreateMentor(ctx context.Context, fields map[string]interface{}) (string, int, error) {
+	return r.airtableClient.CreateMentor(fields)
+}
+
 // GetTagIDByName retrieves a tag ID by name
 func (r *MentorRepository) GetTagIDByName(ctx context.Context, name string) (string, error) {
 	return r.tagsCache.GetTagIDByName(name)
