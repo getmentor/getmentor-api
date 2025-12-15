@@ -2,9 +2,7 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/getmentor/getmentor-api/config"
@@ -14,15 +12,17 @@ import (
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
+	"github.com/getmentor/getmentor-api/pkg/recaptcha"
 	"go.uber.org/zap"
 )
 
 // RegistrationService handles mentor registration
 type RegistrationService struct {
-	mentorRepo  *repository.MentorRepository
-	azureClient *azure.StorageClient
-	config      *config.Config
-	httpClient  httpclient.Client
+	mentorRepo        *repository.MentorRepository
+	azureClient       *azure.StorageClient
+	config            *config.Config
+	httpClient        httpclient.Client
+	recaptchaVerifier *recaptcha.Verifier
 }
 
 // NewRegistrationService creates a new registration service instance
@@ -32,18 +32,20 @@ func NewRegistrationService(
 	cfg *config.Config,
 	httpClient httpclient.Client,
 ) *RegistrationService {
+
 	return &RegistrationService{
-		mentorRepo:  mentorRepo,
-		azureClient: azureClient,
-		config:      cfg,
-		httpClient:  httpClient,
+		mentorRepo:        mentorRepo,
+		azureClient:       azureClient,
+		config:            cfg,
+		httpClient:        httpClient,
+		recaptchaVerifier: recaptcha.NewVerifier(cfg.ReCAPTCHA.SecretKey, httpClient),
 	}
 }
 
 // RegisterMentor handles the complete mentor registration flow
 func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.RegisterMentorRequest) (*models.RegisterMentorResponse, error) {
 	// 1. Verify ReCAPTCHA
-	if err := s.verifyRecaptcha(req.RecaptchaToken); err != nil {
+	if err := s.recaptchaVerifier.Verify(req.RecaptchaToken); err != nil {
 		metrics.MentorRegistrations.WithLabelValues("captcha_failed").Inc()
 		logger.Warn("ReCAPTCHA verification failed", zap.Error(err))
 		return &models.RegisterMentorResponse{
@@ -185,36 +187,5 @@ func (s *RegistrationService) triggerNewMentorWatcher(recordID string) error {
 	}
 
 	logger.Info("new-mentor-watcher triggered successfully", zap.String("record_id", recordID))
-	return nil
-}
-
-// verifyRecaptcha verifies the ReCAPTCHA token with Google's API
-func (s *RegistrationService) verifyRecaptcha(token string) error {
-	// Prepare form data
-	data := url.Values{}
-	data.Set("secret", s.config.ReCAPTCHA.SecretKey)
-	data.Set("response", token)
-
-	// Send POST request to Google's verification endpoint
-	resp, err := s.httpClient.Post(
-		"https://www.google.com/recaptcha/api/siteverify",
-		"application/x-www-form-urlencoded",
-		strings.NewReader(data.Encode()),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to verify recaptcha: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Parse response
-	var result models.ReCAPTCHAResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("failed to decode recaptcha response: %w", err)
-	}
-
-	if !result.Success {
-		return fmt.Errorf("recaptcha verification failed")
-	}
-
 	return nil
 }

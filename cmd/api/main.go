@@ -196,12 +196,12 @@ func main() {
 
 	// SECURITY: Rate limiters to prevent abuse and DoS attacks
 	// Different limits for different endpoint types
-	generalRateLimiter := middleware.NewRateLimiter(100, 200)     // 100 req/sec, burst of 200
-	contactRateLimiter := middleware.NewRateLimiter(5, 10)        // 5 req/sec, burst of 10 (prevent spam)
-	profileRateLimiter := middleware.NewRateLimiter(10, 20)       // 10 req/sec, burst of 20
-	webhookRateLimiter := middleware.NewRateLimiter(10, 20)       // 10 req/sec, burst of 20
+	generalRateLimiter := middleware.NewRateLimiter(100, 200)        // 100 req/sec, burst of 200
+	contactRateLimiter := middleware.NewRateLimiter(5, 10)           // 5 req/sec, burst of 10 (prevent spam)
+	profileRateLimiter := middleware.NewRateLimiter(10, 20)          // 10 req/sec, burst of 20
+	webhookRateLimiter := middleware.NewRateLimiter(10, 20)          // 10 req/sec, burst of 20
 	registrationRateLimiter := middleware.NewRateLimiter(0.00667, 3) // 2 req/5min (0.00667 req/sec), burst of 3
-	mcpRateLimiter := middleware.NewRateLimiter(20, 40)           // 20 req/sec, burst of 40 (for AI tool usage)
+	mcpRateLimiter := middleware.NewRateLimiter(20, 40)              // 20 req/sec, burst of 40 (for AI tool usage)
 
 	// API routes
 	api := router.Group("/api")

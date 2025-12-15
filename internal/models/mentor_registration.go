@@ -29,7 +29,7 @@ type RegisterMentorRequest struct {
 
 // ProfilePictureData represents the profile picture upload data
 type ProfilePictureData struct {
-	Image       string `json:"image" binding:"required"`        // base64 encoded image
+	Image       string `json:"image" binding:"required"` // base64 encoded image
 	FileName    string `json:"fileName" binding:"required,max=255"`
 	ContentType string `json:"contentType" binding:"required,oneof=image/jpeg image/png image/webp"`
 }

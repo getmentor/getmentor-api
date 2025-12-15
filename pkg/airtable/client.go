@@ -327,11 +327,12 @@ func (c *Client) CreateMentor(fields map[string]interface{}) (string, int, error
 		recordID = createdRecord.ID
 
 		// Extract mentor ID from created record fields
-		if id, ok := createdRecord.Fields["Id"].(float64); ok {
+		switch id := createdRecord.Fields["Id"].(type) {
+		case float64:
 			mentorID = int(id)
-		} else if id, ok := createdRecord.Fields["Id"].(int); ok {
+		case int:
 			mentorID = id
-		} else {
+		default:
 			return fmt.Errorf("mentor ID not found in created record")
 		}
 
