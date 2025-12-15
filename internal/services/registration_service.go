@@ -115,13 +115,14 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 		logger.Info("Profile picture uploaded", zap.Int("mentor_id", mentorID))
 	}
 
+	// TODO: Uncomment block below when migrate away from Airtable webhooks
 	// 6. Call new-mentor-watcher Azure Function (non-blocking on failure)
-	if err := s.triggerNewMentorWatcher(recordID); err != nil {
-		logger.Error("Failed to trigger new-mentor-watcher",
-			zap.Error(err),
-			zap.String("record_id", recordID))
-		// Don't fail registration - admin can manually trigger if needed
-	}
+	// if err := s.triggerNewMentorWatcher(recordID); err != nil {
+	// 	logger.Error("Failed to trigger new-mentor-watcher",
+	// 		zap.Error(err),
+	// 		zap.String("record_id", recordID))
+	// 	// Don't fail registration - admin can manually trigger if needed
+	// }
 
 	metrics.MentorRegistrations.WithLabelValues("success").Inc()
 
@@ -165,6 +166,8 @@ func (s *RegistrationService) uploadProfilePicture(ctx context.Context, mentorID
 }
 
 // triggerNewMentorWatcher calls the Azure Function to process new mentor
+//
+//lint:ignore U1000 Ignore unused function until move away from Airtable webhooks
 func (s *RegistrationService) triggerNewMentorWatcher(recordID string) error {
 	// Build URL with mentorId query parameter
 	funcURL := s.config.AzureFunctions.NewMentorWatcherURL
@@ -173,7 +176,7 @@ func (s *RegistrationService) triggerNewMentorWatcher(recordID string) error {
 		return nil
 	}
 
-	targetURL := fmt.Sprintf("%s?mentorId=%s", funcURL, recordID)
+	targetURL := fmt.Sprintf("%s&mentorId=%s", funcURL, recordID)
 
 	// Make HTTP GET request to trigger the function
 	resp, err := s.httpClient.Get(targetURL)
