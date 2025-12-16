@@ -41,16 +41,16 @@ func TestRegistrationHandler_RegisterMentor_Success(t *testing.T) {
 
 	// Prepare valid request
 	reqBody := models.RegisterMentorRequest{
-		Name:       "John Doe",
-		Email:      "john@example.com",
-		Telegram:   "johndoe",
-		Job:        "Senior Software Engineer",
-		Workplace:  "Tech Company",
-		Experience: "10+",
-		Price:      "5000 руб",
-		Tags:       []string{"Backend", "Go", "System Design"},
-		About:      "<p>Experienced backend engineer with 10+ years</p>",
-		Description: "<p>Can help with: Go, microservices, system design</p>",
+		Name:         "John Doe",
+		Email:        "john@example.com",
+		Telegram:     "johndoe",
+		Job:          "Senior Software Engineer",
+		Workplace:    "Tech Company",
+		Experience:   "10+",
+		Price:        "5000 руб",
+		Tags:         []string{"Backend", "Go", "System Design"},
+		About:        "<p>Experienced backend engineer with 10+ years</p>",
+		Description:  "<p>Can help with: Go, microservices, system design</p>",
 		Competencies: "Go, Kubernetes, PostgreSQL, Redis",
 		CalendarURL:  "https://calendly.com/johndoe",
 		ProfilePicture: models.ProfilePictureData{
@@ -129,15 +129,15 @@ func TestRegistrationHandler_RegisterMentor_MissingRequiredFields(t *testing.T) 
 		{
 			name: "missing_name",
 			requestBody: models.RegisterMentorRequest{
-				Email:       "john@example.com",
-				Telegram:    "johndoe",
-				Job:         "Engineer",
-				Workplace:   "Company",
-				Experience:  "10+",
-				Price:       "5000 руб",
-				Tags:        []string{"Backend"},
-				About:       "About me",
-				Description: "Description",
+				Email:        "john@example.com",
+				Telegram:     "johndoe",
+				Job:          "Engineer",
+				Workplace:    "Company",
+				Experience:   "10+",
+				Price:        "5000 руб",
+				Tags:         []string{"Backend"},
+				About:        "About me",
+				Description:  "Description",
 				Competencies: "Skills",
 				ProfilePicture: models.ProfilePictureData{
 					Image:       "data:image/jpeg;base64,abc",
@@ -151,15 +151,15 @@ func TestRegistrationHandler_RegisterMentor_MissingRequiredFields(t *testing.T) 
 		{
 			name: "missing_email",
 			requestBody: models.RegisterMentorRequest{
-				Name:        "John Doe",
-				Telegram:    "johndoe",
-				Job:         "Engineer",
-				Workplace:   "Company",
-				Experience:  "10+",
-				Price:       "5000 руб",
-				Tags:        []string{"Backend"},
-				About:       "About me",
-				Description: "Description",
+				Name:         "John Doe",
+				Telegram:     "johndoe",
+				Job:          "Engineer",
+				Workplace:    "Company",
+				Experience:   "10+",
+				Price:        "5000 руб",
+				Tags:         []string{"Backend"},
+				About:        "About me",
+				Description:  "Description",
 				Competencies: "Skills",
 				ProfilePicture: models.ProfilePictureData{
 					Image:       "data:image/jpeg;base64,abc",
@@ -173,15 +173,15 @@ func TestRegistrationHandler_RegisterMentor_MissingRequiredFields(t *testing.T) 
 		{
 			name: "missing_telegram",
 			requestBody: models.RegisterMentorRequest{
-				Name:        "John Doe",
-				Email:       "john@example.com",
-				Job:         "Engineer",
-				Workplace:   "Company",
-				Experience:  "10+",
-				Price:       "5000 руб",
-				Tags:        []string{"Backend"},
-				About:       "About me",
-				Description: "Description",
+				Name:         "John Doe",
+				Email:        "john@example.com",
+				Job:          "Engineer",
+				Workplace:    "Company",
+				Experience:   "10+",
+				Price:        "5000 руб",
+				Tags:         []string{"Backend"},
+				About:        "About me",
+				Description:  "Description",
 				Competencies: "Skills",
 				ProfilePicture: models.ProfilePictureData{
 					Image:       "data:image/jpeg;base64,abc",
@@ -195,16 +195,16 @@ func TestRegistrationHandler_RegisterMentor_MissingRequiredFields(t *testing.T) 
 		{
 			name: "missing_tags",
 			requestBody: models.RegisterMentorRequest{
-				Name:        "John Doe",
-				Email:       "john@example.com",
-				Telegram:    "johndoe",
-				Job:         "Engineer",
-				Workplace:   "Company",
-				Experience:  "10+",
-				Price:       "5000 руб",
-				Tags:        []string{}, // Empty tags
-				About:       "About me",
-				Description: "Description",
+				Name:         "John Doe",
+				Email:        "john@example.com",
+				Telegram:     "johndoe",
+				Job:          "Engineer",
+				Workplace:    "Company",
+				Experience:   "10+",
+				Price:        "5000 руб",
+				Tags:         []string{}, // Empty tags
+				About:        "About me",
+				Description:  "Description",
 				Competencies: "Skills",
 				ProfilePicture: models.ProfilePictureData{
 					Image:       "data:image/jpeg;base64,abc",
@@ -218,16 +218,16 @@ func TestRegistrationHandler_RegisterMentor_MissingRequiredFields(t *testing.T) 
 		{
 			name: "missing_profile_picture",
 			requestBody: models.RegisterMentorRequest{
-				Name:        "John Doe",
-				Email:       "john@example.com",
-				Telegram:    "johndoe",
-				Job:         "Engineer",
-				Workplace:   "Company",
-				Experience:  "10+",
-				Price:       "5000 руб",
-				Tags:        []string{"Backend"},
-				About:       "About me",
-				Description: "Description",
+				Name:         "John Doe",
+				Email:        "john@example.com",
+				Telegram:     "johndoe",
+				Job:          "Engineer",
+				Workplace:    "Company",
+				Experience:   "10+",
+				Price:        "5000 руб",
+				Tags:         []string{"Backend"},
+				About:        "About me",
+				Description:  "Description",
 				Competencies: "Skills",
 				ProfilePicture: models.ProfilePictureData{
 					// All fields empty - should fail validation
@@ -242,16 +242,16 @@ func TestRegistrationHandler_RegisterMentor_MissingRequiredFields(t *testing.T) 
 		{
 			name: "missing_recaptcha_token",
 			requestBody: models.RegisterMentorRequest{
-				Name:        "John Doe",
-				Email:       "john@example.com",
-				Telegram:    "johndoe",
-				Job:         "Engineer",
-				Workplace:   "Company",
-				Experience:  "10+",
-				Price:       "5000 руб",
-				Tags:        []string{"Backend"},
-				About:       "About me",
-				Description: "Description",
+				Name:         "John Doe",
+				Email:        "john@example.com",
+				Telegram:     "johndoe",
+				Job:          "Engineer",
+				Workplace:    "Company",
+				Experience:   "10+",
+				Price:        "5000 руб",
+				Tags:         []string{"Backend"},
+				About:        "About me",
+				Description:  "Description",
 				Competencies: "Skills",
 				ProfilePicture: models.ProfilePictureData{
 					Image:       "data:image/jpeg;base64,abc",
@@ -304,16 +304,16 @@ func TestRegistrationHandler_RegisterMentor_InvalidEmail(t *testing.T) {
 	router.POST("/register", handler.RegisterMentor)
 
 	reqBody := models.RegisterMentorRequest{
-		Name:        "John Doe",
-		Email:       "not-an-email", // Invalid format
-		Telegram:    "johndoe",
-		Job:         "Engineer",
-		Workplace:   "Company",
-		Experience:  "10+",
-		Price:       "5000 руб",
-		Tags:        []string{"Backend"},
-		About:       "About me",
-		Description: "Description",
+		Name:         "John Doe",
+		Email:        "not-an-email", // Invalid format
+		Telegram:     "johndoe",
+		Job:          "Engineer",
+		Workplace:    "Company",
+		Experience:   "10+",
+		Price:        "5000 руб",
+		Tags:         []string{"Backend"},
+		About:        "About me",
+		Description:  "Description",
 		Competencies: "Skills",
 		ProfilePicture: models.ProfilePictureData{
 			Image:       "data:image/jpeg;base64,abc",
@@ -346,16 +346,16 @@ func TestRegistrationHandler_RegisterMentor_InvalidExperience(t *testing.T) {
 	router.POST("/register", handler.RegisterMentor)
 
 	reqBody := models.RegisterMentorRequest{
-		Name:        "John Doe",
-		Email:       "john@example.com",
-		Telegram:    "johndoe",
-		Job:         "Engineer",
-		Workplace:   "Company",
-		Experience:  "invalid-experience", // Invalid value
-		Price:       "5000 руб",
-		Tags:        []string{"Backend"},
-		About:       "About me",
-		Description: "Description",
+		Name:         "John Doe",
+		Email:        "john@example.com",
+		Telegram:     "johndoe",
+		Job:          "Engineer",
+		Workplace:    "Company",
+		Experience:   "invalid-experience", // Invalid value
+		Price:        "5000 руб",
+		Tags:         []string{"Backend"},
+		About:        "About me",
+		Description:  "Description",
 		Competencies: "Skills",
 		ProfilePicture: models.ProfilePictureData{
 			Image:       "data:image/jpeg;base64,abc",
@@ -388,16 +388,16 @@ func TestRegistrationHandler_RegisterMentor_TooManyTags(t *testing.T) {
 	router.POST("/register", handler.RegisterMentor)
 
 	reqBody := models.RegisterMentorRequest{
-		Name:        "John Doe",
-		Email:       "john@example.com",
-		Telegram:    "johndoe",
-		Job:         "Engineer",
-		Workplace:   "Company",
-		Experience:  "10+",
-		Price:       "5000 руб",
-		Tags:        []string{"Backend", "Frontend", "Mobile", "QA", "DevOps", "Security"}, // 6 tags (max is 5)
-		About:       "About me",
-		Description: "Description",
+		Name:         "John Doe",
+		Email:        "john@example.com",
+		Telegram:     "johndoe",
+		Job:          "Engineer",
+		Workplace:    "Company",
+		Experience:   "10+",
+		Price:        "5000 руб",
+		Tags:         []string{"Backend", "Frontend", "Mobile", "QA", "DevOps", "Security"}, // 6 tags (max is 5)
+		About:        "About me",
+		Description:  "Description",
 		Competencies: "Skills",
 		ProfilePicture: models.ProfilePictureData{
 			Image:       "data:image/jpeg;base64,abc",
@@ -431,16 +431,16 @@ func TestRegistrationHandler_RegisterMentor_TooLongFields(t *testing.T) {
 
 	// Name too long (> 100 chars)
 	reqBody := models.RegisterMentorRequest{
-		Name:        strings.Repeat("A", 101), // 101 characters
-		Email:       "john@example.com",
-		Telegram:    "johndoe",
-		Job:         "Engineer",
-		Workplace:   "Company",
-		Experience:  "10+",
-		Price:       "5000 руб",
-		Tags:        []string{"Backend"},
-		About:       "About me",
-		Description: "Description",
+		Name:         strings.Repeat("A", 101), // 101 characters
+		Email:        "john@example.com",
+		Telegram:     "johndoe",
+		Job:          "Engineer",
+		Workplace:    "Company",
+		Experience:   "10+",
+		Price:        "5000 руб",
+		Tags:         []string{"Backend"},
+		About:        "About me",
+		Description:  "Description",
 		Competencies: "Skills",
 		ProfilePicture: models.ProfilePictureData{
 			Image:       "data:image/jpeg;base64,abc",
@@ -469,16 +469,16 @@ func TestRegistrationHandler_RegisterMentor_InvalidContentType(t *testing.T) {
 	router.POST("/register", handler.RegisterMentor)
 
 	reqBody := models.RegisterMentorRequest{
-		Name:        "John Doe",
-		Email:       "john@example.com",
-		Telegram:    "johndoe",
-		Job:         "Engineer",
-		Workplace:   "Company",
-		Experience:  "10+",
-		Price:       "5000 руб",
-		Tags:        []string{"Backend"},
-		About:       "About me",
-		Description: "Description",
+		Name:         "John Doe",
+		Email:        "john@example.com",
+		Telegram:     "johndoe",
+		Job:          "Engineer",
+		Workplace:    "Company",
+		Experience:   "10+",
+		Price:        "5000 руб",
+		Tags:         []string{"Backend"},
+		About:        "About me",
+		Description:  "Description",
 		Competencies: "Skills",
 		ProfilePicture: models.ProfilePictureData{
 			Image:       "data:image/jpeg;base64,abc",
@@ -511,16 +511,16 @@ func TestRegistrationHandler_RegisterMentor_CaptchaFailed(t *testing.T) {
 	router.POST("/register", handler.RegisterMentor)
 
 	reqBody := models.RegisterMentorRequest{
-		Name:        "John Doe",
-		Email:       "john@example.com",
-		Telegram:    "johndoe",
-		Job:         "Engineer",
-		Workplace:   "Company",
-		Experience:  "10+",
-		Price:       "5000 руб",
-		Tags:        []string{"Backend"},
-		About:       "About me",
-		Description: "Description",
+		Name:         "John Doe",
+		Email:        "john@example.com",
+		Telegram:     "johndoe",
+		Job:          "Engineer",
+		Workplace:    "Company",
+		Experience:   "10+",
+		Price:        "5000 руб",
+		Tags:         []string{"Backend"},
+		About:        "About me",
+		Description:  "Description",
 		Competencies: "Skills",
 		ProfilePicture: models.ProfilePictureData{
 			Image:       "data:image/jpeg;base64,abc",
@@ -565,16 +565,16 @@ func TestRegistrationHandler_RegisterMentor_ServiceError(t *testing.T) {
 	router.POST("/register", handler.RegisterMentor)
 
 	reqBody := models.RegisterMentorRequest{
-		Name:        "John Doe",
-		Email:       "john@example.com",
-		Telegram:    "johndoe",
-		Job:         "Engineer",
-		Workplace:   "Company",
-		Experience:  "10+",
-		Price:       "5000 руб",
-		Tags:        []string{"Backend"},
-		About:       "About me",
-		Description: "Description",
+		Name:         "John Doe",
+		Email:        "john@example.com",
+		Telegram:     "johndoe",
+		Job:          "Engineer",
+		Workplace:    "Company",
+		Experience:   "10+",
+		Price:        "5000 руб",
+		Tags:         []string{"Backend"},
+		About:        "About me",
+		Description:  "Description",
 		Competencies: "Skills",
 		ProfilePicture: models.ProfilePictureData{
 			Image:       "data:image/jpeg;base64,abc",
@@ -616,16 +616,16 @@ func TestRegistrationHandler_RegisterMentor_InvalidCalendarURL(t *testing.T) {
 	router.POST("/register", handler.RegisterMentor)
 
 	reqBody := models.RegisterMentorRequest{
-		Name:        "John Doe",
-		Email:       "john@example.com",
-		Telegram:    "johndoe",
-		Job:         "Engineer",
-		Workplace:   "Company",
-		Experience:  "10+",
-		Price:       "5000 руб",
-		Tags:        []string{"Backend"},
-		About:       "About me",
-		Description: "Description",
+		Name:         "John Doe",
+		Email:        "john@example.com",
+		Telegram:     "johndoe",
+		Job:          "Engineer",
+		Workplace:    "Company",
+		Experience:   "10+",
+		Price:        "5000 руб",
+		Tags:         []string{"Backend"},
+		About:        "About me",
+		Description:  "Description",
 		Competencies: "Skills",
 		CalendarURL:  "not-a-valid-url", // Invalid URL format
 		ProfilePicture: models.ProfilePictureData{
