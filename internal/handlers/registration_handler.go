@@ -10,11 +10,11 @@ import (
 
 // RegistrationHandler handles mentor registration endpoints
 type RegistrationHandler struct {
-	service *services.RegistrationService
+	service services.RegistrationServiceInterface
 }
 
 // NewRegistrationHandler creates a new registration handler
-func NewRegistrationHandler(service *services.RegistrationService) *RegistrationHandler {
+func NewRegistrationHandler(service services.RegistrationServiceInterface) *RegistrationHandler {
 	return &RegistrationHandler{service: service}
 }
 
