@@ -11,16 +11,17 @@ import (
 //
 //nolint:govet // Field alignment optimization would reduce readability
 type Config struct {
-	Server        ServerConfig
-	Airtable      AirtableConfig
-	Azure         AzureConfig
-	Auth          AuthConfig
-	ReCAPTCHA     ReCAPTCHAConfig
-	NextJS        NextJSConfig
-	Grafana       GrafanaConfig
-	Logging       LoggingConfig
-	Observability ObservabilityConfig
-	Cache         CacheConfig
+	Server         ServerConfig
+	Airtable       AirtableConfig
+	Azure          AzureConfig
+	Auth           AuthConfig
+	ReCAPTCHA      ReCAPTCHAConfig
+	AzureFunctions AzureFunctionsConfig
+	NextJS         NextJSConfig
+	Grafana        GrafanaConfig
+	Logging        LoggingConfig
+	Observability  ObservabilityConfig
+	Cache          CacheConfig
 }
 
 type ServerConfig struct {
@@ -57,6 +58,10 @@ type AuthConfig struct {
 type ReCAPTCHAConfig struct {
 	SecretKey string
 	SiteKey   string
+}
+
+type AzureFunctionsConfig struct {
+	NewMentorWatcherURL string
 }
 
 type NextJSConfig struct {
@@ -163,6 +168,9 @@ func Load() (*Config, error) {
 		ReCAPTCHA: ReCAPTCHAConfig{
 			SecretKey: v.GetString("RECAPTCHA_V2_SECRET_KEY"),
 			SiteKey:   v.GetString("NEXT_PUBLIC_RECAPTCHA_V2_SITE_KEY"),
+		},
+		AzureFunctions: AzureFunctionsConfig{
+			NewMentorWatcherURL: v.GetString("AZURE_FUNC_NEW_MENTOR_WATCHER_URL"),
 		},
 		NextJS: NextJSConfig{
 			BaseURL:          v.GetString("NEXTJS_BASE_URL"),

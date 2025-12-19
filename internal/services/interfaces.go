@@ -30,8 +30,14 @@ type WebhookServiceInterface interface {
 	HandleAirtableWebhook(ctx context.Context, payload *models.WebhookPayload) error
 }
 
+// RegistrationServiceInterface defines the interface for registration service operations
+type RegistrationServiceInterface interface {
+	RegisterMentor(ctx context.Context, req *models.RegisterMentorRequest) (*models.RegisterMentorResponse, error)
+}
+
 // Ensure services implement their interfaces
 var _ ContactServiceInterface = (*ContactService)(nil)
 var _ MentorServiceInterface = (*MentorService)(nil)
 var _ ProfileServiceInterface = (*ProfileService)(nil)
 var _ WebhookServiceInterface = (*WebhookService)(nil)
+var _ RegistrationServiceInterface = (*RegistrationService)(nil)

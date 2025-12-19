@@ -134,6 +134,14 @@ var (
 		[]string{"status"},
 	)
 
+	MentorRegistrations = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gm_api_mentor_registrations_total",
+			Help: "Total mentor registration attempts",
+		},
+		[]string{"status"},
+	)
+
 	// MCP Metrics
 	MCPRequestTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{

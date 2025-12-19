@@ -2,10 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"net/url"
-	"strings"
 
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
@@ -13,6 +9,7 @@ import (
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
+	"github.com/getmentor/getmentor-api/pkg/recaptcha"
 	"go.uber.org/zap"
 )
 
@@ -22,6 +19,7 @@ type ContactService struct {
 	mentorRepo        *repository.MentorRepository
 	config            *config.Config
 	httpClient        httpclient.Client
+	recaptchaVerifier *recaptcha.Verifier
 }
 
 // NewContactService creates a new contact service instance
@@ -37,12 +35,13 @@ func NewContactService(
 		mentorRepo:        mentorRepo,
 		config:            cfg,
 		httpClient:        httpClient,
+		recaptchaVerifier: recaptcha.NewVerifier(cfg.ReCAPTCHA.SecretKey, httpClient),
 	}
 }
 
 func (s *ContactService) SubmitContactForm(ctx context.Context, req *models.ContactMentorRequest) (*models.ContactMentorResponse, error) {
 	// Verify ReCAPTCHA
-	if err := s.verifyRecaptcha(req.RecaptchaToken); err != nil {
+	if err := s.recaptchaVerifier.Verify(req.RecaptchaToken); err != nil {
 		metrics.ContactFormSubmissions.WithLabelValues("captcha_failed").Inc()
 		logger.Warn("ReCAPTCHA verification failed", zap.Error(err))
 		return &models.ContactMentorResponse{
@@ -90,33 +89,4 @@ func (s *ContactService) SubmitContactForm(ctx context.Context, req *models.Cont
 		Success:     true,
 		CalendarURL: mentor.CalendarURL,
 	}, nil
-}
-
-func (s *ContactService) verifyRecaptcha(token string) error {
-	// Prepare form data with secret in POST body (not URL)
-	data := url.Values{}
-	data.Set("secret", s.config.ReCAPTCHA.SecretKey)
-	data.Set("response", token)
-
-	// Send POST request with form body
-	resp, err := s.httpClient.Post(
-		"https://www.google.com/recaptcha/api/siteverify",
-		"application/x-www-form-urlencoded",
-		strings.NewReader(data.Encode()),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to verify recaptcha: %w", err)
-	}
-	defer resp.Body.Close()
-
-	var result models.ReCAPTCHAResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("failed to decode recaptcha response: %w", err)
-	}
-
-	if !result.Success {
-		return fmt.Errorf("recaptcha verification failed")
-	}
-
-	return nil
 }

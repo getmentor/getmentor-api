@@ -33,12 +33,13 @@ import (
 func registerAPIRoutes(
 	group *gin.RouterGroup,
 	cfg *config.Config,
-	generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter *middleware.RateLimiter,
+	generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter, registrationRateLimiter *middleware.RateLimiter,
 	mentorHandler *handlers.MentorHandler,
 	contactHandler *handlers.ContactHandler,
 	profileHandler *handlers.ProfileHandler,
 	logsHandler *handlers.LogsHandler,
 	webhookHandler *handlers.WebhookHandler,
+	registrationHandler *handlers.RegistrationHandler,
 ) {
 
 	publicTokens := []string{
@@ -52,6 +53,7 @@ func registerAPIRoutes(
 	group.POST("/contact-mentor", contactRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(100*1024), contactHandler.ContactMentor)
 	group.POST("/save-profile", profileRateLimiter.Middleware(), profileHandler.SaveProfile)
 	group.POST("/upload-profile-picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), profileHandler.UploadProfilePicture)
+	group.POST("/register-mentor", registrationRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), registrationHandler.RegisterMentor)
 	group.POST("/logs", generalRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(1*1024*1024), logsHandler.ReceiveFrontendLogs)
 	group.POST("/webhooks/airtable", webhookRateLimiter.Middleware(), middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
 }
@@ -152,6 +154,7 @@ func main() {
 	mentorService := services.NewMentorService(mentorRepo, cfg)
 	contactService := services.NewContactService(clientRequestRepo, mentorRepo, cfg, httpClient)
 	profileService := services.NewProfileService(mentorRepo, azureClient, cfg)
+	registrationService := services.NewRegistrationService(mentorRepo, azureClient, cfg, httpClient)
 	webhookService := services.NewWebhookService(mentorRepo, cfg)
 	mcpService := services.NewMCPService(mentorRepo, cfg.Server.BaseURL)
 
@@ -159,6 +162,7 @@ func main() {
 	mentorHandler := handlers.NewMentorHandler(mentorService, cfg.Server.BaseURL)
 	contactHandler := handlers.NewContactHandler(contactService)
 	profileHandler := handlers.NewProfileHandler(profileService)
+	registrationHandler := handlers.NewRegistrationHandler(registrationService)
 	webhookHandler := handlers.NewWebhookHandler(webhookService)
 	mcpHandler := handlers.NewMCPHandler(mcpService)
 	healthHandler := handlers.NewHealthHandler(mentorCache.IsReady)
@@ -192,11 +196,12 @@ func main() {
 
 	// SECURITY: Rate limiters to prevent abuse and DoS attacks
 	// Different limits for different endpoint types
-	generalRateLimiter := middleware.NewRateLimiter(100, 200) // 100 req/sec, burst of 200
-	contactRateLimiter := middleware.NewRateLimiter(5, 10)    // 5 req/sec, burst of 10 (prevent spam)
-	profileRateLimiter := middleware.NewRateLimiter(10, 20)   // 10 req/sec, burst of 20
-	webhookRateLimiter := middleware.NewRateLimiter(10, 20)   // 10 req/sec, burst of 20
-	mcpRateLimiter := middleware.NewRateLimiter(20, 40)       // 20 req/sec, burst of 40 (for AI tool usage)
+	generalRateLimiter := middleware.NewRateLimiter(100, 200)        // 100 req/sec, burst of 200
+	contactRateLimiter := middleware.NewRateLimiter(5, 10)           // 5 req/sec, burst of 10 (prevent spam)
+	profileRateLimiter := middleware.NewRateLimiter(10, 20)          // 10 req/sec, burst of 20
+	webhookRateLimiter := middleware.NewRateLimiter(10, 20)          // 10 req/sec, burst of 20
+	registrationRateLimiter := middleware.NewRateLimiter(0.00667, 3) // 2 req/5min (0.00667 req/sec), burst of 3
+	mcpRateLimiter := middleware.NewRateLimiter(20, 40)              // 20 req/sec, burst of 40 (for AI tool usage)
 
 	// API routes
 	api := router.Group("/api")
@@ -209,8 +214,8 @@ func main() {
 	// API v1 routes
 	// SECURITY: Apply body size limits to prevent DoS attacks
 	v1 := router.Group("/api/v1")
-	registerAPIRoutes(v1, cfg, generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter,
-		mentorHandler, contactHandler, profileHandler, logsHandler, webhookHandler)
+	registerAPIRoutes(v1, cfg, generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter, registrationRateLimiter,
+		mentorHandler, contactHandler, profileHandler, logsHandler, webhookHandler, registrationHandler)
 
 	// Create HTTP server
 	// SECURITY: Bind to all interfaces for Docker Compose networking
