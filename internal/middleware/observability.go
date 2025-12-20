@@ -48,6 +48,6 @@ func ObservabilityMiddleware() gin.HandlerFunc {
 			fields = append(fields, zap.String("error", c.Errors.String()))
 		}
 
-		logger.LogHTTPRequest(method, path, status, duration, fields...)
+		logger.LogHTTPRequest(c.Request.Context(), method, path, status, duration, fields...)
 	}
 }

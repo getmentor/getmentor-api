@@ -1,10 +1,12 @@
 package logger
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -156,14 +158,35 @@ func Sync() {
 	_ = Log.Sync() //nolint:errcheck // Best-effort sync on exit, failure is acceptable
 }
 
-// LogHTTPRequest logs an HTTP request with standard fields
-func LogHTTPRequest(method, path string, statusCode int, duration float64, fields ...zap.Field) {
+// extractTraceContext extracts trace ID and span ID from context and returns zap fields
+func extractTraceContext(ctx context.Context) []zap.Field {
+	span := trace.SpanFromContext(ctx)
+	if !span.SpanContext().IsValid() {
+		return nil
+	}
+
+	spanContext := span.SpanContext()
+	return []zap.Field{
+		zap.String("trace_id", spanContext.TraceID().String()),
+		zap.String("span_id", spanContext.SpanID().String()),
+		zap.String("trace_flags", spanContext.TraceFlags().String()),
+	}
+}
+
+// LogHTTPRequest logs an HTTP request with standard fields including trace context
+func LogHTTPRequest(ctx context.Context, method, path string, statusCode int, duration float64, fields ...zap.Field) {
 	baseFields := []zap.Field{
 		zap.String("method", method),
 		zap.String("path", path),
 		zap.Int("status", statusCode),
 		zap.Float64("duration", duration),
 	}
+
+	// Add trace context if available
+	if traceFields := extractTraceContext(ctx); traceFields != nil {
+		baseFields = append(baseFields, traceFields...)
+	}
+
 	baseFields = append(baseFields, fields...)
 
 	switch {
@@ -176,14 +199,20 @@ func LogHTTPRequest(method, path string, statusCode int, duration float64, field
 	}
 }
 
-// LogAPICall logs an external API call
-func LogAPICall(service, operation, status string, duration float64, fields ...zap.Field) {
+// LogAPICall logs an external API call including trace context
+func LogAPICall(ctx context.Context, service, operation, status string, duration float64, fields ...zap.Field) {
 	baseFields := []zap.Field{
 		zap.String("service", service),
 		zap.String("operation", operation),
 		zap.String("status", status),
 		zap.Float64("duration", duration),
 	}
+
+	// Add trace context if available
+	if traceFields := extractTraceContext(ctx); traceFields != nil {
+		baseFields = append(baseFields, traceFields...)
+	}
+
 	baseFields = append(baseFields, fields...)
 
 	if status == "error" {
@@ -193,11 +222,17 @@ func LogAPICall(service, operation, status string, duration float64, fields ...z
 	}
 }
 
-// LogError logs an error with context
-func LogError(err error, msg string, fields ...zap.Field) {
+// LogError logs an error with context including trace context
+func LogError(ctx context.Context, err error, msg string, fields ...zap.Field) {
 	baseFields := []zap.Field{
 		zap.Error(err),
 	}
+
+	// Add trace context if available
+	if traceFields := extractTraceContext(ctx); traceFields != nil {
+		baseFields = append(baseFields, traceFields...)
+	}
+
 	baseFields = append(baseFields, fields...)
 	Error(msg, baseFields...)
 }

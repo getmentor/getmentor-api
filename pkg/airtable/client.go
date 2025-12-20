@@ -151,13 +151,13 @@ func (c *Client) fetchAllMentors() ([]*models.Mentor, error) {
 	if err != nil {
 		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
 		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
-		logger.LogAPICall("airtable", operation, "error", duration, zap.Error(err))
+		logger.LogAPICall(context.Background(), "airtable", operation, "error", duration, zap.Error(err))
 		return nil, err
 	}
 
 	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
 	metrics.AirtableRequestTotal.WithLabelValues(operation, "success").Inc()
-	logger.LogAPICall("airtable", operation, "success", duration, zap.Int("count", len(records.Records)))
+	logger.LogAPICall(context.Background(), "airtable", operation, "success", duration, zap.Int("count", len(records.Records)))
 
 	// Convert to mentor models
 	mentors := make([]*models.Mentor, 0, len(records.Records))
@@ -263,13 +263,13 @@ func (c *Client) UpdateMentor(recordID string, updates map[string]interface{}) e
 	if err != nil {
 		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
 		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
-		logger.LogAPICall("airtable", operation, "error", duration, zap.Error(err))
+		logger.LogAPICall(context.Background(), "airtable", operation, "error", duration, zap.Error(err))
 		return err
 	}
 
 	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
 	metrics.AirtableRequestTotal.WithLabelValues(operation, "success").Inc()
-	logger.LogAPICall("airtable", operation, "success", duration, zap.String("record_id", recordID))
+	logger.LogAPICall(context.Background(), "airtable", operation, "success", duration, zap.String("record_id", recordID))
 
 	return nil
 }
@@ -344,13 +344,13 @@ func (c *Client) CreateMentor(fields map[string]interface{}) (string, int, error
 	if err != nil {
 		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
 		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
-		logger.LogAPICall("airtable", operation, "error", duration, zap.Error(err))
+		logger.LogAPICall(context.Background(), "airtable", operation, "error", duration, zap.Error(err))
 		return "", 0, err
 	}
 
 	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
 	metrics.AirtableRequestTotal.WithLabelValues(operation, "success").Inc()
-	logger.LogAPICall("airtable", operation, "success", duration,
+	logger.LogAPICall(context.Background(), "airtable", operation, "success", duration,
 		zap.String("record_id", recordID),
 		zap.Int("mentor_id", mentorID))
 
@@ -409,13 +409,13 @@ func (c *Client) CreateClientRequest(req *models.ClientRequest) error {
 	if err != nil {
 		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
 		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
-		logger.LogAPICall("airtable", operation, "error", duration, zap.Error(err))
+		logger.LogAPICall(context.Background(), "airtable", operation, "error", duration, zap.Error(err))
 		return err
 	}
 
 	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
 	metrics.AirtableRequestTotal.WithLabelValues(operation, "success").Inc()
-	logger.LogAPICall("airtable", operation, "success", duration)
+	logger.LogAPICall(context.Background(), "airtable", operation, "success", duration)
 
 	return nil
 }
@@ -493,13 +493,13 @@ func (c *Client) fetchAllTags() (map[string]string, error) {
 	if err != nil {
 		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
 		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
-		logger.LogAPICall("airtable", operation, "error", duration, zap.Error(err))
+		logger.LogAPICall(context.Background(), "airtable", operation, "error", duration, zap.Error(err))
 		return nil, err
 	}
 
 	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
 	metrics.AirtableRequestTotal.WithLabelValues(operation, "success").Inc()
-	logger.LogAPICall("airtable", operation, "success", duration, zap.Int("count", len(records.Records)))
+	logger.LogAPICall(context.Background(), "airtable", operation, "success", duration, zap.Int("count", len(records.Records)))
 
 	// Convert to map: tag name -> record ID
 	tagsMap := make(map[string]string, len(records.Records))
