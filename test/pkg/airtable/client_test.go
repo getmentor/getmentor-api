@@ -1,6 +1,7 @@
 package airtable_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/getmentor/getmentor-api/pkg/airtable"
@@ -45,7 +46,7 @@ func TestGetAllMentors_OfflineMode(t *testing.T) {
 	client, err := airtable.NewClient("", "", true)
 	assert.NoError(t, err)
 
-	mentors, err := client.GetAllMentors()
+	mentors, err := client.GetAllMentors(context.Background())
 
 	assert.NoError(t, err)
 	assert.NotNil(t, mentors)
@@ -64,7 +65,7 @@ func TestGetMentorByID_OfflineMode(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Get all mentors first to find a valid ID
-	mentors, err := client.GetAllMentors()
+	mentors, err := client.GetAllMentors(context.Background())
 	assert.NoError(t, err)
 	assert.Greater(t, len(mentors), 0)
 
@@ -89,7 +90,7 @@ func TestGetMentorByID_OfflineMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mentor, err := client.GetMentorByID(tt.id)
+			mentor, err := client.GetMentorByID(context.Background(), tt.id)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -108,7 +109,7 @@ func TestGetMentorBySlug_OfflineMode(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Get all mentors first to find a valid slug
-	mentors, err := client.GetAllMentors()
+	mentors, err := client.GetAllMentors(context.Background())
 	assert.NoError(t, err)
 	assert.Greater(t, len(mentors), 0)
 
@@ -133,7 +134,7 @@ func TestGetMentorBySlug_OfflineMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mentor, err := client.GetMentorBySlug(tt.slug)
+			mentor, err := client.GetMentorBySlug(context.Background(), tt.slug)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -152,7 +153,7 @@ func TestGetMentorByRecordID_OfflineMode(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Get all mentors first to find a valid record ID
-	mentors, err := client.GetAllMentors()
+	mentors, err := client.GetAllMentors(context.Background())
 	assert.NoError(t, err)
 	assert.Greater(t, len(mentors), 0)
 
@@ -177,7 +178,7 @@ func TestGetMentorByRecordID_OfflineMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mentor, err := client.GetMentorByRecordID(tt.recordID)
+			mentor, err := client.GetMentorByRecordID(context.Background(), tt.recordID)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -196,8 +197,8 @@ func TestOfflineMode_DataConsistency(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Get mentors multiple times to verify consistency
-	mentors1, err1 := client.GetAllMentors()
-	mentors2, err2 := client.GetAllMentors()
+	mentors1, err1 := client.GetAllMentors(context.Background())
+	mentors2, err2 := client.GetAllMentors(context.Background())
 
 	assert.NoError(t, err1)
 	assert.NoError(t, err2)
