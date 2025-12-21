@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -66,7 +67,7 @@ func InitTracer(serviceName, serviceNamespace, serviceVersion, environment, allo
 			semconv.ServiceNamespace(serviceNamespace), // Grafana Cloud namespace
 			semconv.ServiceVersion(serviceVersion),
 			semconv.ServiceInstanceID(instanceID),
-			semconv.DeploymentEnvironment(environment),
+			attribute.String("deployment.environment.name", environment),
 		),
 	)
 	if err != nil {
