@@ -74,7 +74,7 @@ func (h *MCPHandler) HandleMCPRequest(c *gin.Context) {
 			zap.String("method", req.Method),
 			zap.String("remote_addr", c.ClientIP()))
 
-		metrics.MCPRequestTotal.WithLabelValues(req.Method, "200").Inc()
+		metrics.MCPRequestTotal.WithLabelValues(req.Method, "400").Inc()
 
 		h.sendError(c, req.ID, models.MethodNotFound, "Method not found", fmt.Sprintf("Unknown method: %s", req.Method))
 	}

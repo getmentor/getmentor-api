@@ -47,7 +47,7 @@ var (
 			Help:    "Database client operation duration in seconds",
 			Buckets: CustomAPIBuckets,
 		},
-		[]string{"db_operation_name", "error_type", "db_system"},
+		[]string{"operation", "status"},
 	)
 
 	AirtableRequestTotal = promauto.NewCounterVec(
@@ -55,7 +55,7 @@ var (
 			Name: "db_client_operation_total",
 			Help: "Total number of database client operations",
 		},
-		[]string{"db_operation_name", "error_type", "db_system"},
+		[]string{"operation", "status"},
 	)
 
 	// Cache Metrics
@@ -90,7 +90,7 @@ var (
 			Help:    "Storage client operation duration in seconds",
 			Buckets: CustomAPIBuckets,
 		},
-		[]string{"operation", "error_type", "storage_system"},
+		[]string{"operation", "status"},
 	)
 
 	AzureStorageRequestTotal = promauto.NewCounterVec(
@@ -98,7 +98,7 @@ var (
 			Name: "storage_client_operation_total",
 			Help: "Total number of storage client operations",
 		},
-		[]string{"operation", "error_type", "storage_system"},
+		[]string{"operation", "status"},
 	)
 
 	// Business Metrics
