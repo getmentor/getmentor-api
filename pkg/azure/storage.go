@@ -56,7 +56,7 @@ func NewStorageClient(connectionString, containerName, storageDomain string) (*S
 }
 
 // UploadImage uploads an image to Azure Blob Storage
-func (s *StorageClient) UploadImage(imageData, fileName, contentType string) (string, error) {
+func (s *StorageClient) UploadImage(ctx context.Context, imageData, fileName, contentType string) (string, error) {
 	start := time.Now()
 	operation := "uploadImage"
 
@@ -83,7 +83,6 @@ func (s *StorageClient) UploadImage(imageData, fileName, contentType string) (st
 
 	// Upload to Azure
 	blobClient := s.containerClient.NewBlockBlobClient(fileName)
-	ctx := context.Background()
 
 	_, err = blobClient.UploadBuffer(ctx, imageBytes, &azblob.UploadBufferOptions{
 		HTTPHeaders: &blob.HTTPHeaders{
@@ -96,7 +95,7 @@ func (s *StorageClient) UploadImage(imageData, fileName, contentType string) (st
 	if err != nil {
 		metrics.AzureStorageRequestDuration.WithLabelValues(operation, "error").Observe(duration)
 		metrics.AzureStorageRequestTotal.WithLabelValues(operation, "error").Inc()
-		logger.LogAPICall("azure_storage", operation, "error", duration,
+		logger.LogAPICall(ctx, "azure_storage", operation, "error", duration,
 			zap.Error(err),
 			zap.String("file_name", fileName),
 		)
@@ -105,7 +104,7 @@ func (s *StorageClient) UploadImage(imageData, fileName, contentType string) (st
 
 	metrics.AzureStorageRequestDuration.WithLabelValues(operation, "success").Observe(duration)
 	metrics.AzureStorageRequestTotal.WithLabelValues(operation, "success").Inc()
-	logger.LogAPICall("azure_storage", operation, "success", duration,
+	logger.LogAPICall(ctx, "azure_storage", operation, "success", duration,
 		zap.String("file_name", fileName),
 		zap.Int("size_bytes", len(imageBytes)),
 	)

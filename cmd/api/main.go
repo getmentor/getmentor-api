@@ -88,6 +88,7 @@ func main() {
 		cfg.Observability.ServiceName,
 		cfg.Observability.ServiceNamespace,
 		cfg.Observability.ServiceVersion,
+		cfg.Observability.ServiceInstanceID,
 		cfg.Server.AppEnv,
 		cfg.Observability.AlloyEndpoint,
 	)

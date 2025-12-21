@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -170,7 +171,7 @@ func (mc *MentorCache) UpdateSingleMentor(slug string) error {
 	logger.Info("Updating single mentor in cache", zap.String("slug", slug))
 
 	// Fetch fresh data from Airtable
-	mentor, err := mc.airtableClient.GetMentorBySlug(slug)
+	mentor, err := mc.airtableClient.GetMentorBySlug(context.Background(), slug)
 	if err != nil {
 		logger.Error("Failed to fetch mentor from Airtable",
 			zap.String("slug", slug),
@@ -292,7 +293,7 @@ func (mc *MentorCache) refreshInBackground() error {
 	startTime := time.Now()
 
 	// Fetch all mentors
-	mentors, err := mc.airtableClient.GetAllMentors()
+	mentors, err := mc.airtableClient.GetAllMentors(context.Background())
 	if err != nil {
 		logger.Error("Failed to fetch mentors in background refresh", zap.Error(err))
 		return err
@@ -329,7 +330,7 @@ func (mc *MentorCache) refreshWithRetry() error {
 		}
 
 		// Fetch all mentors
-		mentors, fetchErr := mc.airtableClient.GetAllMentors()
+		mentors, fetchErr := mc.airtableClient.GetAllMentors(context.Background())
 		if fetchErr != nil {
 			err = fetchErr
 			logger.Error("Cache refresh attempt failed",

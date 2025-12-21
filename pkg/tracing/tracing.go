@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -20,7 +21,7 @@ import (
 var tracer trace.Tracer
 
 // InitTracer initializes the OpenTelemetry tracer provider
-func InitTracer(serviceName, serviceNamespace, serviceVersion, environment, alloyEndpoint string) (func(context.Context) error, error) {
+func InitTracer(serviceName, serviceNamespace, serviceVersion, serviceInstanceID, environment, alloyEndpoint string) (func(context.Context) error, error) {
 	if alloyEndpoint == "" {
 		logger.Info("Tracing disabled: ALLOY_ENDPOINT not set")
 		return func(context.Context) error { return nil }, nil
@@ -49,9 +50,10 @@ func InitTracer(serviceName, serviceNamespace, serviceVersion, environment, allo
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
 			semconv.ServiceName(serviceName),
-			semconv.ServiceNamespace(serviceNamespace), // Grafana Cloud namespace
+			semconv.ServiceNamespace(serviceNamespace),
 			semconv.ServiceVersion(serviceVersion),
-			semconv.DeploymentEnvironment(environment),
+			semconv.ServiceInstanceID(serviceInstanceID),
+			attribute.String("deployment.environment.name", environment),
 		),
 	)
 	if err != nil {

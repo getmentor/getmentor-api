@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -86,7 +87,7 @@ func (tc *TagsCache) Get() (map[string]string, error) {
 
 // refresh fetches tags from Airtable and updates the cache
 func (tc *TagsCache) refresh() (map[string]string, error) {
-	tags, err := tc.airtableClient.GetAllTags()
+	tags, err := tc.airtableClient.GetAllTags(context.Background())
 	if err != nil {
 		logger.Error("Failed to refresh tags cache", zap.Error(err))
 		return nil, err

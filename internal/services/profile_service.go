@@ -126,7 +126,7 @@ func (s *ProfileService) UploadProfilePicture(ctx context.Context, id int, token
 	fileName := s.azureClient.GenerateFileName(id, req.FileName)
 
 	// Upload to Azure
-	imageURL, err := s.azureClient.UploadImage(req.Image, fileName, req.ContentType)
+	imageURL, err := s.azureClient.UploadImage(ctx, req.Image, fileName, req.ContentType)
 	if err != nil {
 		metrics.ProfilePictureUploads.WithLabelValues("error").Inc()
 		logger.Error("Failed to upload profile picture", zap.Error(err), zap.Int("mentor_id", id))

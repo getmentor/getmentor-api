@@ -83,10 +83,11 @@ type LoggingConfig struct {
 }
 
 type ObservabilityConfig struct {
-	AlloyEndpoint    string
-	ServiceName      string
-	ServiceNamespace string
-	ServiceVersion   string
+	AlloyEndpoint     string
+	ServiceName       string
+	ServiceNamespace  string
+	ServiceVersion    string
+	ServiceInstanceID string
 }
 
 type CacheConfig struct {
@@ -181,10 +182,11 @@ func Load() (*Config, error) {
 			Dir:   v.GetString("LOG_DIR"),
 		},
 		Observability: ObservabilityConfig{
-			AlloyEndpoint:    v.GetString("O11Y_EXPORTER_ENDPOINT"),
-			ServiceName:      v.GetString("O11Y_BE_SERVICE_NAME"),
-			ServiceNamespace: v.GetString("O11Y_SERVICE_NAMESPACE"),
-			ServiceVersion:   v.GetString("O11Y_BE_SERVICE_VERSION"),
+			AlloyEndpoint:     v.GetString("O11Y_EXPORTER_ENDPOINT"),
+			ServiceName:       v.GetString("O11Y_BE_SERVICE_NAME"),
+			ServiceNamespace:  v.GetString("O11Y_SERVICE_NAMESPACE"),
+			ServiceVersion:    v.GetString("O11Y_BE_SERVICE_VERSION"),
+			ServiceInstanceID: v.GetString("SERVICE_INSTANCE_ID"),
 		},
 		Cache: CacheConfig{
 			MentorTTLSeconds: v.GetInt("MENTOR_CACHE_TTL"),
