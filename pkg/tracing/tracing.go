@@ -23,7 +23,7 @@ import (
 var tracer trace.Tracer
 
 // InitTracer initializes the OpenTelemetry tracer provider
-func InitTracer(serviceName, serviceNamespace, serviceVersion, environment, alloyEndpoint string) (func(context.Context) error, error) {
+func InitTracer(serviceName, serviceNamespace, serviceVersion, serviceInstanceID, environment, alloyEndpoint string) (func(context.Context) error, error) {
 	if alloyEndpoint == "" {
 		logger.Info("Tracing disabled: ALLOY_ENDPOINT not set")
 		return func(context.Context) error { return nil }, nil
@@ -49,7 +49,7 @@ func InitTracer(serviceName, serviceNamespace, serviceVersion, environment, allo
 	}
 
 	// Get or generate service instance ID
-	instanceID := os.Getenv("SERVICE_INSTANCE_ID")
+	instanceID := serviceInstanceID
 	if instanceID == "" {
 		// Try hostname first, fallback to UUID
 		hostname, err2 := os.Hostname()
