@@ -56,9 +56,16 @@ func (s *ProfileService) SaveProfile(ctx context.Context, id int, token string, 
 		}
 	}
 
+	// Filter out sponsor tags from user input (they shouldn't be able to modify these)
+	userTags := []string{}
+	for _, tag := range req.Tags {
+		if !sponsorTags[tag] {
+			userTags = append(userTags, tag)
+		}
+	}
+
 	// Merge user tags with preserved sponsor tags
-	allTags := req.Tags
-	allTags = append(allTags, preservedSponsors...)
+	allTags := append(userTags, preservedSponsors...)
 
 	// Get tag IDs
 	tagIDs := []string{}
@@ -148,7 +155,7 @@ func (s *ProfileService) UploadProfilePicture(ctx context.Context, id int, token
 
 func (s *ProfileService) getSponsorTags() map[string]bool {
 	return map[string]bool{
-		"Ontico":     true,
-		"ТензорСофт": true,
+		"Сообщество Онтико": true,
+		"Эксперт Авито":     true,
 	}
 }

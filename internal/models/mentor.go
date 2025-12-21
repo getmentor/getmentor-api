@@ -169,8 +169,8 @@ func GetCalendarType(url string) string {
 // GetMentorSponsor extracts sponsor information from tags
 func GetMentorSponsor(tags []string) string {
 	sponsorTags := map[string]bool{
-		"Ontico":     true,
-		"ТензорСофт": true,
+		"Сообщество Онтико": true,
+		"Эксперт Авито":     true,
 	}
 
 	sponsors := []string{}
