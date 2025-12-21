@@ -76,8 +76,8 @@ func (s *StorageClient) UploadImage(ctx context.Context, imageData, fileName, co
 	}
 
 	if err != nil {
-		metrics.AzureStorageRequestDuration.WithLabelValues(operation, "error").Observe(metrics.MeasureDuration(start))
-		metrics.AzureStorageRequestTotal.WithLabelValues(operation, "error").Inc()
+		metrics.AzureStorageRequestDuration.WithLabelValues(operation, "error", "azure").Observe(metrics.MeasureDuration(start))
+		metrics.AzureStorageRequestTotal.WithLabelValues(operation, "error", "azure").Inc()
 		return "", fmt.Errorf("failed to decode base64 image: %w", err)
 	}
 
@@ -93,8 +93,8 @@ func (s *StorageClient) UploadImage(ctx context.Context, imageData, fileName, co
 	duration := metrics.MeasureDuration(start)
 
 	if err != nil {
-		metrics.AzureStorageRequestDuration.WithLabelValues(operation, "error").Observe(duration)
-		metrics.AzureStorageRequestTotal.WithLabelValues(operation, "error").Inc()
+		metrics.AzureStorageRequestDuration.WithLabelValues(operation, "error", "azure").Observe(duration)
+		metrics.AzureStorageRequestTotal.WithLabelValues(operation, "error", "azure").Inc()
 		logger.LogAPICall(ctx, "azure_storage", operation, "error", duration,
 			zap.Error(err),
 			zap.String("file_name", fileName),
@@ -102,8 +102,8 @@ func (s *StorageClient) UploadImage(ctx context.Context, imageData, fileName, co
 		return "", fmt.Errorf("failed to upload image to Azure: %w", err)
 	}
 
-	metrics.AzureStorageRequestDuration.WithLabelValues(operation, "success").Observe(duration)
-	metrics.AzureStorageRequestTotal.WithLabelValues(operation, "success").Inc()
+	metrics.AzureStorageRequestDuration.WithLabelValues(operation, "none", "azure").Observe(duration)
+	metrics.AzureStorageRequestTotal.WithLabelValues(operation, "none", "azure").Inc()
 	logger.LogAPICall(ctx, "azure_storage", operation, "success", duration,
 		zap.String("file_name", fileName),
 		zap.Int("size_bytes", len(imageBytes)),

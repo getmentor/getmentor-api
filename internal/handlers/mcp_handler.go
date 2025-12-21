@@ -32,7 +32,7 @@ func (h *MCPHandler) HandleMCPRequest(c *gin.Context) {
 			zap.Error(err),
 			zap.String("remote_addr", c.ClientIP()))
 
-		metrics.MCPRequestTotal.WithLabelValues("invalid", "error").Inc()
+		metrics.MCPRequestTotal.WithLabelValues("invalid", "400").Inc()
 
 		h.sendError(c, nil, models.ParseError, "Invalid JSON-RPC request", err.Error())
 		return
@@ -44,7 +44,7 @@ func (h *MCPHandler) HandleMCPRequest(c *gin.Context) {
 			zap.String("version", req.JSONRPC),
 			zap.String("remote_addr", c.ClientIP()))
 
-		metrics.MCPRequestTotal.WithLabelValues(req.Method, "error").Inc()
+		metrics.MCPRequestTotal.WithLabelValues(req.Method, "400").Inc()
 
 		h.sendError(c, req.ID, models.InvalidRequest, "Invalid JSON-RPC version", "Must be '2.0'")
 		return
@@ -74,7 +74,7 @@ func (h *MCPHandler) HandleMCPRequest(c *gin.Context) {
 			zap.String("method", req.Method),
 			zap.String("remote_addr", c.ClientIP()))
 
-		metrics.MCPRequestTotal.WithLabelValues(req.Method, "error").Inc()
+		metrics.MCPRequestTotal.WithLabelValues(req.Method, "200").Inc()
 
 		h.sendError(c, req.ID, models.MethodNotFound, "Method not found", fmt.Sprintf("Unknown method: %s", req.Method))
 	}
@@ -84,7 +84,7 @@ func (h *MCPHandler) HandleMCPRequest(c *gin.Context) {
 func (h *MCPHandler) handleInitialize(c *gin.Context, req models.MCPRequest) {
 	logger.Info("MCP initialize request", zap.Any("params", req.Params))
 
-	metrics.MCPRequestTotal.WithLabelValues("initialize", "success").Inc()
+	metrics.MCPRequestTotal.WithLabelValues("initialize", "200").Inc()
 
 	result := map[string]interface{}{
 		"protocolVersion": "2024-11-05",
@@ -104,7 +104,7 @@ func (h *MCPHandler) handleInitialize(c *gin.Context, req models.MCPRequest) {
 func (h *MCPHandler) handleToolsList(c *gin.Context, req models.MCPRequest) {
 	logger.Info("MCP tools/list request")
 
-	metrics.MCPRequestTotal.WithLabelValues("tools/list", "success").Inc()
+	metrics.MCPRequestTotal.WithLabelValues("tools/list", "200").Inc()
 
 	tools := h.service.GetAvailableTools()
 
@@ -122,7 +122,7 @@ func (h *MCPHandler) handleToolsCall(c *gin.Context, req models.MCPRequest) {
 	if !ok {
 		logger.Warn("Missing tool name in tools/call request")
 
-		metrics.MCPRequestTotal.WithLabelValues("tools/call", "error").Inc()
+		metrics.MCPRequestTotal.WithLabelValues("tools/call", "400").Inc()
 
 		h.sendError(c, req.ID, models.InvalidParams, "Missing tool name", "Parameter 'name' is required")
 		return
@@ -152,7 +152,7 @@ func (h *MCPHandler) handleToolsCall(c *gin.Context, req models.MCPRequest) {
 			zap.String("tool", toolName),
 			zap.String("remote_addr", c.ClientIP()))
 
-		metrics.MCPRequestTotal.WithLabelValues("tools/call", "error").Inc()
+		metrics.MCPRequestTotal.WithLabelValues("tools/call", "400").Inc()
 		metrics.MCPToolInvocations.WithLabelValues(toolName, "error").Inc()
 
 		h.sendError(c, req.ID, models.MethodNotFound, "Tool not found", fmt.Sprintf("Unknown tool: %s", toolName))
@@ -169,7 +169,7 @@ func (h *MCPHandler) handleListMentors(c *gin.Context, id interface{}, args map[
 			zap.Error(err),
 			zap.Any("args", args))
 
-		metrics.MCPRequestTotal.WithLabelValues("tools/call", "error").Inc()
+		metrics.MCPRequestTotal.WithLabelValues("tools/call", "400").Inc()
 		metrics.MCPToolInvocations.WithLabelValues("list_mentors", "error").Inc()
 
 		h.sendError(c, id, models.InvalidParams, "Invalid parameters", err.Error())
@@ -182,7 +182,7 @@ func (h *MCPHandler) handleListMentors(c *gin.Context, id interface{}, args map[
 			zap.Error(err),
 			zap.Any("params", params))
 
-		metrics.MCPRequestTotal.WithLabelValues("tools/call", "error").Inc()
+		metrics.MCPRequestTotal.WithLabelValues("tools/call", "400").Inc()
 		metrics.MCPToolInvocations.WithLabelValues("list_mentors", "error").Inc()
 
 		h.sendError(c, id, models.InternalError, "Failed to list mentors", err.Error())
@@ -191,7 +191,7 @@ func (h *MCPHandler) handleListMentors(c *gin.Context, id interface{}, args map[
 
 	// Track metrics
 	duration := metrics.MeasureDuration(start)
-	metrics.MCPRequestTotal.WithLabelValues("tools/call", "success").Inc()
+	metrics.MCPRequestTotal.WithLabelValues("tools/call", "200").Inc()
 	metrics.MCPToolInvocations.WithLabelValues("list_mentors", "success").Inc()
 	metrics.MCPResultsReturned.WithLabelValues("list_mentors").Observe(float64(result.Count))
 
@@ -230,7 +230,7 @@ func (h *MCPHandler) handleGetMentor(c *gin.Context, id interface{}, args map[st
 			zap.Error(err),
 			zap.Any("args", args))
 
-		metrics.MCPRequestTotal.WithLabelValues("tools/call", "error").Inc()
+		metrics.MCPRequestTotal.WithLabelValues("tools/call", "400").Inc()
 		metrics.MCPToolInvocations.WithLabelValues("get_mentor", "error").Inc()
 
 		h.sendError(c, id, models.InvalidParams, "Invalid parameters", err.Error())
@@ -243,7 +243,7 @@ func (h *MCPHandler) handleGetMentor(c *gin.Context, id interface{}, args map[st
 			zap.Error(err),
 			zap.Any("params", params))
 
-		metrics.MCPRequestTotal.WithLabelValues("tools/call", "error").Inc()
+		metrics.MCPRequestTotal.WithLabelValues("tools/call", "400").Inc()
 		metrics.MCPToolInvocations.WithLabelValues("get_mentor", "error").Inc()
 
 		h.sendError(c, id, models.InternalError, "Failed to get mentor", err.Error())
@@ -252,7 +252,7 @@ func (h *MCPHandler) handleGetMentor(c *gin.Context, id interface{}, args map[st
 
 	// Track metrics
 	duration := metrics.MeasureDuration(start)
-	metrics.MCPRequestTotal.WithLabelValues("tools/call", "success").Inc()
+	metrics.MCPRequestTotal.WithLabelValues("tools/call", "200").Inc()
 	metrics.MCPToolInvocations.WithLabelValues("get_mentor", "success").Inc()
 
 	if result.Mentor != nil {
@@ -313,7 +313,7 @@ func (h *MCPHandler) handleSearchMentors(c *gin.Context, id interface{}, args ma
 			zap.Error(err),
 			zap.Any("args", args))
 
-		metrics.MCPRequestTotal.WithLabelValues("tools/call", "error").Inc()
+		metrics.MCPRequestTotal.WithLabelValues("tools/call", "400").Inc()
 		metrics.MCPToolInvocations.WithLabelValues("search_mentors", "error").Inc()
 
 		h.sendError(c, id, models.InvalidParams, "Invalid parameters", err.Error())
@@ -326,7 +326,7 @@ func (h *MCPHandler) handleSearchMentors(c *gin.Context, id interface{}, args ma
 			zap.Error(err),
 			zap.Any("params", params))
 
-		metrics.MCPRequestTotal.WithLabelValues("tools/call", "error").Inc()
+		metrics.MCPRequestTotal.WithLabelValues("tools/call", "400").Inc()
 		metrics.MCPToolInvocations.WithLabelValues("search_mentors", "error").Inc()
 
 		h.sendError(c, id, models.InternalError, "Failed to search mentors", err.Error())
@@ -340,7 +340,7 @@ func (h *MCPHandler) handleSearchMentors(c *gin.Context, id interface{}, args ma
 
 	// Track metrics
 	duration := metrics.MeasureDuration(start)
-	metrics.MCPRequestTotal.WithLabelValues("tools/call", "success").Inc()
+	metrics.MCPRequestTotal.WithLabelValues("tools/call", "200").Inc()
 	metrics.MCPToolInvocations.WithLabelValues("search_mentors", "success").Inc()
 	metrics.MCPResultsReturned.WithLabelValues("search_mentors").Observe(float64(result.Count))
 

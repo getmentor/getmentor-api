@@ -17,51 +17,51 @@ var (
 	// HTTP Metrics
 	HTTPRequestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "gm_api_http_request_duration_seconds",
+			Name:    "http_server_request_duration_seconds",
 			Help:    "HTTP request duration in seconds",
 			Buckets: CustomAPIBuckets,
 		},
-		[]string{"method", "route", "status_code"},
+		[]string{"http_request_method", "http_route", "http_response_status_code"},
 	)
 
 	HTTPRequestTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "gm_api_http_request_total",
+			Name: "http_server_request_total",
 			Help: "Total number of HTTP requests",
 		},
-		[]string{"method", "route", "status_code"},
+		[]string{"http_request_method", "http_route", "http_response_status_code"},
 	)
 
 	ActiveRequests = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "gm_api_active_requests",
+			Name: "http_server_active_requests",
 			Help: "Number of active HTTP requests",
 		},
-		[]string{"method", "route"},
+		[]string{"http_request_method", "http_route"},
 	)
 
-	// Airtable Metrics
+	// Database Client Metrics (Airtable)
 	AirtableRequestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "gm_api_airtable_request_duration_seconds",
-			Help:    "Airtable API request duration in seconds",
+			Name:    "db_client_operation_duration_seconds",
+			Help:    "Database client operation duration in seconds",
 			Buckets: CustomAPIBuckets,
 		},
-		[]string{"operation", "status"},
+		[]string{"db_operation_name", "error_type", "db_system"},
 	)
 
 	AirtableRequestTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "gm_api_airtable_request_total",
-			Help: "Total number of Airtable API requests",
+			Name: "db_client_operation_total",
+			Help: "Total number of database client operations",
 		},
-		[]string{"operation", "status"},
+		[]string{"db_operation_name", "error_type", "db_system"},
 	)
 
 	// Cache Metrics
 	CacheHits = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "gm_api_cache_hits_total",
+			Name: "cache_hits_total",
 			Help: "Total number of cache hits",
 		},
 		[]string{"cache_name"},
@@ -69,7 +69,7 @@ var (
 
 	CacheMisses = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "gm_api_cache_misses_total",
+			Name: "cache_misses_total",
 			Help: "Total number of cache misses",
 		},
 		[]string{"cache_name"},
@@ -77,34 +77,34 @@ var (
 
 	CacheSize = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "gm_api_cache_size",
-			Help: "Number of items in cache",
+			Name: "cache_entries",
+			Help: "Number of entries in cache",
 		},
 		[]string{"cache_name"},
 	)
 
-	// Azure Storage Metrics
+	// Storage Client Metrics (Azure)
 	AzureStorageRequestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "gm_api_azure_storage_request_duration_seconds",
-			Help:    "Azure Storage request duration in seconds",
+			Name:    "storage_client_operation_duration_seconds",
+			Help:    "Storage client operation duration in seconds",
 			Buckets: CustomAPIBuckets,
 		},
-		[]string{"operation", "status"},
+		[]string{"operation", "error_type", "storage_system"},
 	)
 
 	AzureStorageRequestTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "gm_api_azure_storage_request_total",
-			Help: "Total number of Azure Storage requests",
+			Name: "storage_client_operation_total",
+			Help: "Total number of storage client operations",
 		},
-		[]string{"operation", "status"},
+		[]string{"operation", "error_type", "storage_system"},
 	)
 
 	// Business Metrics
 	MentorProfileViews = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "gm_api_mentor_profile_views_total",
+			Name: "getmentor_mentor_profile_views_total",
 			Help: "Total number of mentor profile views",
 		},
 		[]string{"mentor_slug"},
@@ -112,7 +112,7 @@ var (
 
 	ContactFormSubmissions = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "gm_api_contact_form_submissions_total",
+			Name: "getmentor_contact_form_submissions_total",
 			Help: "Total number of contact form submissions",
 		},
 		[]string{"status"},
@@ -120,7 +120,7 @@ var (
 
 	ProfileUpdates = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "gm_api_profile_updates_total",
+			Name: "getmentor_profile_updates_total",
 			Help: "Total number of profile updates",
 		},
 		[]string{"status"},
@@ -128,7 +128,7 @@ var (
 
 	ProfilePictureUploads = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "gm_api_profile_picture_uploads_total",
+			Name: "getmentor_profile_picture_uploads_total",
 			Help: "Total number of profile picture uploads",
 		},
 		[]string{"status"},
@@ -136,7 +136,7 @@ var (
 
 	MentorRegistrations = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "gm_api_mentor_registrations_total",
+			Name: "getmentor_mentor_registrations_total",
 			Help: "Total mentor registration attempts",
 		},
 		[]string{"status"},
@@ -145,24 +145,24 @@ var (
 	// MCP Metrics
 	MCPRequestTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "gm_api_mcp_request_total",
+			Name: "getmentor_mcp_request_total",
 			Help: "Total number of MCP requests",
 		},
-		[]string{"method", "status"},
+		[]string{"http_request_method", "http_response_status_code"},
 	)
 
 	MCPRequestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "gm_api_mcp_request_duration_seconds",
+			Name:    "getmentor_mcp_request_duration_seconds",
 			Help:    "MCP request duration in seconds",
 			Buckets: prometheus.DefBuckets,
 		},
-		[]string{"method"},
+		[]string{"http_request_method"},
 	)
 
 	MCPToolInvocations = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "gm_api_mcp_tool_invocations_total",
+			Name: "getmentor_mcp_tool_invocations_total",
 			Help: "Total number of MCP tool invocations",
 		},
 		[]string{"tool", "status"},
@@ -170,7 +170,7 @@ var (
 
 	MCPSearchKeywords = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "gm_api_mcp_search_keywords_total",
+			Name: "getmentor_mcp_search_keywords_total",
 			Help: "Total number of MCP search queries (tracks keyword usage)",
 		},
 		[]string{"keyword_count_range"}, // "1-2", "3-5", "6-10", "10+"
@@ -178,7 +178,7 @@ var (
 
 	MCPResultsReturned = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "gm_api_mcp_results_returned",
+			Name:    "getmentor_mcp_results_returned",
 			Help:    "Number of results returned by MCP tools",
 			Buckets: []float64{0, 1, 5, 10, 20, 50, 100, 200},
 		},
@@ -188,21 +188,14 @@ var (
 	// Infrastructure Metrics
 	GoRoutines = promauto.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "gm_api_goroutines",
+			Name: "process_runtime_go_goroutines",
 			Help: "Number of goroutines",
-		},
-	)
-
-	MemoryUsage = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "gm_api_memory_usage_bytes",
-			Help: "Memory usage in bytes",
 		},
 	)
 
 	HeapAlloc = promauto.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "gm_api_heap_alloc_bytes",
+			Name: "process_runtime_go_mem_heap_alloc_bytes",
 			Help: "Heap allocated bytes",
 		},
 	)
@@ -217,7 +210,6 @@ func RecordInfrastructureMetrics() {
 			runtime.ReadMemStats(&m)
 
 			GoRoutines.Set(float64(runtime.NumGoroutine()))
-			MemoryUsage.Set(float64(m.Alloc))
 			HeapAlloc.Set(float64(m.HeapAlloc))
 		}
 	}()
