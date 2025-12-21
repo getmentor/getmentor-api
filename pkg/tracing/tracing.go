@@ -3,10 +3,8 @@ package tracing
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -48,25 +46,13 @@ func InitTracer(serviceName, serviceNamespace, serviceVersion, serviceInstanceID
 		return nil, fmt.Errorf("failed to create OTLP exporter: %w", err)
 	}
 
-	// Get or generate service instance ID
-	instanceID := serviceInstanceID
-	if instanceID == "" {
-		// Try hostname first, fallback to UUID
-		hostname, err2 := os.Hostname()
-		if err2 != nil || hostname == "" {
-			instanceID = uuid.New().String()
-		} else {
-			instanceID = hostname
-		}
-	}
-
 	// Create resource with service information
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
 			semconv.ServiceName(serviceName),
-			semconv.ServiceNamespace(serviceNamespace), // Grafana Cloud namespace
+			semconv.ServiceNamespace(serviceNamespace),
 			semconv.ServiceVersion(serviceVersion),
-			semconv.ServiceInstanceID(instanceID),
+			semconv.ServiceInstanceID(serviceInstanceID),
 			attribute.String("deployment.environment.name", environment),
 		),
 	)
