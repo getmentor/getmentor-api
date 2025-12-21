@@ -56,7 +56,7 @@ func NewStorageClient(connectionString, containerName, storageDomain string) (*S
 }
 
 // UploadImage uploads an image to Azure Blob Storage
-func (s *StorageClient) UploadImage(imageData, fileName, contentType string) (string, error) {
+func (s *StorageClient) UploadImage(ctx context.Context, imageData, fileName, contentType string) (string, error) {
 	start := time.Now()
 	operation := "uploadImage"
 
@@ -83,7 +83,6 @@ func (s *StorageClient) UploadImage(imageData, fileName, contentType string) (st
 
 	// Upload to Azure
 	blobClient := s.containerClient.NewBlockBlobClient(fileName)
-	ctx := context.Background()
 
 	_, err = blobClient.UploadBuffer(ctx, imageBytes, &azblob.UploadBufferOptions{
 		HTTPHeaders: &blob.HTTPHeaders{

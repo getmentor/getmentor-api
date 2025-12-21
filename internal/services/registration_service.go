@@ -149,7 +149,7 @@ func (s *RegistrationService) uploadProfilePicture(ctx context.Context, mentorID
 	fileName := s.azureClient.GenerateFileName(mentorID, picture.FileName)
 
 	// Upload to Azure
-	imageURL, err := s.azureClient.UploadImage(picture.Image, fileName, picture.ContentType)
+	imageURL, err := s.azureClient.UploadImage(ctx, picture.Image, fileName, picture.ContentType)
 	if err != nil {
 		return fmt.Errorf("failed to upload image: %w", err)
 	}

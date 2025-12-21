@@ -101,7 +101,7 @@ func (r *MentorRepository) GetByRecordID(ctx context.Context, recordID string, o
 
 // Update updates a mentor in Airtable
 func (r *MentorRepository) Update(ctx context.Context, recordID string, updates map[string]interface{}) error {
-	err := r.airtableClient.UpdateMentor(recordID, updates)
+	err := r.airtableClient.UpdateMentor(ctx, recordID, updates)
 	if err != nil {
 		return err
 	}
@@ -112,13 +112,13 @@ func (r *MentorRepository) Update(ctx context.Context, recordID string, updates 
 
 // UpdateImage updates a mentor's profile image
 func (r *MentorRepository) UpdateImage(ctx context.Context, recordID, imageURL string) error {
-	return r.airtableClient.UpdateMentorImage(recordID, imageURL)
+	return r.airtableClient.UpdateMentorImage(ctx, recordID, imageURL)
 }
 
 // CreateMentor creates a new mentor record in Airtable
 // Returns: recordID (Airtable rec*), mentorID (numeric ID), error
 func (r *MentorRepository) CreateMentor(ctx context.Context, fields map[string]interface{}) (string, int, error) {
-	return r.airtableClient.CreateMentor(fields)
+	return r.airtableClient.CreateMentor(ctx, fields)
 }
 
 // GetTagIDByName retrieves a tag ID by name
