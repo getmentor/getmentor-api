@@ -12,14 +12,14 @@ var (
 	// Custom histogram buckets optimized for API response times ranging from milliseconds to 30+ seconds
 	// This provides better granularity for monitoring Airtable API calls and cache refresh operations
 	// Note: Removed 60s bucket to avoid histogram_quantile interpolation issues with low sample counts
-	CustomAPIBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 3, 5, 8, 13, 21, 34, 55}
+	// CustomAPIBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 3, 5, 8, 13, 21, 34, 55}
 
 	// HTTP Metrics
 	HTTPRequestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "http_server_request_duration_seconds",
 			Help:    "HTTP request duration in seconds",
-			Buckets: CustomAPIBuckets,
+			Buckets: prometheus.DefBuckets,
 		},
 		[]string{"http_request_method", "http_route", "http_response_status_code"},
 	)
@@ -45,7 +45,7 @@ var (
 		prometheus.HistogramOpts{
 			Name:    "db_client_operation_duration_seconds",
 			Help:    "Database client operation duration in seconds",
-			Buckets: CustomAPIBuckets,
+			Buckets: prometheus.DefBuckets,
 		},
 		[]string{"operation", "status"},
 	)
@@ -88,7 +88,7 @@ var (
 		prometheus.HistogramOpts{
 			Name:    "storage_client_operation_duration_seconds",
 			Help:    "Storage client operation duration in seconds",
-			Buckets: CustomAPIBuckets,
+			Buckets: prometheus.DefBuckets,
 		},
 		[]string{"operation", "status"},
 	)
