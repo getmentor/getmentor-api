@@ -65,11 +65,11 @@ func (s *ProfileService) SaveProfile(ctx context.Context, id int, token string, 
 	}
 
 	// Merge user tags with preserved sponsor tags
-	allTags := append(userTags, preservedSponsors...)
+	userTags = append(userTags, preservedSponsors...)
 
 	// Get tag IDs
 	tagIDs := []string{}
-	for _, tagName := range allTags {
+	for _, tagName := range userTags {
 		tagID, err := s.mentorRepo.GetTagIDByName(ctx, tagName)
 		if err == nil && tagID != "" {
 			tagIDs = append(tagIDs, tagID)
