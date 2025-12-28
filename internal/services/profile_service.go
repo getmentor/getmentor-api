@@ -100,8 +100,24 @@ func (s *ProfileService) SaveProfile(ctx context.Context, id int, token string, 
 		return fmt.Errorf("failed to update profile")
 	}
 
-	// Update cache
-	if err := s.mentorRepo.UpdateSingleMentorCache(mentor.Slug); err != nil {
+	// Update mentor object for cache
+	mentor.Name = req.Name
+	mentor.Job = req.Job
+	mentor.Workplace = req.Workplace
+	mentor.Experience = req.Experience
+	mentor.Price = req.Price
+	mentor.Tags = userTags
+	mentor.Description = req.Description
+	mentor.About = req.About
+	mentor.Competencies = req.Competencies
+	if req.CalendarURL != "" {
+		mentor.CalendarURL = req.CalendarURL
+		mentor.CalendarType = models.GetCalendarType(req.CalendarURL)
+	}
+	mentor.Sponsors = models.GetMentorSponsor(userTags)
+
+	// Update cache locally (O(1) instead of fetching from Airtable)
+	if err := s.mentorRepo.UpdateMentorInCache(mentor); err != nil {
 		logger.Error("Failed to update mentor cache after profile save", zap.Error(err), zap.Int("mentor_id", id))
 		// We don't return error here because the Airtable update was successful
 	}
@@ -153,8 +169,8 @@ func (s *ProfileService) UploadProfilePicture(ctx context.Context, id int, token
 			return
 		}
 
-		// Update cache after image update
-		if err := s.mentorRepo.UpdateSingleMentorCache(mentor.Slug); err != nil {
+		// Update cache locally
+		if err := s.mentorRepo.UpdateMentorInCache(mentor); err != nil {
 			logger.Error("Failed to update mentor cache after image upload", zap.Error(err), zap.Int("mentor_id", id))
 		}
 	}()
