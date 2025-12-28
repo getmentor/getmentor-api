@@ -100,6 +100,12 @@ func (s *ProfileService) SaveProfile(ctx context.Context, id int, token string, 
 		return fmt.Errorf("failed to update profile")
 	}
 
+	// Update cache
+	if err := s.mentorRepo.UpdateSingleMentorCache(mentor.Slug); err != nil {
+		logger.Error("Failed to update mentor cache after profile save", zap.Error(err), zap.Int("mentor_id", id))
+		// We don't return error here because the Airtable update was successful
+	}
+
 	metrics.ProfileUpdates.WithLabelValues("success").Inc()
 	logger.Info("Mentor profile updated", zap.Int("mentor_id", id))
 
@@ -144,6 +150,12 @@ func (s *ProfileService) UploadProfilePicture(ctx context.Context, id int, token
 	go func() {
 		if err := s.mentorRepo.UpdateImage(context.Background(), mentor.AirtableID, imageURL); err != nil {
 			logger.Error("Failed to update mentor image in Airtable", zap.Error(err), zap.Int("mentor_id", id))
+			return
+		}
+
+		// Update cache after image update
+		if err := s.mentorRepo.UpdateSingleMentorCache(mentor.Slug); err != nil {
+			logger.Error("Failed to update mentor cache after image upload", zap.Error(err), zap.Int("mentor_id", id))
 		}
 	}()
 
