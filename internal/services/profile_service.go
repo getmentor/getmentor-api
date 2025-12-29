@@ -166,12 +166,6 @@ func (s *ProfileService) UploadProfilePicture(ctx context.Context, id int, token
 	go func() {
 		if err := s.mentorRepo.UpdateImage(context.Background(), mentor.AirtableID, imageURL); err != nil {
 			logger.Error("Failed to update mentor image in Airtable", zap.Error(err), zap.Int("mentor_id", id))
-			return
-		}
-
-		// Update cache locally
-		if err := s.mentorRepo.UpdateMentorInCache(mentor); err != nil {
-			logger.Error("Failed to update mentor cache after image upload", zap.Error(err), zap.Int("mentor_id", id))
 		}
 	}()
 
