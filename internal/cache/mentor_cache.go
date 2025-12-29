@@ -179,21 +179,30 @@ func (mc *MentorCache) UpdateSingleMentor(slug string) error {
 		return err
 	}
 
+	return mc.SetMentor(mentor)
+}
+
+// SetMentor sets a mentor in the cache directly
+func (mc *MentorCache) SetMentor(mentor *models.Mentor) error {
+	if !mc.IsReady() {
+		return fmt.Errorf("cache not initialized")
+	}
+
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
 
 	// Update the individual mentor cache entry (no expiration)
-	key := mentorKeyPrefix + slug
+	key := mentorKeyPrefix + mentor.Slug
 	mc.cache.Set(key, mentor, gocache.NoExpiration)
 
 	// Ensure slug is in the all-mentors list
-	if err := mc.ensureMentorInListLocked(slug); err != nil {
+	if err := mc.ensureMentorInListLocked(mentor.Slug); err != nil {
 		logger.Error("Failed to update all-mentors list", zap.Error(err))
 		// Non-fatal - mentor is still cached
 	}
 
 	metrics.CacheSize.WithLabelValues("mentor_single_update").Inc()
-	logger.Info("Single mentor updated successfully", zap.String("slug", slug))
+	logger.Info("Mentor updated in cache successfully", zap.String("slug", mentor.Slug))
 
 	return nil
 }

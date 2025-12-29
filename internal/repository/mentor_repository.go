@@ -185,6 +185,11 @@ func (r *MentorRepository) UpdateSingleMentorCache(slug string) error {
 	return r.mentorCache.UpdateSingleMentor(slug)
 }
 
+// UpdateMentorInCache updates a mentor in the cache directly
+func (r *MentorRepository) UpdateMentorInCache(mentor *models.Mentor) error {
+	return r.mentorCache.SetMentor(mentor)
+}
+
 // RemoveMentorFromCache removes a mentor from cache
 // Called when a mentor is deleted
 func (r *MentorRepository) RemoveMentorFromCache(slug string) error {
