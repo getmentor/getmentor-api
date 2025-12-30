@@ -9,6 +9,10 @@ import (
 )
 
 var (
+	// serviceName holds the service name for constant labels
+	// Initialized via Init() function called from main.go
+	serviceName = "getmentor-api" // default fallback
+
 	// Custom histogram buckets optimized for API response times ranging from milliseconds to 30+ seconds
 	// This provides better granularity for monitoring Airtable API calls and cache refresh operations
 	// Note: Removed 60s bucket to avoid histogram_quantile interpolation issues with low sample counts
@@ -20,6 +24,9 @@ var (
 			Name:    "http_server_request_duration_seconds",
 			Help:    "HTTP request duration in seconds",
 			Buckets: prometheus.DefBuckets,
+			ConstLabels: prometheus.Labels{
+				"service_name": serviceName,
+			},
 		},
 		[]string{"http_request_method", "http_route", "http_response_status_code"},
 	)
@@ -28,6 +35,9 @@ var (
 		prometheus.CounterOpts{
 			Name: "http_server_request_total",
 			Help: "Total number of HTTP requests",
+			ConstLabels: prometheus.Labels{
+				"service_name": serviceName,
+			},
 		},
 		[]string{"http_request_method", "http_route", "http_response_status_code"},
 	)
@@ -36,6 +46,9 @@ var (
 		prometheus.GaugeOpts{
 			Name: "http_server_active_requests",
 			Help: "Number of active HTTP requests",
+			ConstLabels: prometheus.Labels{
+				"service_name": serviceName,
+			},
 		},
 		[]string{"http_request_method", "http_route"},
 	)
@@ -106,6 +119,9 @@ var (
 		prometheus.CounterOpts{
 			Name: "getmentor_mentor_profile_views_total",
 			Help: "Total number of mentor profile views",
+			ConstLabels: prometheus.Labels{
+				"service_name": serviceName,
+			},
 		},
 		[]string{"mentor_slug"},
 	)
@@ -114,6 +130,9 @@ var (
 		prometheus.CounterOpts{
 			Name: "getmentor_contact_form_submissions_total",
 			Help: "Total number of contact form submissions",
+			ConstLabels: prometheus.Labels{
+				"service_name": serviceName,
+			},
 		},
 		[]string{"status"},
 	)
@@ -122,6 +141,9 @@ var (
 		prometheus.CounterOpts{
 			Name: "getmentor_profile_updates_total",
 			Help: "Total number of profile updates",
+			ConstLabels: prometheus.Labels{
+				"service_name": serviceName,
+			},
 		},
 		[]string{"status"},
 	)
@@ -130,6 +152,9 @@ var (
 		prometheus.CounterOpts{
 			Name: "getmentor_profile_picture_uploads_total",
 			Help: "Total number of profile picture uploads",
+			ConstLabels: prometheus.Labels{
+				"service_name": serviceName,
+			},
 		},
 		[]string{"status"},
 	)
@@ -138,6 +163,9 @@ var (
 		prometheus.CounterOpts{
 			Name: "getmentor_mentor_registrations_total",
 			Help: "Total mentor registration attempts",
+			ConstLabels: prometheus.Labels{
+				"service_name": serviceName,
+			},
 		},
 		[]string{"status"},
 	)
