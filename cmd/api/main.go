@@ -71,6 +71,7 @@ func main() {
 		Level:       cfg.Logging.Level,
 		LogDir:      cfg.Logging.Dir,
 		Environment: cfg.Server.AppEnv,
+		ServiceName: cfg.Observability.ServiceName,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)

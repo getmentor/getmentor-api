@@ -15,6 +15,7 @@ func init() {
 	_ = logger.Initialize(logger.Config{
 		Level:       "info",
 		Environment: "test",
+		ServiceName: "getmentor-api-test",
 	})
 }
 

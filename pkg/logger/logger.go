@@ -21,6 +21,7 @@ type Config struct {
 	Level       string
 	LogDir      string
 	Environment string
+	ServiceName string
 }
 
 // Initialize sets up the global logger
@@ -117,6 +118,12 @@ func Initialize(cfg Config) error {
 		if err != nil {
 			return fmt.Errorf("failed to build logger: %w", err)
 		}
+	}
+
+	// Add service_name as a default field to all log entries
+	// This makes logs self-describing and easier to debug
+	if cfg.ServiceName != "" {
+		logger = logger.With(zap.String("service_name", cfg.ServiceName))
 	}
 
 	Log = logger
