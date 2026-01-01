@@ -104,6 +104,9 @@ func main() {
 		}
 	}()
 
+	// Initialize metrics with service name from config
+	metrics.Init(cfg.Observability.ServiceName)
+
 	// Start infrastructure metrics collection
 	metrics.RecordInfrastructureMetrics()
 
@@ -209,7 +212,7 @@ func main() {
 	api := router.Group("/api")
 	// Utility endpoints (not versioned - operational endpoints)
 	api.GET("/healthcheck", generalRateLimiter.Middleware(), healthHandler.Healthcheck)
-	api.GET("/metrics", generalRateLimiter.Middleware(), gin.WrapH(promhttp.Handler()))
+	api.GET("/metrics", generalRateLimiter.Middleware(), gin.WrapH(promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{})))
 	// MCP endpoint (for AI tools to search mentors)
 	api.POST("/internal/mcp", mcpRateLimiter.Middleware(), middleware.MCPServerAuthMiddleware(cfg.Auth.MCPAuthToken, cfg.Auth.MCPAllowAll), mcpHandler.HandleMCPRequest)
 
