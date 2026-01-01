@@ -9,13 +9,65 @@ import (
 )
 
 var (
-	// Custom histogram buckets optimized for API response times ranging from milliseconds to 30+ seconds
-	// This provides better granularity for monitoring Airtable API calls and cache refresh operations
-	// Note: Removed 60s bucket to avoid histogram_quantile interpolation issues with low sample counts
-	// CustomAPIBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 3, 5, 8, 13, 21, 34, 55}
+	// Registry is the custom Prometheus registry that wraps metrics with service_name label
+	Registry *prometheus.Registry
 
 	// HTTP Metrics
-	HTTPRequestDuration = promauto.NewHistogramVec(
+	HTTPRequestDuration *prometheus.HistogramVec
+	HTTPRequestTotal    *prometheus.CounterVec
+	ActiveRequests      *prometheus.GaugeVec
+
+	// Database Client Metrics (Airtable)
+	AirtableRequestDuration *prometheus.HistogramVec
+	AirtableRequestTotal    *prometheus.CounterVec
+
+	// Cache Metrics
+	CacheHits   *prometheus.CounterVec
+	CacheMisses *prometheus.CounterVec
+	CacheSize   *prometheus.GaugeVec
+
+	// Storage Client Metrics (Azure)
+	AzureStorageRequestDuration *prometheus.HistogramVec
+	AzureStorageRequestTotal    *prometheus.CounterVec
+
+	// Business Metrics
+	MentorProfileViews     *prometheus.CounterVec
+	ContactFormSubmissions *prometheus.CounterVec
+	ProfileUpdates         *prometheus.CounterVec
+	ProfilePictureUploads  *prometheus.CounterVec
+	MentorRegistrations    *prometheus.CounterVec
+
+	// MCP Metrics
+	MCPRequestTotal    *prometheus.CounterVec
+	MCPRequestDuration *prometheus.HistogramVec
+	MCPToolInvocations *prometheus.CounterVec
+	MCPSearchKeywords  *prometheus.CounterVec
+	MCPResultsReturned *prometheus.HistogramVec
+
+	// Infrastructure Metrics
+	GoRoutines prometheus.Gauge
+	HeapAlloc  prometheus.Gauge
+)
+
+// Init initializes the metrics registry with service_name label from config
+// Uses WrapRegistererWith to automatically inject service_name into ALL metrics
+// Must be called from main.go after config is loaded
+func Init(serviceName string) {
+	// Create custom registry
+	Registry = prometheus.NewRegistry()
+
+	// Wrap registry to automatically add service_name label to all metrics
+	// This eliminates need for ConstLabels on individual metrics
+	wrapped := prometheus.WrapRegistererWith(
+		prometheus.Labels{"service_name": serviceName},
+		Registry,
+	)
+
+	// Create promauto factory that uses the wrapped registry
+	factory := promauto.With(wrapped)
+
+	// HTTP Metrics
+	HTTPRequestDuration = factory.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "http_server_request_duration_seconds",
 			Help:    "HTTP request duration in seconds",
@@ -24,7 +76,7 @@ var (
 		[]string{"http_request_method", "http_route", "http_response_status_code"},
 	)
 
-	HTTPRequestTotal = promauto.NewCounterVec(
+	HTTPRequestTotal = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "http_server_request_total",
 			Help: "Total number of HTTP requests",
@@ -32,7 +84,7 @@ var (
 		[]string{"http_request_method", "http_route", "http_response_status_code"},
 	)
 
-	ActiveRequests = promauto.NewGaugeVec(
+	ActiveRequests = factory.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "http_server_active_requests",
 			Help: "Number of active HTTP requests",
@@ -41,7 +93,7 @@ var (
 	)
 
 	// Database Client Metrics (Airtable)
-	AirtableRequestDuration = promauto.NewHistogramVec(
+	AirtableRequestDuration = factory.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "db_client_operation_duration_seconds",
 			Help:    "Database client operation duration in seconds",
@@ -50,7 +102,7 @@ var (
 		[]string{"operation", "status"},
 	)
 
-	AirtableRequestTotal = promauto.NewCounterVec(
+	AirtableRequestTotal = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "db_client_operation_total",
 			Help: "Total number of database client operations",
@@ -59,7 +111,7 @@ var (
 	)
 
 	// Cache Metrics
-	CacheHits = promauto.NewCounterVec(
+	CacheHits = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "cache_hits_total",
 			Help: "Total number of cache hits",
@@ -67,7 +119,7 @@ var (
 		[]string{"cache_name"},
 	)
 
-	CacheMisses = promauto.NewCounterVec(
+	CacheMisses = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "cache_misses_total",
 			Help: "Total number of cache misses",
@@ -75,7 +127,7 @@ var (
 		[]string{"cache_name"},
 	)
 
-	CacheSize = promauto.NewGaugeVec(
+	CacheSize = factory.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "cache_entries",
 			Help: "Number of entries in cache",
@@ -84,7 +136,7 @@ var (
 	)
 
 	// Storage Client Metrics (Azure)
-	AzureStorageRequestDuration = promauto.NewHistogramVec(
+	AzureStorageRequestDuration = factory.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "storage_client_operation_duration_seconds",
 			Help:    "Storage client operation duration in seconds",
@@ -93,7 +145,7 @@ var (
 		[]string{"operation", "status"},
 	)
 
-	AzureStorageRequestTotal = promauto.NewCounterVec(
+	AzureStorageRequestTotal = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "storage_client_operation_total",
 			Help: "Total number of storage client operations",
@@ -102,7 +154,7 @@ var (
 	)
 
 	// Business Metrics
-	MentorProfileViews = promauto.NewCounterVec(
+	MentorProfileViews = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "getmentor_mentor_profile_views_total",
 			Help: "Total number of mentor profile views",
@@ -110,7 +162,7 @@ var (
 		[]string{"mentor_slug"},
 	)
 
-	ContactFormSubmissions = promauto.NewCounterVec(
+	ContactFormSubmissions = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "getmentor_contact_form_submissions_total",
 			Help: "Total number of contact form submissions",
@@ -118,7 +170,7 @@ var (
 		[]string{"status"},
 	)
 
-	ProfileUpdates = promauto.NewCounterVec(
+	ProfileUpdates = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "getmentor_profile_updates_total",
 			Help: "Total number of profile updates",
@@ -126,7 +178,7 @@ var (
 		[]string{"status"},
 	)
 
-	ProfilePictureUploads = promauto.NewCounterVec(
+	ProfilePictureUploads = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "getmentor_profile_picture_uploads_total",
 			Help: "Total number of profile picture uploads",
@@ -134,7 +186,7 @@ var (
 		[]string{"status"},
 	)
 
-	MentorRegistrations = promauto.NewCounterVec(
+	MentorRegistrations = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "getmentor_mentor_registrations_total",
 			Help: "Total mentor registration attempts",
@@ -143,7 +195,7 @@ var (
 	)
 
 	// MCP Metrics
-	MCPRequestTotal = promauto.NewCounterVec(
+	MCPRequestTotal = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "getmentor_mcp_request_total",
 			Help: "Total number of MCP requests",
@@ -151,7 +203,7 @@ var (
 		[]string{"http_request_method", "http_response_status_code"},
 	)
 
-	MCPRequestDuration = promauto.NewHistogramVec(
+	MCPRequestDuration = factory.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "getmentor_mcp_request_duration_seconds",
 			Help:    "MCP request duration in seconds",
@@ -160,7 +212,7 @@ var (
 		[]string{"http_request_method"},
 	)
 
-	MCPToolInvocations = promauto.NewCounterVec(
+	MCPToolInvocations = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "getmentor_mcp_tool_invocations_total",
 			Help: "Total number of MCP tool invocations",
@@ -168,7 +220,7 @@ var (
 		[]string{"tool", "status"},
 	)
 
-	MCPSearchKeywords = promauto.NewCounterVec(
+	MCPSearchKeywords = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "getmentor_mcp_search_keywords_total",
 			Help: "Total number of MCP search queries (tracks keyword usage)",
@@ -176,7 +228,7 @@ var (
 		[]string{"keyword_count_range"}, // "1-2", "3-5", "6-10", "10+"
 	)
 
-	MCPResultsReturned = promauto.NewHistogramVec(
+	MCPResultsReturned = factory.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "getmentor_mcp_results_returned",
 			Help:    "Number of results returned by MCP tools",
@@ -186,20 +238,20 @@ var (
 	)
 
 	// Infrastructure Metrics
-	GoRoutines = promauto.NewGauge(
+	GoRoutines = factory.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "process_runtime_go_goroutines",
 			Help: "Number of goroutines",
 		},
 	)
 
-	HeapAlloc = promauto.NewGauge(
+	HeapAlloc = factory.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "process_runtime_go_mem_heap_alloc_bytes",
 			Help: "Heap allocated bytes",
 		},
 	)
-)
+}
 
 // RecordInfrastructureMetrics collects infrastructure metrics periodically
 func RecordInfrastructureMetrics() {
