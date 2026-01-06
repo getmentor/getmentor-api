@@ -11,17 +11,17 @@ import (
 //
 //nolint:govet // Field alignment optimization would reduce readability
 type Config struct {
-	Server         ServerConfig
-	Airtable       AirtableConfig
-	Azure          AzureConfig
-	Auth           AuthConfig
-	ReCAPTCHA      ReCAPTCHAConfig
-	AzureFunctions AzureFunctionsConfig
-	NextJS         NextJSConfig
-	Grafana        GrafanaConfig
-	Logging        LoggingConfig
-	Observability  ObservabilityConfig
-	Cache          CacheConfig
+	Server        ServerConfig
+	Airtable      AirtableConfig
+	Azure         AzureConfig
+	Auth          AuthConfig
+	ReCAPTCHA     ReCAPTCHAConfig
+	EventTriggers EventTriggerFunctionsConfig
+	NextJS        NextJSConfig
+	Grafana       GrafanaConfig
+	Logging       LoggingConfig
+	Observability ObservabilityConfig
+	Cache         CacheConfig
 }
 
 type ServerConfig struct {
@@ -60,8 +60,10 @@ type ReCAPTCHAConfig struct {
 	SiteKey   string
 }
 
-type AzureFunctionsConfig struct {
-	NewMentorWatcherURL string
+type EventTriggerFunctionsConfig struct {
+	MentorCreatedTriggerURL        string
+	MentorUpdatedTriggerURL        string
+	MentorRequestCreatedTriggerURL string
 }
 
 type NextJSConfig struct {
@@ -170,8 +172,10 @@ func Load() (*Config, error) {
 			SecretKey: v.GetString("RECAPTCHA_V2_SECRET_KEY"),
 			SiteKey:   v.GetString("NEXT_PUBLIC_RECAPTCHA_V2_SITE_KEY"),
 		},
-		AzureFunctions: AzureFunctionsConfig{
-			NewMentorWatcherURL: v.GetString("AZURE_FUNC_NEW_MENTOR_WATCHER_URL"),
+		EventTriggers: EventTriggerFunctionsConfig{
+			MentorCreatedTriggerURL:        v.GetString("MENTOR_CREATED_TRIGGER_URL"),
+			MentorUpdatedTriggerURL:        v.GetString("MENTOR_UPDATED_TRIGGER_URL"),
+			MentorRequestCreatedTriggerURL: v.GetString("MENTOR_REQUEST_CREATED_TRIGGER_URL"),
 		},
 		NextJS: NextJSConfig{
 			BaseURL:          v.GetString("NEXTJS_BASE_URL"),

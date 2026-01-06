@@ -158,7 +158,7 @@ func main() {
 	// Initialize services
 	mentorService := services.NewMentorService(mentorRepo, cfg)
 	contactService := services.NewContactService(clientRequestRepo, mentorRepo, cfg, httpClient)
-	profileService := services.NewProfileService(mentorRepo, azureClient, cfg)
+	profileService := services.NewProfileService(mentorRepo, azureClient, cfg, httpClient)
 	registrationService := services.NewRegistrationService(mentorRepo, azureClient, cfg, httpClient)
 	webhookService := services.NewWebhookService(mentorRepo, cfg)
 	mcpService := services.NewMCPService(mentorRepo, cfg.Server.BaseURL)

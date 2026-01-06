@@ -10,8 +10,10 @@ import (
 	"github.com/getmentor/getmentor-api/internal/repository"
 	"github.com/getmentor/getmentor-api/pkg/azure"
 	apperrors "github.com/getmentor/getmentor-api/pkg/errors"
+	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
+	"github.com/getmentor/getmentor-api/pkg/trigger"
 	"go.uber.org/zap"
 )
 
@@ -19,18 +21,21 @@ type ProfileService struct {
 	mentorRepo  *repository.MentorRepository
 	azureClient *azure.StorageClient
 	config      *config.Config
+	httpClient  httpclient.Client
 }
 
 func NewProfileService(
 	mentorRepo *repository.MentorRepository,
 	azureClient *azure.StorageClient,
 	cfg *config.Config,
+	httpClient httpclient.Client,
 ) *ProfileService {
 
 	return &ProfileService{
 		mentorRepo:  mentorRepo,
 		azureClient: azureClient,
 		config:      cfg,
+		httpClient:  httpClient,
 	}
 }
 
@@ -144,6 +149,9 @@ func (s *ProfileService) UploadProfilePicture(ctx context.Context, id int, token
 	go func() {
 		if err := s.mentorRepo.UpdateImage(context.Background(), mentor.AirtableID, imageURL); err != nil {
 			logger.Error("Failed to update mentor image in Airtable", zap.Error(err), zap.Int("mentor_id", id))
+		} else {
+			// Trigger mentor updated webhook after successful Airtable update
+			trigger.CallAsync(s.config.EventTriggers.MentorUpdatedTriggerURL, mentor.AirtableID, s.httpClient)
 		}
 	}()
 

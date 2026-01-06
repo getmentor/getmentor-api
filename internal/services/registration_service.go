@@ -13,6 +13,7 @@ import (
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
 	"github.com/getmentor/getmentor-api/pkg/recaptcha"
+	"github.com/getmentor/getmentor-api/pkg/trigger"
 	"go.uber.org/zap"
 )
 
@@ -115,14 +116,8 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 		logger.Info("Profile picture uploaded", zap.Int("mentor_id", mentorID))
 	}
 
-	// TODO: Uncomment block below when migrate away from Airtable webhooks
-	// 6. Call new-mentor-watcher Azure Function (non-blocking on failure)
-	// if err := s.triggerNewMentorWatcher(recordID); err != nil {
-	// 	logger.Error("Failed to trigger new-mentor-watcher",
-	// 		zap.Error(err),
-	// 		zap.String("record_id", recordID))
-	// 	// Don't fail registration - admin can manually trigger if needed
-	// }
+	// 6. Trigger mentor created webhook (non-blocking)
+	trigger.CallAsync(s.config.EventTriggers.MentorCreatedTriggerURL, recordID, s.httpClient)
 
 	metrics.MentorRegistrations.WithLabelValues("success").Inc()
 
@@ -162,33 +157,5 @@ func (s *RegistrationService) uploadProfilePicture(ctx context.Context, mentorID
 		// Image is uploaded but not linked - admin can fix manually
 	}
 
-	return nil
-}
-
-// triggerNewMentorWatcher calls the Azure Function to process new mentor
-//
-//lint:ignore U1000 Ignore unused function until move away from Airtable webhooks
-func (s *RegistrationService) triggerNewMentorWatcher(recordID string) error {
-	// Build URL with mentorId query parameter
-	funcURL := s.config.AzureFunctions.NewMentorWatcherURL
-	if funcURL == "" {
-		logger.Warn("Azure Function URL not configured, skipping new-mentor-watcher trigger")
-		return nil
-	}
-
-	targetURL := fmt.Sprintf("%s&mentorId=%s", funcURL, recordID)
-
-	// Make HTTP GET request to trigger the function
-	resp, err := s.httpClient.Get(targetURL)
-	if err != nil {
-		return fmt.Errorf("failed to call new-mentor-watcher: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("new-mentor-watcher returned status %d", resp.StatusCode)
-	}
-
-	logger.Info("new-mentor-watcher triggered successfully", zap.String("record_id", recordID))
 	return nil
 }
