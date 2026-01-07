@@ -376,11 +376,11 @@ curl -X POST http://localhost:8081/api/internal/mcp \
 The MCP server exposes Prometheus metrics at `/api/metrics`:
 
 **MCP-specific metrics:**
-- `gm_api_mcp_request_total{method, status}` - Total MCP requests
-- `gm_api_mcp_request_duration_seconds{method}` - Request duration
-- `gm_api_mcp_tool_invocations_total{tool, status}` - Tool invocation count
-- `gm_api_mcp_search_keywords_total{keyword_count_range}` - Search keyword distribution
-- `gm_api_mcp_results_returned{tool}` - Number of results returned
+- `getmentor_mcp_request_total{http_request_method, http_response_status_code}` - Total MCP requests
+- `getmentor_mcp_request_duration_seconds{http_request_method}` - Request duration
+- `getmentor_mcp_tool_invocations_total{tool, status}` - Tool invocation count
+- `getmentor_mcp_search_keywords_total{keyword_count_range}` - Search keyword distribution
+- `getmentor_mcp_results_returned{tool}` - Number of results returned
 
 **Example:**
 ```bash

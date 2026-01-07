@@ -284,13 +284,13 @@ Import the provided Grafana dashboard (if available) or create custom dashboards
 
 ```promql
 # Request rate
-rate(gm_api_http_request_total[5m])
+rate(http_server_request_total[5m])
 
 # Request duration (p95)
-histogram_quantile(0.95, rate(gm_api_http_request_duration_seconds_bucket[5m]))
+histogram_quantile(0.95, rate(http_server_request_duration_seconds_bucket[5m]))
 
 # Cache hit rate
-rate(gm_api_cache_hits_total[5m]) / (rate(gm_api_cache_hits_total[5m]) + rate(gm_api_cache_misses_total[5m]))
+rate(cache_hits_total[5m]) / (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m]))
 ```
 
 ---

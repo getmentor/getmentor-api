@@ -107,8 +107,8 @@ jobs:
           # Test health check endpoint
           curl -f http://localhost:8081/api/healthcheck || exit 1
 
-          # Test metrics endpoint
-          curl -f http://localhost:8081/api/metrics | grep "gm_api_" || exit 1
+          # Test metrics endpoint (check for OpenTelemetry semantic convention metrics)
+          curl -f http://localhost:8081/api/metrics | grep -E "(http_server_|getmentor_|cache_|process_runtime_)" || exit 1
 
           # Show logs for debugging
           docker logs test-container
