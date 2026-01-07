@@ -358,10 +358,11 @@ func (c *Client) CreateMentor(ctx context.Context, fields map[string]interface{}
 }
 
 // CreateClientRequest creates a new client request in Airtable with retry logic
-func (c *Client) CreateClientRequest(ctx context.Context, req *models.ClientRequest) error {
+// Returns: recordID (Airtable rec*), error
+func (c *Client) CreateClientRequest(ctx context.Context, req *models.ClientRequest) (string, error) {
 	if c.workOffline {
 		logger.Info("Skipping client request creation in offline mode")
-		return nil
+		return "rec_dev_test_request", nil
 	}
 
 	start := time.Now()
@@ -372,6 +373,8 @@ func (c *Client) CreateClientRequest(ctx context.Context, req *models.ClientRequ
 	defer cancel()
 
 	retryConfig := retry.AirtableConfig()
+
+	var recordID string
 
 	err := retry.Do(retryCtx, retryConfig, operation, func() error {
 		table := c.client.GetTable(c.baseID, ClientRequestsTableName)
@@ -396,10 +399,16 @@ func (c *Client) CreateClientRequest(ctx context.Context, req *models.ClientRequ
 			},
 		}
 
-		_, err := table.AddRecords(records)
+		createdRecords, err := table.AddRecords(records)
 		if err != nil {
 			return fmt.Errorf("failed to create client request: %w", err)
 		}
+
+		if len(createdRecords.Records) == 0 {
+			return fmt.Errorf("no record returned from Airtable")
+		}
+
+		recordID = createdRecords.Records[0].ID
 
 		return nil
 	})
@@ -410,14 +419,14 @@ func (c *Client) CreateClientRequest(ctx context.Context, req *models.ClientRequ
 		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
 		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
 		logger.LogAPICall(ctx, "airtable", operation, "error", duration, zap.Error(err))
-		return err
+		return "", err
 	}
 
 	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
 	metrics.AirtableRequestTotal.WithLabelValues(operation, "success").Inc()
-	logger.LogAPICall(ctx, "airtable", operation, "success", duration)
+	logger.LogAPICall(ctx, "airtable", operation, "success", duration, zap.String("record_id", recordID))
 
-	return nil
+	return recordID, nil
 }
 
 // GetAllTags fetches all tags from Airtable with circuit breaker protection

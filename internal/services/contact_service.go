@@ -10,6 +10,7 @@ import (
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
 	"github.com/getmentor/getmentor-api/pkg/recaptcha"
+	"github.com/getmentor/getmentor-api/pkg/trigger"
 	"go.uber.org/zap"
 )
 
@@ -61,7 +62,8 @@ func (s *ContactService) SubmitContactForm(ctx context.Context, req *models.Cont
 			Telegram:    req.TelegramUsername,
 		}
 
-		if err := s.clientRequestRepo.Create(ctx, clientReq); err != nil {
+		recordID, err := s.clientRequestRepo.Create(ctx, clientReq)
+		if err != nil {
 			metrics.ContactFormSubmissions.WithLabelValues("error").Inc()
 			logger.Error("Failed to create client request", zap.Error(err))
 			return &models.ContactMentorResponse{
@@ -69,6 +71,9 @@ func (s *ContactService) SubmitContactForm(ctx context.Context, req *models.Cont
 				Error:   "Failed to save contact request",
 			}, nil
 		}
+
+		// Trigger contact created webhook (non-blocking)
+		trigger.CallAsync(s.config.EventTriggers.MentorRequestCreatedTriggerURL, recordID, s.httpClient)
 	} else {
 		metrics.ContactFormSubmissions.WithLabelValues("success_dev").Inc()
 	}

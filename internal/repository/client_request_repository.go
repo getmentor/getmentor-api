@@ -20,6 +20,7 @@ func NewClientRequestRepository(airtableClient *airtable.Client) *ClientRequestR
 }
 
 // Create creates a new client request in Airtable
-func (r *ClientRequestRepository) Create(ctx context.Context, req *models.ClientRequest) error {
+// Returns: recordID (Airtable rec*), error
+func (r *ClientRequestRepository) Create(ctx context.Context, req *models.ClientRequest) (string, error) {
 	return r.airtableClient.CreateClientRequest(ctx, req)
 }
