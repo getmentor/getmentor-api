@@ -22,6 +22,7 @@ type Config struct {
 	Logging       LoggingConfig
 	Observability ObservabilityConfig
 	Cache         CacheConfig
+	MentorSession MentorSessionConfig
 }
 
 type ServerConfig struct {
@@ -64,6 +65,7 @@ type EventTriggerFunctionsConfig struct {
 	MentorCreatedTriggerURL        string
 	MentorUpdatedTriggerURL        string
 	MentorRequestCreatedTriggerURL string
+	MentorLoginEmailTriggerURL     string
 }
 
 type NextJSConfig struct {
@@ -96,6 +98,15 @@ type CacheConfig struct {
 	MentorTTLSeconds int // Mentor cache TTL in seconds
 }
 
+type MentorSessionConfig struct {
+	JWTSecret            string
+	JWTIssuer            string
+	SessionTTLHours      int
+	LoginTokenTTLMinutes int
+	CookieDomain         string
+	CookieSecure         bool
+}
+
 // Load reads configuration from environment variables
 func Load() (*Config, error) {
 	v := viper.New()
@@ -116,6 +127,13 @@ func Load() (*Config, error) {
 	v.SetDefault("O11Y_BE_SERVICE_VERSION", "1.0.0")
 	v.SetDefault("MENTOR_CACHE_TTL", 600) // 10 minutes in seconds
 	v.SetDefault("MCP_ALLOW_ALL", false)
+
+	// Mentor session defaults
+	v.SetDefault("JWT_ISSUER", "getmentor-api")
+	v.SetDefault("SESSION_TTL_HOURS", 24)
+	v.SetDefault("LOGIN_TOKEN_TTL_MINUTES", 15)
+	v.SetDefault("COOKIE_DOMAIN", "")
+	v.SetDefault("COOKIE_SECURE", true)
 
 	// Automatically read environment variables
 	v.AutomaticEnv()
@@ -176,6 +194,7 @@ func Load() (*Config, error) {
 			MentorCreatedTriggerURL:        v.GetString("MENTOR_CREATED_TRIGGER_URL"),
 			MentorUpdatedTriggerURL:        v.GetString("MENTOR_UPDATED_TRIGGER_URL"),
 			MentorRequestCreatedTriggerURL: v.GetString("MENTOR_REQUEST_CREATED_TRIGGER_URL"),
+			MentorLoginEmailTriggerURL:     v.GetString("MENTOR_LOGIN_EMAIL_TRIGGER_URL"),
 		},
 		NextJS: NextJSConfig{
 			BaseURL:          v.GetString("NEXTJS_BASE_URL"),
@@ -194,6 +213,14 @@ func Load() (*Config, error) {
 		},
 		Cache: CacheConfig{
 			MentorTTLSeconds: v.GetInt("MENTOR_CACHE_TTL"),
+		},
+		MentorSession: MentorSessionConfig{
+			JWTSecret:            v.GetString("JWT_SECRET"),
+			JWTIssuer:            v.GetString("JWT_ISSUER"),
+			SessionTTLHours:      v.GetInt("SESSION_TTL_HOURS"),
+			LoginTokenTTLMinutes: v.GetInt("LOGIN_TOKEN_TTL_MINUTES"),
+			CookieDomain:         v.GetString("COOKIE_DOMAIN"),
+			CookieSecure:         v.GetBool("COOKIE_SECURE"),
 		},
 	}
 

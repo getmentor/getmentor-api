@@ -37,6 +37,16 @@ var (
 	ProfilePictureUploads  *prometheus.CounterVec
 	MentorRegistrations    *prometheus.CounterVec
 
+	// Mentor Auth Metrics
+	MentorAuthLoginRequests     *prometheus.CounterVec
+	MentorAuthLoginDuration     prometheus.Histogram
+	MentorAuthVerifyRequests    *prometheus.CounterVec
+	MentorAuthVerifyDuration    prometheus.Histogram
+	MentorRequestsListTotal     *prometheus.CounterVec
+	MentorRequestsListDuration  prometheus.Histogram
+	MentorRequestsStatusUpdates *prometheus.CounterVec
+	MentorRequestsDeclines      *prometheus.CounterVec
+
 	// MCP Metrics
 	MCPRequestTotal    *prometheus.CounterVec
 	MCPRequestDuration *prometheus.HistogramVec
@@ -192,6 +202,71 @@ func Init(serviceName string) {
 			Help: "Total mentor registration attempts",
 		},
 		[]string{"status"},
+	)
+
+	// Mentor Auth Metrics
+	MentorAuthLoginRequests = factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "getmentor_mentor_auth_login_requests_total",
+			Help: "Total mentor login requests",
+		},
+		[]string{"status"},
+	)
+
+	MentorAuthLoginDuration = factory.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "getmentor_mentor_auth_login_duration_seconds",
+			Help:    "Mentor login request duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+	)
+
+	MentorAuthVerifyRequests = factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "getmentor_mentor_auth_verify_requests_total",
+			Help: "Total mentor token verification requests",
+		},
+		[]string{"status"},
+	)
+
+	MentorAuthVerifyDuration = factory.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "getmentor_mentor_auth_verify_duration_seconds",
+			Help:    "Mentor token verification duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+	)
+
+	MentorRequestsListTotal = factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "getmentor_mentor_requests_list_total",
+			Help: "Total mentor requests list fetches",
+		},
+		[]string{"group"},
+	)
+
+	MentorRequestsListDuration = factory.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "getmentor_mentor_requests_list_duration_seconds",
+			Help:    "Mentor requests list duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+	)
+
+	MentorRequestsStatusUpdates = factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "getmentor_mentor_requests_status_updates_total",
+			Help: "Total mentor request status updates",
+		},
+		[]string{"from_status", "to_status"},
+	)
+
+	MentorRequestsDeclines = factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "getmentor_mentor_requests_declines_total",
+			Help: "Total mentor request declines",
+		},
+		[]string{"reason"},
 	)
 
 	// MCP Metrics

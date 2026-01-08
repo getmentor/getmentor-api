@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/getmentor/getmentor-api/internal/cache"
 	"github.com/getmentor/getmentor-api/internal/models"
@@ -195,4 +196,24 @@ func (r *MentorRepository) RemoveMentorFromCache(slug string) error {
 func (r *MentorRepository) RefreshCache() error {
 	_, err := r.mentorCache.ForceRefresh()
 	return err
+}
+
+// GetByEmail retrieves a mentor by email address
+func (r *MentorRepository) GetByEmail(ctx context.Context, email string) (*models.Mentor, error) {
+	return r.airtableClient.GetMentorByEmail(ctx, email)
+}
+
+// GetByLoginToken retrieves a mentor by login token
+func (r *MentorRepository) GetByLoginToken(ctx context.Context, token string) (*models.Mentor, string, time.Time, error) {
+	return r.airtableClient.GetMentorByLoginToken(ctx, token)
+}
+
+// SetLoginToken sets the login token for a mentor
+func (r *MentorRepository) SetLoginToken(ctx context.Context, airtableID string, token string, exp time.Time) error {
+	return r.airtableClient.SetMentorLoginToken(ctx, airtableID, token, exp)
+}
+
+// ClearLoginToken clears the login token for a mentor
+func (r *MentorRepository) ClearLoginToken(ctx context.Context, airtableID string) error {
+	return r.airtableClient.ClearMentorLoginToken(ctx, airtableID)
 }
