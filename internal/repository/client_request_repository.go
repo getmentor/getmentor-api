@@ -24,3 +24,23 @@ func NewClientRequestRepository(airtableClient *airtable.Client) *ClientRequestR
 func (r *ClientRequestRepository) Create(ctx context.Context, req *models.ClientRequest) (string, error) {
 	return r.airtableClient.CreateClientRequest(ctx, req)
 }
+
+// GetByMentor retrieves all client requests for a mentor filtered by statuses
+func (r *ClientRequestRepository) GetByMentor(ctx context.Context, mentorAirtableID string, statuses []models.RequestStatus) ([]*models.MentorClientRequest, error) {
+	return r.airtableClient.GetClientRequestsByMentor(ctx, mentorAirtableID, statuses)
+}
+
+// GetByID retrieves a single client request by ID
+func (r *ClientRequestRepository) GetByID(ctx context.Context, id string) (*models.MentorClientRequest, error) {
+	return r.airtableClient.GetClientRequestByID(ctx, id)
+}
+
+// UpdateStatus updates the status of a client request
+func (r *ClientRequestRepository) UpdateStatus(ctx context.Context, id string, status models.RequestStatus) error {
+	return r.airtableClient.UpdateClientRequestStatus(ctx, id, status)
+}
+
+// UpdateDecline updates a client request with decline info
+func (r *ClientRequestRepository) UpdateDecline(ctx context.Context, id string, reason models.DeclineReason, comment string) error {
+	return r.airtableClient.UpdateClientRequestDecline(ctx, id, reason, comment)
+}
