@@ -41,13 +41,13 @@ func (h *MentorAuthHandler) RequestLogin(c *gin.Context) {
 		if errors.Is(err, services.ErrMentorNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"success": false,
-				"message": "Ментор с таким email не найден",
+				"message": "Mentor not found",
 			})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"message": "Ошибка при отправке ссылки для входа",
+			"message": "Error while sending auth link",
 		})
 		return
 	}
@@ -72,20 +72,20 @@ func (h *MentorAuthHandler) VerifyLogin(c *gin.Context) {
 		if errors.Is(err, services.ErrInvalidLoginToken) {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"success": false,
-				"error":   "Недействительный или просроченный токен",
+				"error":   "Invalid token",
 			})
 			return
 		}
 		if errors.Is(err, services.ErrJWTSecretNotSet) {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"success": false,
-				"error":   "Сервис временно недоступен",
+				"error":   "Service temporarily unavailable",
 			})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error":   "Ошибка при проверке токена",
+			"error":   "Error while verifying token",
 		})
 		return
 	}
