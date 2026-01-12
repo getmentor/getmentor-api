@@ -21,6 +21,7 @@ import (
 
 var (
 	ErrMentorNotFound      = errors.New("mentor not found")
+	ErrMentorNotEligible   = errors.New("mentor not eligible for login")
 	ErrInvalidLoginToken   = errors.New("invalid or expired login token")
 	ErrJWTSecretNotSet     = errors.New("JWT secret not configured")
 	ErrTokenGenerationFail = errors.New("failed to generate login token")
@@ -65,6 +66,16 @@ func (s *MentorAuthService) RequestLogin(ctx context.Context, email string) (*mo
 			zap.Error(err))
 		metrics.MentorAuthLoginRequests.WithLabelValues("mentor_not_found").Inc()
 		return nil, ErrMentorNotFound
+	}
+
+	// Check if mentor is eligible for login (only active or inactive status allowed)
+	if mentor.Status != "active" && mentor.Status != "inactive" {
+		logger.Warn("Login request for mentor with ineligible status",
+			zap.String("email", email),
+			zap.String("mentor_id", mentor.AirtableID),
+			zap.String("status", mentor.Status))
+		metrics.MentorAuthLoginRequests.WithLabelValues("not_eligible").Inc()
+		return nil, ErrMentorNotEligible
 	}
 
 	// Generate login token

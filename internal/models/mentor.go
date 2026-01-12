@@ -27,6 +27,9 @@ type Mentor struct {
 	CalendarType string   `json:"calendarType"`
 	IsNew        bool     `json:"isNew"`
 
+	// Status field for login eligibility checks
+	Status string `json:"status"`
+
 	// Secure fields (cleared by repository unless ShowHidden is true)
 	AuthToken   string `json:"authToken"`
 	CalendarURL string `json:"calendarUrl"`
@@ -141,6 +144,7 @@ func (ar *AirtableRecord) ToMentor() *Mentor {
 		Sponsors:     sponsor,
 		CalendarType: calendarType,
 		IsNew:        ar.Fields.IsNew == 1,
+		Status:       ar.Fields.Status,
 		AuthToken:    ar.Fields.AuthToken,
 		CalendarURL:  ar.Fields.CalendlyURL,
 	}
@@ -254,6 +258,7 @@ func AirtableRecordToMentor(record *airtable.Record) *Mentor {
 		Sponsors:     sponsor,
 		CalendarType: calendarType,
 		IsNew:        isNew,
+		Status:       status,
 		AuthToken:    getString("AuthToken"),
 		CalendarURL:  calendlyURL,
 	}

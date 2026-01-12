@@ -45,6 +45,13 @@ func (h *MentorAuthHandler) RequestLogin(c *gin.Context) {
 			})
 			return
 		}
+		if errors.Is(err, services.ErrMentorNotEligible) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": "Login not available for this account",
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "Error while sending auth link",
