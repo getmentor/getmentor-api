@@ -79,11 +79,11 @@ func registerMentorAdminRoutes(
 	auth.POST("/request-login", authRateLimiter.Middleware(), mentorAuthHandler.RequestLogin)
 	auth.POST("/verify", mentorAuthHandler.VerifyLogin)
 	auth.POST("/logout", mentorAuthHandler.Logout)
+	auth.GET("/session", middleware.MentorSessionMiddleware(tokenManager, cfg.MentorSession.CookieDomain, cfg.MentorSession.CookieSecure), mentorAuthHandler.GetSession)
 
 	// Mentor admin routes (protected)
 	mentor := router.Group("/api/v1/mentor")
 	mentor.Use(middleware.MentorSessionMiddleware(tokenManager, cfg.MentorSession.CookieDomain, cfg.MentorSession.CookieSecure))
-	mentor.GET("/session", mentorAuthHandler.GetSession)
 	mentor.GET("/requests", mentorRequestsHandler.GetRequests)
 	mentor.GET("/requests/:id", mentorRequestsHandler.GetRequestByID)
 	mentor.POST("/requests/:id/status", mentorRequestsHandler.UpdateStatus)

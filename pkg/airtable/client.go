@@ -560,10 +560,11 @@ func (c *Client) getTestTags() map[string]string {
 // GetMentorByEmail fetches a mentor by email address
 func (c *Client) GetMentorByEmail(ctx context.Context, email string) (*models.Mentor, error) {
 	if c.workOffline {
-		// Return test mentor with matching email
+		// Return test mentor with matching email and eligible status
 		testMentors := c.getTestMentors()
 		if len(testMentors) > 0 {
 			testMentors[0].AirtableID = "rec_test_mentor"
+			testMentors[0].Status = "active"
 			return testMentors[0], nil
 		}
 		return nil, fmt.Errorf("mentor not found")
@@ -580,8 +581,12 @@ func (c *Client) GetMentorByEmail(ctx context.Context, email string) (*models.Me
 	records, err := retry.DoWithResult(retryCtx, retryConfig, operation, func() (*airtable.Records, error) {
 		table := c.client.GetTable(c.baseID, MentorsTableName)
 
+		// Filter by email AND eligible status (active or inactive)
+		// This handles duplicate profiles where only one is valid
+		filterFormula := fmt.Sprintf("AND({Email} = '%s', OR({Status} = 'active', {Status} = 'inactive'))", email)
+
 		query := table.GetRecords().
-			WithFilterFormula(fmt.Sprintf("{Email} = '%s'", email)).
+			WithFilterFormula(filterFormula).
 			PageSize(1).
 			ReturnFields(
 				"Id", "Alias", "Name", "Email", "JobTitle", "Workplace",
@@ -731,7 +736,7 @@ func (c *Client) GetClientRequestsByMentor(ctx context.Context, mentorAirtableID
 		statusFilters = append(statusFilters, fmt.Sprintf("{Status} = '%s'", s))
 	}
 	statusFormula := "OR(" + joinStrings(statusFilters, ", ") + ")"
-	filterFormula := fmt.Sprintf("AND(FIND('%s', ARRAYJOIN({Mentor})), %s)", mentorAirtableID, statusFormula)
+	filterFormula := fmt.Sprintf("AND({Mentor Id}='%s', %s)", mentorAirtableID, statusFormula)
 
 	records, err := retry.DoWithResult(retryCtx, retryConfig, operation, func() (*airtable.Records, error) {
 		table := c.client.GetTable(c.baseID, ClientRequestsTableName)
