@@ -83,6 +83,13 @@ func (h *MentorAuthHandler) VerifyLogin(c *gin.Context) {
 			})
 			return
 		}
+		if errors.Is(err, services.ErrMentorNotEligible) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"error":   "Login not available for this account",
+			})
+			return
+		}
 		if errors.Is(err, services.ErrJWTSecretNotSet) {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"success": false,

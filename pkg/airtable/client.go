@@ -622,6 +622,7 @@ func (c *Client) GetMentorByLoginToken(ctx context.Context, token string) (*mode
 	if c.workOffline {
 		testMentors := c.getTestMentors()
 		if len(testMentors) > 0 {
+			testMentors[0].Status = "active"
 			return testMentors[0], token, time.Now().Add(15 * time.Minute), nil
 		}
 		return nil, "", time.Time{}, fmt.Errorf("mentor not found")

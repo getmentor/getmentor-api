@@ -169,6 +169,15 @@ func (s *MentorAuthService) VerifyLogin(ctx context.Context, token string) (*mod
 		return nil, "", ErrInvalidLoginToken
 	}
 
+	// Re-check mentor eligibility (status may have changed since token was issued)
+	if mentor.Status != "active" && mentor.Status != "inactive" {
+		logger.Warn("Login verification for mentor with ineligible status",
+			zap.String("mentor_id", mentor.AirtableID),
+			zap.String("status", mentor.Status))
+		metrics.MentorAuthVerifyRequests.WithLabelValues("not_eligible").Inc()
+		return nil, "", ErrMentorNotEligible
+	}
+
 	// Clear the login token (single-use)
 	if clearErr := s.mentorRepo.ClearLoginToken(ctx, mentor.AirtableID); clearErr != nil {
 		logger.Error("Failed to clear login token",
