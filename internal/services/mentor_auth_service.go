@@ -104,11 +104,8 @@ func (s *MentorAuthService) RequestLogin(ctx context.Context, email string) (*mo
 	// Trigger email sending via webhook
 	if s.config.EventTriggers.MentorLoginEmailTriggerURL != "" {
 		payload := map[string]interface{}{
-			"type": "mentor_login",
-			"mentor": map[string]string{
-				"email": email,
-				"name":  mentor.Name,
-			},
+			"type":      "mentor_login",
+			"mentor_id": mentor.AirtableID,
 			"login_url": loginURL,
 		}
 		trigger.CallAsyncWithPayload(s.config.EventTriggers.MentorLoginEmailTriggerURL, payload, s.httpClient)
