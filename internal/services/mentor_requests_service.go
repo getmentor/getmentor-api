@@ -9,8 +9,10 @@ import (
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
+	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
+	"github.com/getmentor/getmentor-api/pkg/trigger"
 	"go.uber.org/zap"
 )
 
@@ -26,13 +28,15 @@ var (
 type MentorRequestsService struct {
 	requestRepo *repository.ClientRequestRepository
 	config      *config.Config
+	httpClient  httpclient.Client
 }
 
 // NewMentorRequestsService creates a new MentorRequestsService
-func NewMentorRequestsService(requestRepo *repository.ClientRequestRepository, cfg *config.Config) *MentorRequestsService {
+func NewMentorRequestsService(requestRepo *repository.ClientRequestRepository, cfg *config.Config, httpClient httpclient.Client) *MentorRequestsService {
 	return &MentorRequestsService{
 		requestRepo: requestRepo,
 		config:      cfg,
+		httpClient:  httpClient,
 	}
 }
 
@@ -129,6 +133,11 @@ func (s *MentorRequestsService) UpdateStatus(ctx context.Context, mentorAirtable
 		return nil, fmt.Errorf("failed to update status: %w", err)
 	}
 
+	// Trigger email sending via webhook
+	if newStatus == models.StatusDone && s.config.EventTriggers.RequestProcessFinishedTriggerURL != "" {
+		trigger.CallAsync(s.config.EventTriggers.MentorCreatedTriggerURL, requestID, s.httpClient)
+	}
+
 	// Record metrics
 	metrics.MentorRequestsStatusUpdates.WithLabelValues(string(oldStatus), string(newStatus)).Inc()
 
@@ -170,6 +179,11 @@ func (s *MentorRequestsService) DeclineRequest(ctx context.Context, mentorAirtab
 			zap.String("request_id", requestID),
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to decline request: %w", err)
+	}
+
+	// Trigger email sending via webhook
+	if s.config.EventTriggers.RequestProcessFinishedTriggerURL != "" {
+		trigger.CallAsync(s.config.EventTriggers.MentorCreatedTriggerURL, requestID, s.httpClient)
 	}
 
 	// Record metrics

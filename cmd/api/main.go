@@ -204,7 +204,7 @@ func main() {
 	webhookService := services.NewWebhookService(mentorRepo, cfg)
 	mcpService := services.NewMCPService(mentorRepo, cfg.Server.BaseURL)
 	mentorAuthService := services.NewMentorAuthService(mentorRepo, cfg, httpClient)
-	mentorRequestsService := services.NewMentorRequestsService(clientRequestRepo, cfg)
+	mentorRequestsService := services.NewMentorRequestsService(clientRequestRepo, cfg, httpClient)
 
 	// Initialize handlers
 	mentorHandler := handlers.NewMentorHandler(mentorService, cfg.Server.BaseURL)

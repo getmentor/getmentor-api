@@ -62,10 +62,11 @@ type ReCAPTCHAConfig struct {
 }
 
 type EventTriggerFunctionsConfig struct {
-	MentorCreatedTriggerURL        string
-	MentorUpdatedTriggerURL        string
-	MentorRequestCreatedTriggerURL string
-	MentorLoginEmailTriggerURL     string
+	MentorCreatedTriggerURL          string
+	MentorUpdatedTriggerURL          string
+	MentorRequestCreatedTriggerURL   string
+	MentorLoginEmailTriggerURL       string
+	RequestProcessFinishedTriggerURL string
 }
 
 type NextJSConfig struct {
@@ -191,10 +192,11 @@ func Load() (*Config, error) {
 			SiteKey:   v.GetString("NEXT_PUBLIC_RECAPTCHA_V2_SITE_KEY"),
 		},
 		EventTriggers: EventTriggerFunctionsConfig{
-			MentorCreatedTriggerURL:        v.GetString("MENTOR_CREATED_TRIGGER_URL"),
-			MentorUpdatedTriggerURL:        v.GetString("MENTOR_UPDATED_TRIGGER_URL"),
-			MentorRequestCreatedTriggerURL: v.GetString("MENTOR_REQUEST_CREATED_TRIGGER_URL"),
-			MentorLoginEmailTriggerURL:     v.GetString("MENTOR_LOGIN_EMAIL_TRIGGER_URL"),
+			MentorCreatedTriggerURL:          v.GetString("MENTOR_CREATED_TRIGGER_URL"),
+			MentorUpdatedTriggerURL:          v.GetString("MENTOR_UPDATED_TRIGGER_URL"),
+			MentorRequestCreatedTriggerURL:   v.GetString("MENTOR_REQUEST_CREATED_TRIGGER_URL"),
+			MentorLoginEmailTriggerURL:       v.GetString("MENTOR_LOGIN_EMAIL_TRIGGER_URL"),
+			RequestProcessFinishedTriggerURL: v.GetString("REQUEST_PROCESS_FINISHED_TRIGGER_URL"),
 		},
 		NextJS: NextJSConfig{
 			BaseURL:          v.GetString("NEXTJS_BASE_URL"),
