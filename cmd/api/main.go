@@ -59,13 +59,15 @@ func registerAPIRoutes(
 	group.POST("/webhooks/airtable", webhookRateLimiter.Middleware(), middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
 }
 
-// registerMentorAdminRoutes registers mentor admin routes for authentication and request management
+// registerMentorAdminRoutes registers mentor admin routes for authentication, request management, and profile
 func registerMentorAdminRoutes(
 	router *gin.Engine,
 	cfg *config.Config,
 	authRateLimiter *middleware.RateLimiter,
+	profileRateLimiter *middleware.RateLimiter,
 	mentorAuthHandler *handlers.MentorAuthHandler,
 	mentorRequestsHandler *handlers.MentorRequestsHandler,
+	mentorProfileHandler *handlers.MentorProfileHandler,
 	tokenManager *jwt.TokenManager,
 ) {
 	// Skip mentor admin routes if JWT is not configured
@@ -84,10 +86,17 @@ func registerMentorAdminRoutes(
 	// Mentor admin routes (protected)
 	mentor := router.Group("/api/v1/mentor")
 	mentor.Use(middleware.MentorSessionMiddleware(tokenManager, cfg.MentorSession.CookieDomain, cfg.MentorSession.CookieSecure))
+
+	// Request management routes
 	mentor.GET("/requests", mentorRequestsHandler.GetRequests)
 	mentor.GET("/requests/:id", mentorRequestsHandler.GetRequestByID)
 	mentor.POST("/requests/:id/status", mentorRequestsHandler.UpdateStatus)
 	mentor.POST("/requests/:id/decline", mentorRequestsHandler.DeclineRequest)
+
+	// Profile routes
+	mentor.GET("/profile", mentorProfileHandler.GetProfile)
+	mentor.POST("/profile", profileRateLimiter.Middleware(), mentorProfileHandler.UpdateProfile)
+	mentor.POST("/profile/picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), mentorProfileHandler.UploadPicture)
 }
 
 func main() {
@@ -208,6 +217,7 @@ func main() {
 	logsHandler := handlers.NewLogsHandler(cfg.Logging.Dir)
 	mentorAuthHandler := handlers.NewMentorAuthHandler(mentorAuthService)
 	mentorRequestsHandler := handlers.NewMentorRequestsHandler(mentorRequestsService)
+	mentorProfileHandler := handlers.NewMentorProfileHandler(mentorService, profileService)
 
 	// Set up Gin router
 	gin.SetMode(cfg.Server.GinMode)
@@ -259,8 +269,8 @@ func main() {
 	registerAPIRoutes(v1, cfg, generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter, registrationRateLimiter,
 		mentorHandler, contactHandler, profileHandler, logsHandler, webhookHandler, registrationHandler)
 
-	// Mentor admin routes (authentication and request management)
-	registerMentorAdminRoutes(router, cfg, mentorAuthRateLimiter, mentorAuthHandler, mentorRequestsHandler, mentorAuthService.GetTokenManager())
+	// Mentor admin routes (authentication, request management, and profile)
+	registerMentorAdminRoutes(router, cfg, mentorAuthRateLimiter, profileRateLimiter, mentorAuthHandler, mentorRequestsHandler, mentorProfileHandler, mentorAuthService.GetTokenManager())
 
 	// Create HTTP server
 	// SECURITY: Bind to all interfaces for Docker Compose networking

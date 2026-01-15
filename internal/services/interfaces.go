@@ -24,6 +24,8 @@ type MentorServiceInterface interface {
 type ProfileServiceInterface interface {
 	SaveProfile(ctx context.Context, id int, token string, req *models.SaveProfileRequest) error
 	UploadProfilePicture(ctx context.Context, id int, token string, req *models.UploadProfilePictureRequest) (string, error)
+	SaveProfileByAirtableID(ctx context.Context, airtableID string, req *models.SaveProfileRequest) error
+	UploadPictureByAirtableID(ctx context.Context, airtableID string, mentorSlug string, req *models.UploadProfilePictureRequest) (string, error)
 }
 
 // WebhookServiceInterface defines the interface for webhook service operations
