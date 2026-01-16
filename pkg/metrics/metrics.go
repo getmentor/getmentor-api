@@ -99,7 +99,7 @@ func Init(serviceName string) {
 			Name: "http_server_active_requests",
 			Help: "Number of active HTTP requests",
 		},
-		[]string{"http_request_method", "http_route"},
+		[]string{"http_request_method"},
 	)
 
 	// Database Client Metrics (Airtable)
