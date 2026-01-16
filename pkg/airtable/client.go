@@ -756,7 +756,7 @@ func (c *Client) GetClientRequestsByMentor(ctx context.Context, mentorAirtableID
 				ReturnFields(
 					"Email", "Name", "Telegram", "Description", "Level",
 					"Status", "Created Time", "Last Modified Time", "Last Status Change",
-					"Scheduled At", "Review", "ReviewFormUrl", "Mentor",
+					"Scheduled At", "Review", "Review2", "ReviewFormUrl", "Mentor",
 					"DeclineReason", "DeclineComment",
 				)
 

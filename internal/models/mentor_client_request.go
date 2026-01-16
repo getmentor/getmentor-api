@@ -75,7 +75,7 @@ type MentorClientRequest struct {
 	ReviewURL       *string       `json:"reviewUrl"`
 	Status          RequestStatus `json:"status"`
 	MentorID        string        `json:"mentorId"`
-	DeclineReason   *string       `json:"declineReason"`
+	DeclineReason   string        `json:"declineReason"`
 	DeclineComment  *string       `json:"declineComment"`
 }
 
@@ -132,6 +132,15 @@ func AirtableRecordToMentorClientRequest(record *airtable.Record) *MentorClientR
 		return nil
 	}
 
+	getLookupStringPtr := func(field string) *string {
+		if arr, ok := record.Fields[field].([]interface{}); ok && len(arr) > 0 {
+			if v, ok := arr[0].(string); ok && v != "" {
+				return &v
+			}
+		}
+		return nil
+	}
+
 	getTime := func(field string) time.Time {
 		if v, ok := record.Fields[field].(string); ok && v != "" {
 			t, err := time.Parse(time.RFC3339, v)
@@ -161,6 +170,11 @@ func AirtableRecordToMentorClientRequest(record *airtable.Record) *MentorClientR
 		return ""
 	}
 
+	review := getStringPtr("Review")
+	if review == nil {
+		review = getLookupStringPtr("Review2")
+	}
+
 	return &MentorClientRequest{
 		ID:              record.ID,
 		Email:           getString("Email"),
@@ -172,11 +186,11 @@ func AirtableRecordToMentorClientRequest(record *airtable.Record) *MentorClientR
 		ModifiedAt:      getTime("Last Modified Time"),
 		StatusChangedAt: getTime("Last Status Change"),
 		ScheduledAt:     getTimePtr("Scheduled At"),
-		Review:          getStringPtr("Review"),
+		Review:          review,
 		ReviewURL:       getStringPtr("ReviewFormUrl"),
 		Status:          RequestStatus(getString("Status")),
 		MentorID:        getMentorID(),
-		DeclineReason:   getStringPtr("DeclineReason"),
+		DeclineReason:   getString("DeclineReason"),
 		DeclineComment:  getStringPtr("DeclineComment"),
 	}
 }
