@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/getmentor/getmentor-api/internal/models"
+	"github.com/getmentor/getmentor-api/pkg/jwt"
 )
 
 // ContactServiceInterface defines the interface for contact service operations
@@ -23,6 +24,8 @@ type MentorServiceInterface interface {
 type ProfileServiceInterface interface {
 	SaveProfile(ctx context.Context, id int, token string, req *models.SaveProfileRequest) error
 	UploadProfilePicture(ctx context.Context, id int, token string, req *models.UploadProfilePictureRequest) (string, error)
+	SaveProfileByAirtableID(ctx context.Context, airtableID string, req *models.SaveProfileRequest) error
+	UploadPictureByAirtableID(ctx context.Context, airtableID string, mentorSlug string, req *models.UploadProfilePictureRequest) (string, error)
 }
 
 // WebhookServiceInterface defines the interface for webhook service operations
@@ -35,9 +38,29 @@ type RegistrationServiceInterface interface {
 	RegisterMentor(ctx context.Context, req *models.RegisterMentorRequest) (*models.RegisterMentorResponse, error)
 }
 
+// MentorAuthServiceInterface defines the interface for mentor authentication
+type MentorAuthServiceInterface interface {
+	RequestLogin(ctx context.Context, email string) (*models.RequestLoginResponse, error)
+	VerifyLogin(ctx context.Context, token string) (*models.MentorSession, string, error)
+	GetSessionTTL() int
+	GetCookieDomain() string
+	GetCookieSecure() bool
+	GetTokenManager() *jwt.TokenManager
+}
+
+// MentorRequestsServiceInterface defines the interface for mentor request management
+type MentorRequestsServiceInterface interface {
+	GetRequests(ctx context.Context, mentorAirtableID string, group string) (*models.ClientRequestsResponse, error)
+	GetRequestByID(ctx context.Context, mentorAirtableID string, requestID string) (*models.MentorClientRequest, error)
+	UpdateStatus(ctx context.Context, mentorAirtableID string, requestID string, newStatus models.RequestStatus) (*models.MentorClientRequest, error)
+	DeclineRequest(ctx context.Context, mentorAirtableID string, requestID string, payload *models.DeclineRequestPayload) (*models.MentorClientRequest, error)
+}
+
 // Ensure services implement their interfaces
 var _ ContactServiceInterface = (*ContactService)(nil)
 var _ MentorServiceInterface = (*MentorService)(nil)
 var _ ProfileServiceInterface = (*ProfileService)(nil)
 var _ WebhookServiceInterface = (*WebhookService)(nil)
 var _ RegistrationServiceInterface = (*RegistrationService)(nil)
+var _ MentorAuthServiceInterface = (*MentorAuthService)(nil)
+var _ MentorRequestsServiceInterface = (*MentorRequestsService)(nil)

@@ -14,29 +14,35 @@ import (
 func ObservabilityMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
-		path := c.FullPath()
-		if path == "" {
-			path = c.Request.URL.Path
-		}
 		method := c.Request.Method
 
-		// Track active requests
-		metrics.ActiveRequests.WithLabelValues(method, path).Inc()
-		defer metrics.ActiveRequests.WithLabelValues(method, path).Dec()
+		// Track active requests (method only - route not known until after routing)
+		metrics.ActiveRequests.WithLabelValues(method).Inc()
+		defer metrics.ActiveRequests.WithLabelValues(method).Dec()
 
-		// Process request
+		// Process request - this allows Gin to set the matched route
 		c.Next()
+
+		// Get route template AFTER routing (prevents cardinality explosion)
+		// c.FullPath() returns the route pattern like "/api/v1/mentor/requests/:id"
+		// instead of the actual path like "/api/v1/mentor/requests/recXYZ123"
+		path := c.FullPath()
+		if path == "" {
+			// Fallback for unmatched routes (404s) - use a generic label
+			path = "unmatched"
+		}
 
 		// Measure duration
 		duration := metrics.MeasureDuration(start)
 		status := c.Writer.Status()
 		statusStr := strconv.Itoa(status)
 
-		// Record metrics
+		// Record metrics with route template (not actual path)
 		metrics.HTTPRequestDuration.WithLabelValues(method, path, statusStr).Observe(duration)
 		metrics.HTTPRequestTotal.WithLabelValues(method, path, statusStr).Inc()
 
-		// Log request
+		// Log request (use actual path for debugging, but route template for metrics)
+		actualPath := c.Request.URL.Path
 		fields := []zap.Field{
 			zap.String("client_ip", c.ClientIP()),
 			zap.String("user_agent", c.Request.UserAgent()),
@@ -48,6 +54,7 @@ func ObservabilityMiddleware() gin.HandlerFunc {
 			fields = append(fields, zap.String("error", c.Errors.String()))
 		}
 
-		logger.LogHTTPRequest(c.Request.Context(), method, path, status, duration, fields...)
+		// Log with actual path for debugging purposes
+		logger.LogHTTPRequest(c.Request.Context(), method, actualPath, status, duration, fields...)
 	}
 }
