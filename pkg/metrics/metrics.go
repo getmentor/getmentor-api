@@ -169,7 +169,7 @@ func Init(serviceName string) {
 			Name: "getmentor_mentor_profile_views_total",
 			Help: "Total number of mentor profile views",
 		},
-		[]string{"mentor_slug"},
+		[]string{},
 	)
 
 	ContactFormSubmissions = factory.NewCounterVec(
