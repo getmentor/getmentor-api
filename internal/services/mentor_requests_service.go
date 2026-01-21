@@ -135,7 +135,7 @@ func (s *MentorRequestsService) UpdateStatus(ctx context.Context, mentorAirtable
 
 	// Trigger email sending via webhook
 	if newStatus == models.StatusDone && s.config.EventTriggers.RequestProcessFinishedTriggerURL != "" {
-		trigger.CallAsync(s.config.EventTriggers.MentorCreatedTriggerURL, requestID, s.httpClient)
+		trigger.CallAsync(s.config.EventTriggers.RequestProcessFinishedTriggerURL, requestID, s.httpClient)
 	}
 
 	// Record metrics
@@ -183,7 +183,7 @@ func (s *MentorRequestsService) DeclineRequest(ctx context.Context, mentorAirtab
 
 	// Trigger email sending via webhook
 	if s.config.EventTriggers.RequestProcessFinishedTriggerURL != "" {
-		trigger.CallAsync(s.config.EventTriggers.MentorCreatedTriggerURL, requestID, s.httpClient)
+		trigger.CallAsync(s.config.EventTriggers.RequestProcessFinishedTriggerURL, requestID, s.httpClient)
 	}
 
 	// Record metrics
