@@ -22,6 +22,7 @@ import (
 	"github.com/getmentor/getmentor-api/pkg/airtable"
 	"github.com/getmentor/getmentor-api/pkg/azure"
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
+	"github.com/getmentor/getmentor-api/pkg/jwt"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
 	"github.com/getmentor/getmentor-api/pkg/tracing"
@@ -56,6 +57,46 @@ func registerAPIRoutes(
 	group.POST("/register-mentor", registrationRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), registrationHandler.RegisterMentor)
 	group.POST("/logs", generalRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(1*1024*1024), logsHandler.ReceiveFrontendLogs)
 	group.POST("/webhooks/airtable", webhookRateLimiter.Middleware(), middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
+}
+
+// registerMentorAdminRoutes registers mentor admin routes for authentication, request management, and profile
+func registerMentorAdminRoutes(
+	router *gin.Engine,
+	cfg *config.Config,
+	authRateLimiter *middleware.RateLimiter,
+	profileRateLimiter *middleware.RateLimiter,
+	mentorAuthHandler *handlers.MentorAuthHandler,
+	mentorRequestsHandler *handlers.MentorRequestsHandler,
+	mentorProfileHandler *handlers.MentorProfileHandler,
+	tokenManager *jwt.TokenManager,
+) {
+	// Skip mentor admin routes if JWT is not configured
+	if tokenManager == nil {
+		logger.Warn("Mentor admin routes disabled: JWT_SECRET not configured")
+		return
+	}
+
+	// Authentication routes (public)
+	auth := router.Group("/api/v1/auth/mentor")
+	auth.POST("/request-login", authRateLimiter.Middleware(), mentorAuthHandler.RequestLogin)
+	auth.POST("/verify", mentorAuthHandler.VerifyLogin)
+	auth.POST("/logout", mentorAuthHandler.Logout)
+	auth.GET("/session", middleware.MentorSessionMiddleware(tokenManager, cfg.MentorSession.CookieDomain, cfg.MentorSession.CookieSecure), mentorAuthHandler.GetSession)
+
+	// Mentor admin routes (protected)
+	mentor := router.Group("/api/v1/mentor")
+	mentor.Use(middleware.MentorSessionMiddleware(tokenManager, cfg.MentorSession.CookieDomain, cfg.MentorSession.CookieSecure))
+
+	// Request management routes
+	mentor.GET("/requests", mentorRequestsHandler.GetRequests)
+	mentor.GET("/requests/:id", mentorRequestsHandler.GetRequestByID)
+	mentor.POST("/requests/:id/status", mentorRequestsHandler.UpdateStatus)
+	mentor.POST("/requests/:id/decline", mentorRequestsHandler.DeclineRequest)
+
+	// Profile routes
+	mentor.GET("/profile", mentorProfileHandler.GetProfile)
+	mentor.POST("/profile", profileRateLimiter.Middleware(), mentorProfileHandler.UpdateProfile)
+	mentor.POST("/profile/picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), mentorProfileHandler.UploadPicture)
 }
 
 func main() {
@@ -162,6 +203,8 @@ func main() {
 	registrationService := services.NewRegistrationService(mentorRepo, azureClient, cfg, httpClient)
 	webhookService := services.NewWebhookService(mentorRepo, cfg)
 	mcpService := services.NewMCPService(mentorRepo, cfg.Server.BaseURL)
+	mentorAuthService := services.NewMentorAuthService(mentorRepo, cfg, httpClient)
+	mentorRequestsService := services.NewMentorRequestsService(clientRequestRepo, cfg, httpClient)
 
 	// Initialize handlers
 	mentorHandler := handlers.NewMentorHandler(mentorService, cfg.Server.BaseURL)
@@ -172,6 +215,9 @@ func main() {
 	mcpHandler := handlers.NewMCPHandler(mcpService)
 	healthHandler := handlers.NewHealthHandler(mentorCache.IsReady)
 	logsHandler := handlers.NewLogsHandler(cfg.Logging.Dir)
+	mentorAuthHandler := handlers.NewMentorAuthHandler(mentorAuthService)
+	mentorRequestsHandler := handlers.NewMentorRequestsHandler(mentorRequestsService)
+	mentorProfileHandler := handlers.NewMentorProfileHandler(mentorService, profileService)
 
 	// Set up Gin router
 	gin.SetMode(cfg.Server.GinMode)
@@ -193,9 +239,9 @@ func main() {
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "mentors_api_auth_token", "x-internal-mentors-api-auth-token", "X-Webhook-Secret", "X-Mentor-ID", "X-Auth-Token", "X-CSRF-Token"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "mentors_api_auth_token", "x-internal-mentors-api-auth-token", "X-Webhook-Secret", "X-Mentor-ID", "X-Auth-Token", "X-CSRF-Token", "traceparent", "tracestate"},
 		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: false,
+		AllowCredentials: true, // Required for mentor session cookies
 		MaxAge:           12 * time.Hour,
 	}))
 
@@ -207,6 +253,7 @@ func main() {
 	webhookRateLimiter := middleware.NewRateLimiter(10, 20)          // 10 req/sec, burst of 20
 	registrationRateLimiter := middleware.NewRateLimiter(0.00667, 3) // 2 req/5min (0.00667 req/sec), burst of 3
 	mcpRateLimiter := middleware.NewRateLimiter(20, 40)              // 20 req/sec, burst of 40 (for AI tool usage)
+	mentorAuthRateLimiter := middleware.NewRateLimiter(0.00667, 2)   // 2 req/5min (0.00667 req/sec), burst of 2 (login abuse prevention)
 
 	// API routes
 	api := router.Group("/api")
@@ -221,6 +268,9 @@ func main() {
 	v1 := router.Group("/api/v1")
 	registerAPIRoutes(v1, cfg, generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter, registrationRateLimiter,
 		mentorHandler, contactHandler, profileHandler, logsHandler, webhookHandler, registrationHandler)
+
+	// Mentor admin routes (authentication, request management, and profile)
+	registerMentorAdminRoutes(router, cfg, mentorAuthRateLimiter, profileRateLimiter, mentorAuthHandler, mentorRequestsHandler, mentorProfileHandler, mentorAuthService.GetTokenManager())
 
 	// Create HTTP server
 	// SECURITY: Bind to all interfaces for Docker Compose networking

@@ -556,3 +556,433 @@ func (c *Client) getTestTags() map[string]string {
 		"Frontend": "rec2",
 	}
 }
+
+// GetMentorByEmail fetches a mentor by email address
+func (c *Client) GetMentorByEmail(ctx context.Context, email string) (*models.Mentor, error) {
+	if c.workOffline {
+		// Return test mentor with matching email and eligible status
+		testMentors := c.getTestMentors()
+		if len(testMentors) > 0 {
+			testMentors[0].AirtableID = "rec_test_mentor"
+			testMentors[0].Status = "active"
+			return testMentors[0], nil
+		}
+		return nil, fmt.Errorf("mentor not found")
+	}
+
+	start := time.Now()
+	operation := "getMentorByEmail"
+
+	retryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	retryConfig := retry.AirtableConfig()
+
+	records, err := retry.DoWithResult(retryCtx, retryConfig, operation, func() (*airtable.Records, error) {
+		table := c.client.GetTable(c.baseID, MentorsTableName)
+
+		// Filter by email AND eligible status (active or inactive)
+		// This handles duplicate profiles where only one is valid
+		filterFormula := fmt.Sprintf("AND({Email} = '%s', OR({Status} = 'active', {Status} = 'inactive'))", email)
+
+		query := table.GetRecords().
+			WithFilterFormula(filterFormula).
+			PageSize(1).
+			ReturnFields(
+				"Id", "Alias", "Name", "Email", "JobTitle", "Workplace",
+				"Details", "About", "Experience", "Price", "Status",
+				"AuthToken", "Calendly Url", "MentorLoginToken", "MentorLoginTokenExp",
+			)
+
+		return query.Do()
+	})
+
+	duration := metrics.MeasureDuration(start)
+
+	if err != nil {
+		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
+		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
+		logger.LogAPICall(ctx, "airtable", operation, "error", duration, zap.Error(err))
+		return nil, err
+	}
+
+	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
+	metrics.AirtableRequestTotal.WithLabelValues(operation, "success").Inc()
+
+	if len(records.Records) == 0 {
+		return nil, fmt.Errorf("mentor with email %s not found", email)
+	}
+
+	mentor := models.AirtableRecordToMentor(records.Records[0])
+	return mentor, nil
+}
+
+// GetMentorByLoginToken fetches a mentor by login token
+func (c *Client) GetMentorByLoginToken(ctx context.Context, token string) (*models.Mentor, string, time.Time, error) {
+	if c.workOffline {
+		testMentors := c.getTestMentors()
+		if len(testMentors) > 0 {
+			testMentors[0].Status = "active"
+			return testMentors[0], token, time.Now().Add(15 * time.Minute), nil
+		}
+		return nil, "", time.Time{}, fmt.Errorf("mentor not found")
+	}
+
+	start := time.Now()
+	operation := "getMentorByLoginToken"
+
+	retryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	retryConfig := retry.AirtableConfig()
+
+	records, err := retry.DoWithResult(retryCtx, retryConfig, operation, func() (*airtable.Records, error) {
+		table := c.client.GetTable(c.baseID, MentorsTableName)
+
+		query := table.GetRecords().
+			WithFilterFormula(fmt.Sprintf("{MentorLoginToken} = '%s'", token)).
+			PageSize(1).
+			ReturnFields(
+				"Id", "Alias", "Name", "Email", "JobTitle", "Workplace",
+				"Details", "About", "Experience", "Price", "Status",
+				"AuthToken", "Calendly Url", "MentorLoginToken", "MentorLoginTokenExp",
+			)
+
+		return query.Do()
+	})
+
+	duration := metrics.MeasureDuration(start)
+
+	if err != nil {
+		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
+		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
+		logger.LogAPICall(ctx, "airtable", operation, "error", duration, zap.Error(err))
+		return nil, "", time.Time{}, err
+	}
+
+	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
+	metrics.AirtableRequestTotal.WithLabelValues(operation, "success").Inc()
+
+	if len(records.Records) == 0 {
+		return nil, "", time.Time{}, fmt.Errorf("mentor with token not found")
+	}
+
+	record := records.Records[0]
+	mentor := models.AirtableRecordToMentor(record)
+
+	// Extract token and expiration
+	storedToken := ""
+	if t, ok := record.Fields["MentorLoginToken"].(string); ok {
+		storedToken = t
+	}
+
+	var tokenExp time.Time
+	if exp, ok := record.Fields["MentorLoginTokenExp"].(string); ok && exp != "" {
+		parsedTime, parseErr := time.Parse(time.RFC3339, exp)
+		if parseErr == nil {
+			tokenExp = parsedTime
+		}
+	}
+
+	return mentor, storedToken, tokenExp, nil
+}
+
+// SetMentorLoginToken sets the login token for a mentor
+func (c *Client) SetMentorLoginToken(ctx context.Context, recordID, token string, expiration time.Time) error {
+	if c.workOffline {
+		logger.Info("Skipping login token update in offline mode", zap.String("record_id", recordID))
+		return nil
+	}
+
+	updates := map[string]interface{}{
+		"MentorLoginToken":    token,
+		"MentorLoginTokenExp": expiration.Format(time.RFC3339),
+	}
+
+	return c.UpdateMentor(ctx, recordID, updates)
+}
+
+// ClearMentorLoginToken clears the login token for a mentor
+func (c *Client) ClearMentorLoginToken(ctx context.Context, recordID string) error {
+	if c.workOffline {
+		logger.Info("Skipping login token clear in offline mode", zap.String("record_id", recordID))
+		return nil
+	}
+
+	updates := map[string]interface{}{
+		"MentorLoginToken":    "",
+		"MentorLoginTokenExp": nil,
+	}
+
+	return c.UpdateMentor(ctx, recordID, updates)
+}
+
+// GetClientRequestsByMentor fetches all client requests for a specific mentor
+func (c *Client) GetClientRequestsByMentor(ctx context.Context, mentorAirtableID string, statuses []models.RequestStatus) ([]*models.MentorClientRequest, error) {
+	if c.workOffline {
+		return c.getTestClientRequests(), nil
+	}
+
+	start := time.Now()
+	operation := "getClientRequestsByMentor"
+
+	retryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	retryConfig := retry.AirtableConfig()
+
+	// Build status filter
+	statusFilters := make([]string, 0, len(statuses))
+	for _, s := range statuses {
+		statusFilters = append(statusFilters, fmt.Sprintf("{Status} = '%s'", s))
+	}
+	statusFormula := "OR(" + joinStrings(statusFilters, ", ") + ")"
+	filterFormula := fmt.Sprintf("AND({Mentor Id}='%s', %s)", mentorAirtableID, statusFormula)
+
+	records, err := retry.DoWithResult(retryCtx, retryConfig, operation, func() (*airtable.Records, error) {
+		table := c.client.GetTable(c.baseID, ClientRequestsTableName)
+
+		var allRecords []*airtable.Record
+		offset := ""
+
+		for {
+			query := table.GetRecords().
+				WithFilterFormula(filterFormula).
+				PageSize(100).
+				WithSort(struct {
+					FieldName string
+					Direction string
+				}{FieldName: "Created Time", Direction: "asc"}).
+				ReturnFields(
+					"Email", "Name", "Telegram", "Description", "Level",
+					"Status", "Created Time", "Last Modified Time", "Last Status Change",
+					"Scheduled At", "Review", "Review2", "ReviewFormUrl", "Mentor",
+					"DeclineReason", "DeclineComment",
+				)
+
+			if offset != "" {
+				query = query.WithOffset(offset)
+			}
+
+			recs, err := query.Do()
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch client requests: %w", err)
+			}
+
+			allRecords = append(allRecords, recs.Records...)
+
+			if recs.Offset == "" {
+				break
+			}
+			offset = recs.Offset
+		}
+
+		return &airtable.Records{Records: allRecords}, nil
+	})
+
+	duration := metrics.MeasureDuration(start)
+
+	if err != nil {
+		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
+		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
+		logger.LogAPICall(ctx, "airtable", operation, "error", duration, zap.Error(err))
+		return nil, err
+	}
+
+	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
+	metrics.AirtableRequestTotal.WithLabelValues(operation, "success").Inc()
+	logger.LogAPICall(ctx, "airtable", operation, "success", duration, zap.Int("count", len(records.Records)))
+
+	requests := make([]*models.MentorClientRequest, 0, len(records.Records))
+	for _, record := range records.Records {
+		requests = append(requests, models.AirtableRecordToMentorClientRequest(record))
+	}
+
+	return requests, nil
+}
+
+// GetClientRequestByID fetches a single client request by ID
+func (c *Client) GetClientRequestByID(ctx context.Context, recordID string) (*models.MentorClientRequest, error) {
+	if c.workOffline {
+		requests := c.getTestClientRequests()
+		if len(requests) > 0 {
+			requests[0].ID = recordID
+			return requests[0], nil
+		}
+		return nil, fmt.Errorf("request not found")
+	}
+
+	start := time.Now()
+	operation := "getClientRequestByID"
+
+	retryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	retryConfig := retry.AirtableConfig()
+
+	record, err := retry.DoWithResult(retryCtx, retryConfig, operation, func() (*airtable.Record, error) {
+		table := c.client.GetTable(c.baseID, ClientRequestsTableName)
+		return table.GetRecord(recordID)
+	})
+
+	duration := metrics.MeasureDuration(start)
+
+	if err != nil {
+		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
+		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
+		logger.LogAPICall(ctx, "airtable", operation, "error", duration, zap.Error(err))
+		return nil, err
+	}
+
+	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
+	metrics.AirtableRequestTotal.WithLabelValues(operation, "success").Inc()
+
+	return models.AirtableRecordToMentorClientRequest(record), nil
+}
+
+// UpdateClientRequestStatus updates the status of a client request
+func (c *Client) UpdateClientRequestStatus(ctx context.Context, recordID string, status models.RequestStatus) error {
+	if c.workOffline {
+		logger.Info("Skipping client request status update in offline mode", zap.String("record_id", recordID))
+		return nil
+	}
+
+	start := time.Now()
+	operation := "updateClientRequestStatus"
+
+	retryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	retryConfig := retry.AirtableConfig()
+
+	err := retry.Do(retryCtx, retryConfig, operation, func() error {
+		table := c.client.GetTable(c.baseID, ClientRequestsTableName)
+
+		records := &airtable.Records{
+			Records: []*airtable.Record{
+				{
+					ID: recordID,
+					Fields: map[string]interface{}{
+						"Status":             string(status),
+						"Last Status Change": time.Now().Format(time.RFC3339),
+					},
+				},
+			},
+		}
+
+		_, err := table.UpdateRecordsPartial(records)
+		if err != nil {
+			return fmt.Errorf("failed to update client request status: %w", err)
+		}
+
+		return nil
+	})
+
+	duration := metrics.MeasureDuration(start)
+
+	if err != nil {
+		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
+		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
+		logger.LogAPICall(ctx, "airtable", operation, "error", duration, zap.Error(err))
+		return err
+	}
+
+	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
+	metrics.AirtableRequestTotal.WithLabelValues(operation, "success").Inc()
+	logger.LogAPICall(ctx, "airtable", operation, "success", duration, zap.String("record_id", recordID))
+
+	return nil
+}
+
+// UpdateClientRequestDecline updates a client request with decline info
+func (c *Client) UpdateClientRequestDecline(ctx context.Context, recordID string, reason models.DeclineReason, comment string) error {
+	if c.workOffline {
+		logger.Info("Skipping client request decline update in offline mode", zap.String("record_id", recordID))
+		return nil
+	}
+
+	start := time.Now()
+	operation := "updateClientRequestDecline"
+
+	retryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	retryConfig := retry.AirtableConfig()
+
+	err := retry.Do(retryCtx, retryConfig, operation, func() error {
+		table := c.client.GetTable(c.baseID, ClientRequestsTableName)
+
+		fields := map[string]interface{}{
+			"Status":             string(models.StatusDeclined),
+			"Last Status Change": time.Now().Format(time.RFC3339),
+			"DeclineReason":      string(reason),
+		}
+
+		if comment != "" {
+			fields["DeclineComment"] = comment
+		}
+
+		records := &airtable.Records{
+			Records: []*airtable.Record{
+				{
+					ID:     recordID,
+					Fields: fields,
+				},
+			},
+		}
+
+		_, err := table.UpdateRecordsPartial(records)
+		if err != nil {
+			return fmt.Errorf("failed to update client request decline: %w", err)
+		}
+
+		return nil
+	})
+
+	duration := metrics.MeasureDuration(start)
+
+	if err != nil {
+		metrics.AirtableRequestDuration.WithLabelValues(operation, "error").Observe(duration)
+		metrics.AirtableRequestTotal.WithLabelValues(operation, "error").Inc()
+		logger.LogAPICall(ctx, "airtable", operation, "error", duration, zap.Error(err))
+		return err
+	}
+
+	metrics.AirtableRequestDuration.WithLabelValues(operation, "success").Observe(duration)
+	metrics.AirtableRequestTotal.WithLabelValues(operation, "success").Inc()
+	logger.LogAPICall(ctx, "airtable", operation, "success", duration, zap.String("record_id", recordID))
+
+	return nil
+}
+
+// getTestClientRequests returns test client requests for offline mode
+func (c *Client) getTestClientRequests() []*models.MentorClientRequest {
+	now := time.Now()
+	return []*models.MentorClientRequest{
+		{
+			ID:              "rec_test_request_1",
+			Email:           "mentee@example.com",
+			Name:            "Test Mentee",
+			Telegram:        "@testmentee",
+			Details:         "I want to learn about Go programming",
+			Level:           "Junior",
+			CreatedAt:       now.Add(-24 * time.Hour),
+			ModifiedAt:      now,
+			StatusChangedAt: now,
+			Status:          models.StatusPending,
+			MentorID:        "rec_test_mentor",
+		},
+	}
+}
+
+// joinStrings joins strings with a separator
+func joinStrings(strs []string, sep string) string {
+	result := ""
+	for i, s := range strs {
+		if i > 0 {
+			result += sep
+		}
+		result += s
+	}
+	return result
+}

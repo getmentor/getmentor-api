@@ -175,6 +175,7 @@ func TestAirtableRecordToMentor(t *testing.T) {
 				Sponsors:     "Сообщество Онтико",
 				CalendarType: "calendly",
 				IsNew:        true,
+				Status:       "active",
 				AuthToken:    "token123",
 				CalendarURL:  "https://calendly.com/johndoe",
 			},
@@ -224,6 +225,7 @@ func TestAirtableRecordToMentor(t *testing.T) {
 				Sponsors:     "none",
 				CalendarType: "none",
 				IsNew:        false,
+				Status:       "inactive",
 			},
 		},
 		{
@@ -271,6 +273,7 @@ func TestAirtableRecordToMentor(t *testing.T) {
 				Sponsors:     "none",
 				CalendarType: "none",
 				IsNew:        false,
+				Status:       "active",
 			},
 		},
 		{
@@ -318,6 +321,7 @@ func TestAirtableRecordToMentor(t *testing.T) {
 				Sponsors:     "none",
 				CalendarType: "none",
 				IsNew:        false,
+				Status:       "active",
 			},
 		},
 	}

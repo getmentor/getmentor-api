@@ -167,3 +167,118 @@ func (s *ProfileService) getSponsorTags() map[string]bool {
 		"Эксперт Авито":     true,
 	}
 }
+
+// SaveProfileByAirtableID updates a mentor's profile using Airtable ID (for session-based auth)
+func (s *ProfileService) SaveProfileByAirtableID(ctx context.Context, airtableID string, req *models.SaveProfileRequest) error {
+	// Get mentor to get current tags (for sponsor preservation)
+	mentor, err := s.mentorRepo.GetByRecordID(ctx, airtableID, models.FilterOptions{ShowHidden: true})
+	if err != nil {
+		return apperrors.NotFoundError("mentor")
+	}
+
+	// Get sponsor tags to preserve them
+	sponsorTags := s.getSponsorTags()
+	preservedSponsors := []string{}
+	for _, tag := range mentor.Tags {
+		if sponsorTags[tag] {
+			preservedSponsors = append(preservedSponsors, tag)
+		}
+	}
+
+	// Filter out sponsor tags from user input (they shouldn't be able to modify these)
+	userTags := []string{}
+	for _, tag := range req.Tags {
+		if !sponsorTags[tag] {
+			userTags = append(userTags, tag)
+		}
+	}
+
+	// Merge user tags with preserved sponsor tags
+	userTags = append(userTags, preservedSponsors...)
+
+	// Get tag IDs
+	tagIDs := []string{}
+	for _, tagName := range userTags {
+		tagID, tagErr := s.mentorRepo.GetTagIDByName(ctx, tagName)
+		if tagErr == nil && tagID != "" {
+			tagIDs = append(tagIDs, tagID)
+		}
+	}
+
+	// Prepare updates
+	updates := map[string]interface{}{
+		"Name":         req.Name,
+		"JobTitle":     req.Job,
+		"Workplace":    req.Workplace,
+		"Experience":   req.Experience,
+		"Price":        req.Price,
+		"Tags Links":   tagIDs,
+		"Details":      req.Description,
+		"About":        req.About,
+		"Competencies": req.Competencies,
+	}
+
+	if req.CalendarURL != "" {
+		updates["Calendly Url"] = req.CalendarURL
+	}
+
+	// Update in Airtable
+	if err := s.mentorRepo.Update(ctx, airtableID, updates); err != nil {
+		metrics.ProfileUpdates.WithLabelValues("error").Inc()
+		logger.Error("Failed to update mentor profile",
+			zap.Error(err),
+			zap.String("airtable_id", airtableID))
+		return fmt.Errorf("failed to update profile")
+	}
+
+	metrics.ProfileUpdates.WithLabelValues("success").Inc()
+	logger.Info("Mentor profile updated via session",
+		zap.String("airtable_id", airtableID))
+
+	return nil
+}
+
+// UploadPictureByAirtableID uploads a profile picture using Airtable ID (for session-based auth)
+func (s *ProfileService) UploadPictureByAirtableID(ctx context.Context, airtableID string, mentorSlug string, req *models.UploadProfilePictureRequest) (string, error) {
+	// Validate file type
+	if typeErr := s.azureClient.ValidateImageType(req.ContentType); typeErr != nil {
+		return "", typeErr
+	}
+
+	// Validate file size
+	if sizeErr := s.azureClient.ValidateImageSize(req.Image); sizeErr != nil {
+		return "", sizeErr
+	}
+
+	// Generate filename using slug
+	fileName := fmt.Sprintf("%s/%s", mentorSlug, req.FileName)
+
+	// Upload to Azure
+	imageURL, err := s.azureClient.UploadImage(ctx, req.Image, fileName, req.ContentType)
+	if err != nil {
+		metrics.ProfilePictureUploads.WithLabelValues("error").Inc()
+		logger.Error("Failed to upload profile picture",
+			zap.Error(err),
+			zap.String("airtable_id", airtableID))
+		return "", fmt.Errorf("failed to upload image")
+	}
+
+	// Update Airtable asynchronously
+	go func() {
+		if updateErr := s.mentorRepo.UpdateImage(context.Background(), airtableID, imageURL); updateErr != nil {
+			logger.Error("Failed to update mentor image in Airtable",
+				zap.Error(updateErr),
+				zap.String("airtable_id", airtableID))
+		} else {
+			// Trigger mentor updated webhook after successful Airtable update
+			trigger.CallAsync(s.config.EventTriggers.MentorUpdatedTriggerURL, airtableID, s.httpClient)
+		}
+	}()
+
+	metrics.ProfilePictureUploads.WithLabelValues("success").Inc()
+	logger.Info("Profile picture uploaded via session",
+		zap.String("airtable_id", airtableID),
+		zap.String("url", imageURL))
+
+	return imageURL, nil
+}
