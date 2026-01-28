@@ -3,16 +3,6 @@
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS citext;
-CREATE EXTENSION IF NOT EXISTS unaccent;
-
--- Helper function for slug generation
-CREATE OR REPLACE FUNCTION slugify(input TEXT)
-RETURNS TEXT
-LANGUAGE SQL
-IMMUTABLE
-AS $$
-  SELECT TRIM(BOTH '-' FROM REGEXP_REPLACE(LOWER(unaccent(COALESCE(input, ''))), '[^a-z0-9]+', '-', 'g'));
-$$;
 
 -- Mentors
 CREATE TABLE IF NOT EXISTS mentors (
@@ -52,6 +42,7 @@ CREATE INDEX IF NOT EXISTS mentors_status_idx ON mentors (status);
 CREATE UNIQUE INDEX IF NOT EXISTS mentors_active_email_uniq
   ON mentors (email)
   WHERE status = 'active' AND email IS NOT NULL;
+CREATE INDEX IF NOT EXISTS mentors_slug_idx ON mentors (slug);
 
 -- Tags
 CREATE TABLE IF NOT EXISTS tags (
