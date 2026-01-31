@@ -72,64 +72,70 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 		}
 	}
 
-	// 4. Create minimal Airtable record
-	airtableFields := map[string]interface{}{
-		"Name":         strings.TrimSpace(req.Name),
-		"Email":        req.Email,
-		"Telegram":     telegram,
-		"JobTitle":     req.Job,
-		"Workplace":    req.Workplace,
-		"Experience":   req.Experience,
-		"Price":        req.Price,
-		"Tags Links":   tagIDs,
-		"About":        req.About,
-		"Details":      req.Description,
-		"Competencies": req.Competencies,
+	// 4. Create mentor record in PostgreSQL
+	fields := map[string]interface{}{
+		"name":         strings.TrimSpace(req.Name),
+		"email":        req.Email,
+		"telegram":     telegram,
+		"job_title":    req.Job,
+		"workplace":    req.Workplace,
+		"experience":   req.Experience,
+		"price":        req.Price,
+		"about":        req.About,
+		"details":      req.Description,
+		"competencies": req.Competencies,
+		"status":       "pending",
 	}
 
 	if req.CalendarURL != "" {
-		airtableFields["Calendly Url"] = req.CalendarURL
+		fields["calendar_url"] = req.CalendarURL
 	}
 
-	recordID, mentorID, err := s.mentorRepo.CreateMentor(ctx, airtableFields)
+	// Note: Tags will be inserted separately into mentor_tags table
+	// This is handled by the repository CreateMentor method
+
+	mentorID, legacyID, err := s.mentorRepo.CreateMentor(ctx, fields)
 	if err != nil {
-		metrics.MentorRegistrations.WithLabelValues("airtable_error").Inc()
-		logger.Error("Failed to create mentor in Airtable", zap.Error(err))
+		metrics.MentorRegistrations.WithLabelValues("db_error").Inc()
+		logger.Error("Failed to create mentor in database", zap.Error(err))
 		return &models.RegisterMentorResponse{
 			Success: false,
 			Error:   "Failed to create mentor profile",
 		}, nil
 	}
 
-	logger.Info("Mentor created in Airtable",
-		zap.String("record_id", recordID),
-		zap.Int("mentor_id", mentorID),
+	logger.Info("Mentor created in database",
+		zap.String("mentor_id", mentorID),
+		zap.Int("legacy_id", legacyID),
 		zap.String("email", req.Email))
 
 	// 5. Upload profile picture (non-blocking on failure)
-	if err := s.uploadProfilePicture(ctx, mentorID, recordID, &req.ProfilePicture); err != nil {
+	if err := s.uploadProfilePicture(ctx, legacyID, mentorID, &req.ProfilePicture); err != nil {
 		logger.Error("Failed to upload profile picture",
 			zap.Error(err),
-			zap.Int("mentor_id", mentorID))
+			zap.String("mentor_id", mentorID),
+			zap.Int("legacy_id", legacyID))
 		// Don't fail registration if image upload fails - can upload later via edit profile
 	} else {
-		logger.Info("Profile picture uploaded", zap.Int("mentor_id", mentorID))
+		logger.Info("Profile picture uploaded",
+			zap.String("mentor_id", mentorID),
+			zap.Int("legacy_id", legacyID))
 	}
 
 	// 6. Trigger mentor created webhook (non-blocking)
-	trigger.CallAsync(s.config.EventTriggers.MentorCreatedTriggerURL, recordID, s.httpClient)
+	trigger.CallAsync(s.config.EventTriggers.MentorCreatedTriggerURL, mentorID, s.httpClient)
 
 	metrics.MentorRegistrations.WithLabelValues("success").Inc()
 
 	return &models.RegisterMentorResponse{
 		Success:  true,
 		Message:  "Registration successful. We'll review your application and contact you soon.",
-		MentorID: mentorID,
+		MentorID: legacyID, // Return legacy ID for backwards compatibility
 	}, nil
 }
 
 // uploadProfilePicture handles the image upload to Azure Storage
-func (s *RegistrationService) uploadProfilePicture(ctx context.Context, mentorID int, recordID string, picture *models.ProfilePictureData) error {
+func (s *RegistrationService) uploadProfilePicture(ctx context.Context, legacyID int, mentorID string, picture *models.ProfilePictureData) error {
 	// Validate file type
 	if err := s.azureClient.ValidateImageType(picture.ContentType); err != nil {
 		return err
@@ -140,8 +146,8 @@ func (s *RegistrationService) uploadProfilePicture(ctx context.Context, mentorID
 		return err
 	}
 
-	// Generate filename
-	fileName := s.azureClient.GenerateFileName(mentorID, picture.FileName)
+	// Generate filename using legacy ID for backwards compatibility
+	fileName := s.azureClient.GenerateFileName(legacyID, picture.FileName)
 
 	// Upload to Azure
 	imageURL, err := s.azureClient.UploadImage(ctx, picture.Image, fileName, picture.ContentType)
@@ -149,11 +155,11 @@ func (s *RegistrationService) uploadProfilePicture(ctx context.Context, mentorID
 		return fmt.Errorf("failed to upload image: %w", err)
 	}
 
-	// Update Airtable record with image URL
-	if err := s.mentorRepo.UpdateImage(ctx, recordID, imageURL); err != nil {
-		logger.Error("Failed to update image URL in Airtable",
+	// Update mentor record with image URL
+	if err := s.mentorRepo.UpdateImage(ctx, mentorID, imageURL); err != nil {
+		logger.Error("Failed to update image URL in database",
 			zap.Error(err),
-			zap.String("record_id", recordID))
+			zap.String("mentor_id", mentorID))
 		// Image is uploaded but not linked - admin can fix manually
 	}
 
