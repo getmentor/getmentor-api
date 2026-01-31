@@ -17,10 +17,11 @@ import (
 	"github.com/getmentor/getmentor-api/internal/cache"
 	"github.com/getmentor/getmentor-api/internal/handlers"
 	"github.com/getmentor/getmentor-api/internal/middleware"
+	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
 	"github.com/getmentor/getmentor-api/internal/services"
-	"github.com/getmentor/getmentor-api/pkg/airtable"
 	"github.com/getmentor/getmentor-api/pkg/azure"
+	"github.com/getmentor/getmentor-api/pkg/db"
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/jwt"
 	"github.com/getmentor/getmentor-api/pkg/logger"
@@ -149,14 +150,16 @@ func main() {
 	// Start infrastructure metrics collection
 	metrics.RecordInfrastructureMetrics()
 
-	// Initialize Airtable client
-	airtableClient, err := airtable.NewClient(
-		cfg.Airtable.APIKey,
-		cfg.Airtable.BaseID,
-		cfg.Airtable.WorkOffline,
-	)
+	// Initialize PostgreSQL connection pool
+	pool, err := db.NewPool(context.Background(), cfg.Database.URL)
 	if err != nil {
-		logger.Fatal("Failed to initialize Airtable client", zap.Error(err))
+		logger.Fatal("Failed to initialize database connection pool", zap.Error(err))
+	}
+	defer pool.Close()
+
+	// Run database migrations
+	if err := db.RunMigrations(cfg.Database.URL, "file://migrations"); err != nil {
+		logger.Fatal("Failed to run database migrations", zap.Error(err))
 	}
 
 	// Initialize Azure Storage client
@@ -172,9 +175,40 @@ func main() {
 		}
 	}
 
-	// Initialize caches
-	mentorCache := cache.NewMentorCache(airtableClient, cfg.Cache.MentorTTLSeconds)
-	tagsCache := cache.NewTagsCache(airtableClient)
+	// Initialize repositories (needed for cache fetchers)
+	// First create caches with dummy fetchers, then update with real fetchers
+	mentorCache := cache.NewMentorCache(
+		func(ctx context.Context) ([]*models.Mentor, error) {
+			// This fetcher will be replaced after repository is fully initialized
+			return []*models.Mentor{}, nil
+		},
+		func(ctx context.Context, slug string) (*models.Mentor, error) {
+			// This fetcher will be replaced after repository is fully initialized
+			return &models.Mentor{}, nil
+		},
+		cfg.Cache.MentorTTLSeconds,
+	)
+	tagsCache := cache.NewTagsCache(
+		func(ctx context.Context) (map[string]string, error) {
+			// This fetcher will be replaced after repository is fully initialized
+			return make(map[string]string), nil
+		},
+	)
+
+	// Initialize repositories with pool and caches
+	mentorRepo := repository.NewMentorRepository(pool, mentorCache, tagsCache)
+	clientRequestRepo := repository.NewClientRequestRepository(pool)
+
+	// Now update cache with actual fetcher functions from repository
+	mentorCache = cache.NewMentorCache(
+		mentorRepo.FetchAllMentorsFromDB,
+		mentorRepo.FetchSingleMentorFromDB,
+		cfg.Cache.MentorTTLSeconds,
+	)
+	tagsCache = cache.NewTagsCache(mentorRepo.FetchAllTagsFromDB)
+
+	// Re-initialize repository with updated caches
+	mentorRepo = repository.NewMentorRepository(pool, mentorCache, tagsCache)
 
 	// Initialize mentor cache synchronously before accepting requests
 	// This ensures the cache is populated before the container is marked as healthy
@@ -186,10 +220,6 @@ func main() {
 	if err := tagsCache.Initialize(); err != nil {
 		logger.Fatal("Failed to initialize tags cache", zap.Error(err))
 	}
-
-	// Initialize repositories
-	mentorRepo := repository.NewMentorRepository(airtableClient, mentorCache, tagsCache)
-	clientRequestRepo := repository.NewClientRequestRepository(airtableClient)
 
 	// Initialize HTTP client for external API calls
 	httpClient := httpclient.NewStandardClient()

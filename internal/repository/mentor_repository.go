@@ -272,8 +272,8 @@ func (r *MentorRepository) ClearLoginToken(ctx context.Context, mentorId string)
 	return err
 }
 
-// fetchAllMentorsFromDB retrieves all mentors from PostgreSQL for cache population
-func (r *MentorRepository) fetchAllMentorsFromDB(ctx context.Context) ([]*models.Mentor, error) {
+// FetchAllMentorsFromDB retrieves all mentors from PostgreSQL for cache population
+func (r *MentorRepository) FetchAllMentorsFromDB(ctx context.Context) ([]*models.Mentor, error) {
 	query := `
 		SELECT m.id, m.airtable_id, m.legacy_id, m.slug, m.name, m.job_title, m.workplace,
 			m.about, m.details, m.competencies, m.experience, m.price, m.status,
@@ -295,8 +295,8 @@ func (r *MentorRepository) fetchAllMentorsFromDB(ctx context.Context) ([]*models
 	return models.ScanMentors(rows)
 }
 
-// fetchSingleMentorFromDB retrieves a single mentor by slug from PostgreSQL
-func (r *MentorRepository) fetchSingleMentorFromDB(ctx context.Context, slug string) (*models.Mentor, error) {
+// FetchSingleMentorFromDB retrieves a single mentor by slug from PostgreSQL
+func (r *MentorRepository) FetchSingleMentorFromDB(ctx context.Context, slug string) (*models.Mentor, error) {
 	query := `
 		SELECT m.id, m.airtable_id, m.legacy_id, m.slug, m.name, m.job_title, m.workplace,
 			m.about, m.details, m.competencies, m.experience, m.price, m.status,
@@ -313,8 +313,8 @@ func (r *MentorRepository) fetchSingleMentorFromDB(ctx context.Context, slug str
 	return models.ScanMentor(row)
 }
 
-// fetchAllTagsFromDB retrieves all tags from PostgreSQL for cache population
-func (r *MentorRepository) fetchAllTagsFromDB(ctx context.Context) (map[string]string, error) {
+// FetchAllTagsFromDB retrieves all tags from PostgreSQL for cache population
+func (r *MentorRepository) FetchAllTagsFromDB(ctx context.Context) (map[string]string, error) {
 	query := `SELECT id, name FROM tags ORDER BY name`
 
 	rows, err := r.pool.Query(ctx, query)
