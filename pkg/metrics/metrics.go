@@ -17,9 +17,9 @@ var (
 	HTTPRequestTotal    *prometheus.CounterVec
 	ActiveRequests      *prometheus.GaugeVec
 
-	// Database Client Metrics (Airtable)
-	AirtableRequestDuration *prometheus.HistogramVec
-	AirtableRequestTotal    *prometheus.CounterVec
+	// Database Client Metrics (PostgreSQL)
+	DBRequestDuration *prometheus.HistogramVec
+	DBRequestTotal    *prometheus.CounterVec
 
 	// Cache Metrics
 	CacheHits   *prometheus.CounterVec
@@ -102,8 +102,8 @@ func Init(serviceName string) {
 		[]string{"http_request_method"},
 	)
 
-	// Database Client Metrics (Airtable)
-	AirtableRequestDuration = factory.NewHistogramVec(
+	// Database Client Metrics (PostgreSQL)
+	DBRequestDuration = factory.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "db_client_operation_duration_seconds",
 			Help:    "Database client operation duration in seconds",
@@ -112,7 +112,7 @@ func Init(serviceName string) {
 		[]string{"operation", "status"},
 	)
 
-	AirtableRequestTotal = factory.NewCounterVec(
+	DBRequestTotal = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "db_client_operation_total",
 			Help: "Total number of database client operations",
