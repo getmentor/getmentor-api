@@ -181,7 +181,7 @@ func (c *Client) GetMentorByID(ctx context.Context, id int) (*models.Mentor, err
 	}
 
 	for _, mentor := range mentors {
-		if mentor.ID == id {
+		if mentor.LegacyID == id {
 			return mentor, nil
 		}
 	}
@@ -214,7 +214,7 @@ func (c *Client) GetMentorByRecordID(ctx context.Context, recordID string) (*mod
 	}
 
 	for _, mentor := range mentors {
-		if mentor.AirtableID == recordID {
+		if mentor.AirtableID != nil && *mentor.AirtableID == recordID {
 			return mentor, nil
 		}
 	}
@@ -523,10 +523,11 @@ func (c *Client) fetchAllTags(ctx context.Context) (map[string]string, error) {
 
 // getTestMentors returns test data for offline mode
 func (c *Client) getTestMentors() []*models.Mentor {
+	airtableID := "rec123"
 	return []*models.Mentor{
 		{
-			ID:           1,
-			AirtableID:   "rec123",
+			LegacyID:     1,
+			AirtableID:   &airtableID,
 			Slug:         "test-mentor",
 			Name:         "Test Mentor",
 			Job:          "Senior Developer",
@@ -543,7 +544,6 @@ func (c *Client) getTestMentors() []*models.Mentor {
 			Sponsors:     "none",
 			CalendarType: "calendly",
 			IsNew:        false,
-			AuthToken:    "test-token",
 			CalendarURL:  "https://calendly.com/test",
 		},
 	}
@@ -563,7 +563,8 @@ func (c *Client) GetMentorByEmail(ctx context.Context, email string) (*models.Me
 		// Return test mentor with matching email and eligible status
 		testMentors := c.getTestMentors()
 		if len(testMentors) > 0 {
-			testMentors[0].AirtableID = "rec_test_mentor"
+			airtableID := "rec_test_mentor"
+			testMentors[0].AirtableID = &airtableID
 			testMentors[0].Status = "active"
 			return testMentors[0], nil
 		}

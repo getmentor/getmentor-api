@@ -57,7 +57,7 @@ func (r *MentorRepository) GetByID(ctx context.Context, id int, opts models.Filt
 	}
 
 	for _, mentor := range mentors {
-		if mentor.ID == id {
+		if mentor.LegacyID == id {
 			return mentor, nil
 		}
 	}
@@ -92,7 +92,7 @@ func (r *MentorRepository) GetByRecordID(ctx context.Context, recordID string, o
 	}
 
 	for _, mentor := range mentors {
-		if mentor.AirtableID == recordID {
+		if mentor.AirtableID != nil && *mentor.AirtableID == recordID {
 			return mentor, nil
 		}
 	}
@@ -164,7 +164,7 @@ func (r *MentorRepository) applySingleMentorFilters(mentor *models.Mentor, opts 
 		}
 
 		if !opts.ShowHidden {
-			m.AuthToken = ""
+			// AuthToken field removed - was deprecated
 			m.CalendarURL = ""
 		}
 
