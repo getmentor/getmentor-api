@@ -35,9 +35,10 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	URL      string
-	MaxConns int32
-	MinConns int32
+	URL         string
+	MaxConns    int32
+	MinConns    int32
+	WorkOffline bool
 }
 
 type AirtableConfig struct {
@@ -175,9 +176,10 @@ func Load() (*Config, error) {
 			AllowedOrigins: allowedOrigins,
 		},
 		Database: DatabaseConfig{
-			URL:      v.GetString("DATABASE_URL"),
-			MaxConns: 10,
-			MinConns: 2,
+			URL:         v.GetString("DATABASE_URL"),
+			MaxConns:    10,
+			MinConns:    2,
+			WorkOffline: v.GetBool("DB_WORK_OFFLINE"),
 		},
 		Airtable: AirtableConfig{
 			APIKey:      v.GetString("AIRTABLE_API_KEY"),
@@ -249,7 +251,7 @@ func Load() (*Config, error) {
 // Validate checks if required configuration values are set
 func (c *Config) Validate() error {
 	// Database configuration
-	if !c.Airtable.WorkOffline && c.Database.URL == "" {
+	if !c.Database.WorkOffline && c.Database.URL == "" {
 		return fmt.Errorf("DATABASE_URL is required when not in offline mode")
 	}
 

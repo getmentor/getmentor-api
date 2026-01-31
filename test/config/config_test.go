@@ -107,6 +107,9 @@ func TestConfig_Validate(t *testing.T) {
 				Airtable: config.AirtableConfig{
 					WorkOffline: true,
 				},
+				Database: config.DatabaseConfig{
+					WorkOffline: true,
+				},
 				Auth: config.AuthConfig{
 					InternalMentorsAPI: "test-token",
 					MCPAuthToken:       "test-mcp-token",
@@ -132,6 +135,10 @@ func TestConfig_Validate(t *testing.T) {
 					APIKey:      "test-key",
 					BaseID:      "test-base",
 				},
+				Database: config.DatabaseConfig{
+					WorkOffline: false,
+					URL:         "pg://database.db",
+				},
 				Auth: config.AuthConfig{
 					InternalMentorsAPI: "test-token",
 					MentorsAPIToken:    "public-token",
@@ -145,11 +152,10 @@ func TestConfig_Validate(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "missing airtable API key",
+			name: "missing database url",
 			cfg: &config.Config{
-				Airtable: config.AirtableConfig{
+				Database: config.DatabaseConfig{
 					WorkOffline: false,
-					BaseID:      "test-base",
 				},
 				Auth: config.AuthConfig{
 					InternalMentorsAPI: "test-token",
@@ -157,27 +163,15 @@ func TestConfig_Validate(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorMsg:    "AIRTABLE_API_KEY is required",
-		},
-		{
-			name: "missing airtable base ID",
-			cfg: &config.Config{
-				Airtable: config.AirtableConfig{
-					WorkOffline: false,
-					APIKey:      "test-key",
-				},
-				Auth: config.AuthConfig{
-					InternalMentorsAPI: "test-token",
-					MCPAuthToken:       "test-mcp-token",
-				},
-			},
-			expectError: true,
-			errorMsg:    "AIRTABLE_BASE_ID is required",
+			errorMsg:    "DATABASE_URL is required",
 		},
 		{
 			name: "missing internal API token",
 			cfg: &config.Config{
 				Airtable: config.AirtableConfig{
+					WorkOffline: true,
+				},
+				Database: config.DatabaseConfig{
 					WorkOffline: true,
 				},
 				Auth: config.AuthConfig{
@@ -191,6 +185,9 @@ func TestConfig_Validate(t *testing.T) {
 			name: "missing MCP auth token",
 			cfg: &config.Config{
 				Airtable: config.AirtableConfig{
+					WorkOffline: true,
+				},
+				Database: config.DatabaseConfig{
 					WorkOffline: true,
 				},
 				Auth: config.AuthConfig{
@@ -223,6 +220,7 @@ func TestLoad_WithDefaults(t *testing.T) {
 
 	// Set only required fields
 	os.Setenv("AIRTABLE_WORK_OFFLINE", "true")
+	os.Setenv("DB_WORK_OFFLINE", "true")
 	os.Setenv("INTERNAL_MENTORS_API", "test-token")
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN", "public-token")
 	os.Setenv("WEBHOOK_SECRET", "webhook-secret")
@@ -256,6 +254,8 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	os.Setenv("AIRTABLE_WORK_OFFLINE", "false")
 	os.Setenv("AIRTABLE_API_KEY", "test-key-123")
 	os.Setenv("AIRTABLE_BASE_ID", "test-base-456")
+	os.Setenv("DB_WORK_OFFLINE", "false")
+	os.Setenv("DATABASE_URL", "pg://test.db")
 	os.Setenv("INTERNAL_MENTORS_API", "internal-token-789")
 	os.Setenv("MCP_AUTH_TOKEN", "mcp-token-xyz")
 	os.Setenv("WEBHOOK_SECRET", "webhook-secret")
@@ -299,6 +299,7 @@ func TestLoad_ValidationFailure(t *testing.T) {
 	// Clean environment - missing required fields
 	os.Clearenv()
 	os.Setenv("AIRTABLE_WORK_OFFLINE", "false")
+	os.Setenv("DB_WORK_OFFLINE", "false")
 	// Missing AIRTABLE_API_KEY, AIRTABLE_BASE_ID, and INTERNAL_MENTORS_API
 
 	cfg, err := config.Load()

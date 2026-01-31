@@ -46,7 +46,7 @@ func TestContactHandler_ContactMentor_Success(t *testing.T) {
 		Experience:       "Middle",
 		Intro:            "I want to learn Go programming",
 		TelegramUsername: "testuser",
-		MentorAirtableID: "rec123abc",
+		MentorID:         "4821fee2-7601-41ad-8798-70d57f0b2acc",
 		RecaptchaToken:   "valid-recaptcha-token-12345",
 	}
 
@@ -117,33 +117,33 @@ func TestContactHandler_ContactMentor_MissingRequiredFields(t *testing.T) {
 		{
 			name: "missing_email",
 			requestBody: models.ContactMentorRequest{
-				Name:             "Test User",
-				Experience:       "Middle",
-				Intro:            "I want to learn",
-				MentorAirtableID: "rec123",
-				RecaptchaToken:   "token",
+				Name:           "Test User",
+				Experience:     "Middle",
+				Intro:          "I want to learn",
+				MentorID:       "4821fee2-7601-41ad-8798-70d57f0b2acc",
+				RecaptchaToken: "token",
 			},
 			expectError: "Email",
 		},
 		{
 			name: "missing_name",
 			requestBody: models.ContactMentorRequest{
-				Email:            "test@example.com",
-				Experience:       "Middle",
-				Intro:            "I want to learn",
-				MentorAirtableID: "rec123",
-				RecaptchaToken:   "token",
+				Email:          "test@example.com",
+				Experience:     "Middle",
+				Intro:          "I want to learn",
+				MentorID:       "4821fee2-7601-41ad-8798-70d57f0b2acc",
+				RecaptchaToken: "token",
 			},
 			expectError: "Name",
 		},
 		{
 			name: "missing_intro",
 			requestBody: models.ContactMentorRequest{
-				Email:            "test@example.com",
-				Name:             "Test User",
-				Experience:       "Middle",
-				MentorAirtableID: "rec123",
-				RecaptchaToken:   "token",
+				Email:          "test@example.com",
+				Name:           "Test User",
+				Experience:     "Middle",
+				MentorID:       "4821fee2-7601-41ad-8798-70d57f0b2acc",
+				RecaptchaToken: "token",
 			},
 			expectError: "Intro",
 		},
@@ -156,16 +156,16 @@ func TestContactHandler_ContactMentor_MissingRequiredFields(t *testing.T) {
 				Intro:          "I want to learn",
 				RecaptchaToken: "token",
 			},
-			expectError: "MentorAirtableID",
+			expectError: "MentorID",
 		},
 		{
 			name: "missing_recaptcha_token",
 			requestBody: models.ContactMentorRequest{
-				Email:            "test@example.com",
-				Name:             "Test User",
-				Experience:       "Middle",
-				Intro:            "I want to learn",
-				MentorAirtableID: "rec123",
+				Email:      "test@example.com",
+				Name:       "Test User",
+				Experience: "Middle",
+				Intro:      "I want to learn",
+				MentorID:   "4821fee2-7601-41ad-8798-70d57f0b2acc",
 			},
 			expectError: "RecaptchaToken",
 		},
@@ -212,12 +212,12 @@ func TestContactHandler_ContactMentor_InvalidEmail(t *testing.T) {
 	router.POST("/contact", handler.ContactMentor)
 
 	reqBody := models.ContactMentorRequest{
-		Email:            "not-an-email", // Invalid format
-		Name:             "Test User",
-		Experience:       "Middle",
-		Intro:            "I want to learn",
-		MentorAirtableID: "rec123",
-		RecaptchaToken:   "token123456789012345",
+		Email:          "not-an-email", // Invalid format
+		Name:           "Test User",
+		Experience:     "Middle",
+		Intro:          "I want to learn",
+		MentorID:       "4821fee2-7601-41ad-8798-70d57f0b2acc",
+		RecaptchaToken: "token123456789012345",
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -243,12 +243,12 @@ func TestContactHandler_ContactMentor_InvalidExperience(t *testing.T) {
 	router.POST("/contact", handler.ContactMentor)
 
 	reqBody := models.ContactMentorRequest{
-		Email:            "test@example.com",
-		Name:             "Test User",
-		Experience:       "invalid-level",
-		Intro:            "I want to learn",
-		MentorAirtableID: "rec123",
-		RecaptchaToken:   "token123456789012345",
+		Email:          "test@example.com",
+		Name:           "Test User",
+		Experience:     "invalid-level",
+		Intro:          "I want to learn",
+		MentorID:       "4821fee2-7601-41ad-8798-70d57f0b2acc",
+		RecaptchaToken: "token123456789012345",
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -275,12 +275,12 @@ func TestContactHandler_ContactMentor_TooLongFields(t *testing.T) {
 
 	// Name too long (> 100 chars)
 	reqBody := models.ContactMentorRequest{
-		Email:            "test@example.com",
-		Name:             strings.Repeat("A", 101), // 101 characters
-		Experience:       "Middle",
-		Intro:            "I want to learn",
-		MentorAirtableID: "rec123",
-		RecaptchaToken:   "token123456789012345",
+		Email:          "test@example.com",
+		Name:           strings.Repeat("A", 101), // 101 characters
+		Experience:     "Middle",
+		Intro:          "I want to learn",
+		MentorID:       "4821fee2-7601-41ad-8798-70d57f0b2acc",
+		RecaptchaToken: "token123456789012345",
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -302,12 +302,12 @@ func TestContactHandler_ContactMentor_TooShortIntro(t *testing.T) {
 	router.POST("/contact", handler.ContactMentor)
 
 	reqBody := models.ContactMentorRequest{
-		Email:            "test@example.com",
-		Name:             "Test User",
-		Experience:       "Middle",
-		Intro:            "Short", // Less than 10 characters
-		MentorAirtableID: "rec123",
-		RecaptchaToken:   "token123456789012345",
+		Email:          "test@example.com",
+		Name:           "Test User",
+		Experience:     "Middle",
+		Intro:          "Short", // Less than 10 characters
+		MentorID:       "4821fee2-7601-41ad-8798-70d57f0b2acc",
+		RecaptchaToken: "token123456789012345",
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -334,7 +334,7 @@ func TestContactHandler_ContactMentor_CaptchaFailed(t *testing.T) {
 		Experience:       "Middle",
 		Intro:            "I want to learn Go programming",
 		TelegramUsername: "testuser",
-		MentorAirtableID: "rec123abc",                            // Valid format (starts with 'rec')
+		MentorID:         "4821fee2-7601-41ad-8798-70d57f0b2acc",
 		RecaptchaToken:   "invalid-but-valid-length-token-12345", // Valid length (>= 20 chars)
 	}
 
@@ -378,7 +378,7 @@ func TestContactHandler_ContactMentor_ServiceError(t *testing.T) {
 		Experience:       "Middle",
 		Intro:            "I want to learn Go programming",
 		TelegramUsername: "testuser",
-		MentorAirtableID: "rec123",
+		MentorID:         "4821fee2-7601-41ad-8798-70d57f0b2acc",
 		RecaptchaToken:   "valid-token-12345678901234",
 	}
 
@@ -419,8 +419,8 @@ func TestContactHandler_ContactMentor_WithoutTelegram(t *testing.T) {
 		Experience: "Middle",
 		Intro:      "I want to learn Go programming",
 		// TelegramUsername omitted (required)
-		MentorAirtableID: "rec123",
-		RecaptchaToken:   "valid-token-12345678901234",
+		MentorID:       "4821fee2-7601-41ad-8798-70d57f0b2acc",
+		RecaptchaToken: "valid-token-12345678901234",
 	}
 
 	body, _ := json.Marshal(reqBody)
