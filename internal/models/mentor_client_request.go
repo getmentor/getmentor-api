@@ -1,8 +1,10 @@
 package models
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/mehanizm/airtable"
 )
 
@@ -116,6 +118,72 @@ func (g RequestGroup) GetStatuses() []RequestStatus {
 	}
 }
 
+// ScanClientRequest scans a single PostgreSQL row into a MentorClientRequest struct
+// Expected columns: id, mentor_id, email, name, telegram, description, level, status,
+// created_at, updated_at, status_changed_at, scheduled_at, decline_reason, decline_comment,
+// mentor_review (from LEFT JOIN reviews)
+func ScanClientRequest(row pgx.Row) (*MentorClientRequest, error) {
+	var r MentorClientRequest
+	var scheduledAt *time.Time
+	var review *string
+	var declineComment *string
+
+	err := row.Scan(
+		&r.ID,
+		&r.MentorID,
+		&r.Email,
+		&r.Name,
+		&r.Telegram,
+		&r.Details,
+		&r.Level,
+		&r.Status,
+		&r.CreatedAt,
+		&r.ModifiedAt,
+		&r.StatusChangedAt,
+		&scheduledAt,
+		&r.DeclineReason,
+		&declineComment,
+		&review, // from LEFT JOIN reviews
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set nullable fields
+	r.ScheduledAt = scheduledAt
+	r.DeclineComment = declineComment
+	r.Review = review
+
+	// Compute ReviewURL from constant base URL + request ID
+	// Format: https://getmentor.dev/review?id={requestId}
+	reviewURL := fmt.Sprintf("https://getmentor.dev/review?id=%s", r.ID)
+	r.ReviewURL = &reviewURL
+
+	return &r, nil
+}
+
+// ScanClientRequests scans multiple PostgreSQL rows into a slice of MentorClientRequest structs
+func ScanClientRequests(rows pgx.Rows) ([]*MentorClientRequest, error) {
+	defer rows.Close()
+
+	requests := []*MentorClientRequest{}
+	for rows.Next() {
+		request, err := ScanClientRequest(rows)
+		if err != nil {
+			return nil, err
+		}
+		requests = append(requests, request)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return requests, nil
+}
+
+// Deprecated: AirtableRecordToMentorClientRequest is deprecated and will be removed in Task 2.11
+// Use ScanClientRequest for PostgreSQL row scanning instead
 // AirtableRecordToMentorClientRequest converts an Airtable record to MentorClientRequest
 func AirtableRecordToMentorClientRequest(record *airtable.Record) *MentorClientRequest {
 	getString := func(field string) string {
