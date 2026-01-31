@@ -10,9 +10,20 @@ Migrate all four services (getmentor-api, getmentor-func, getmentor-bot, getment
 - **Migration tool**: `golang-migrate/migrate` with `file://` source
 - **Func/Bot DB access**: Direct PostgreSQL via `pg` npm package (not through Go API)
 - **Cutover**: Hard cutover (no dual-write period)
-- **IDs**: Keep `airtable_id` column for backwards compatibility during transition; primary keys become UUIDs
+- **IDs**: Keep `airtable_id` column (nullable) for backwards compatibility during transition; primary keys become UUIDs. All new code uses `mentorId`, `requestId` etc. (UUID). The old integer ID is referred to as `legacyId` where needed.
 - **Caching**: Keep existing in-memory cache layer in Go API but source data from PostgreSQL instead of Airtable API
 - **Webhook flow**: Airtable webhooks disappear. Go API becomes the source of truth and triggers Azure Functions directly via HTTP (existing trigger mechanism stays)
+- **Computed fields**: Several Airtable formula/lookup fields are computed at runtime instead of stored:
+  - `isNew` = `created_at > NOW() - INTERVAL '14 days'`
+  - `isVisible` = `status = 'active' AND telegram_chat_id IS NOT NULL`
+  - `pendingSessionsCount` = `COUNT(*) FROM client_requests WHERE mentor_id = $1 AND status = 'pending'` (computed in app or via SQL)
+  - `reviewFormUrl` = constant base URL + client request ID (computed in app)
+  - `createdDaysAgo` = `EXTRACT(EPOCH FROM now() - created_at) / 86400` (computed in SQL)
+  - `mentorName` = fetched via JOIN to `mentors` table
+- **Deprecated fields**: `auth_token` (replaced by `login_token` auth flow), `photo_url`/`image` (built on frontend from slug + CDN config), `comms_type` (removed)
+- **Infrastructure**: PostgreSQL runs as a managed service in production (out of scope for this plan). Docker Compose provides PG only for local development. Azure Functions and Telegram Bot connect via `DATABASE_URL` env var directly.
+- **Bot model adapter**: A PG row adapter implementing `MentorStorageRecord` interface is used in the bot to minimize constructor changes in `Mentor` and `MentorClientRequest` models.
+- **Reviews**: Stored in separate `reviews` table; fetched via JOINs when needed alongside client requests.
 
 ## Architecture Changes
 
@@ -32,7 +43,7 @@ Bot    -> pg      -> PostgreSQL
 
 ### What stays the same
 - Frontend (`getmentor.dev`) continues calling Go API via HTTP - no direct DB access
-- Frontend types (`MentorBase`, `MentorWithSecureFields`, etc.) remain unchanged
+- Frontend types (`MentorBase`, `MentorWithSecureFields`, etc.) remain structurally the same (field rename `airtableId` → `mentorId`)
 - All Go API HTTP endpoints and response formats remain unchanged
 - Cache layer remains (just sources from PG instead of Airtable)
 - Azure Function trigger mechanism (Go API calls func URLs) remains
@@ -47,7 +58,9 @@ Bot    -> pg      -> PostgreSQL
 - Airtable webhook handler (`POST /api/webhooks/airtable`) removed
 - Config: `AIRTABLE_*` env vars replaced by `DATABASE_URL`
 - Func/Bot: `airtable` npm package replaced by `pg`
-- `ContactMentorRequest.MentorAirtableID` field needs renaming/mapping
+- `ContactMentorRequest.MentorAirtableID` → `MentorID` (UUID)
+- `auth_token` field deprecated (login_token flow used instead)
+- `photo_url`/`image` fields not stored in DB (built from slug + CDN on frontend)
 
 ## Critical Files to Change
 
@@ -64,7 +77,7 @@ Bot    -> pg      -> PostgreSQL
 | `internal/models/mentor_client_request.go` | Remove `AirtableRecordToMentorClientRequest()`, add scan helpers |
 | `internal/models/contact.go` | Change `MentorAirtableID` to `MentorID` (UUID) |
 | `internal/models/webhook.go` | Remove `WebhookPayload` (Airtable webhooks gone) |
-| `internal/models/mentor_session.go` | Change `AirtableID string` to `MentorUUID string` |
+| `internal/models/mentor_session.go` | Change `AirtableID string` to `MentorID string` |
 | `internal/repository/mentor_repository.go` | Rewrite all methods to use SQL queries |
 | `internal/repository/client_request_repository.go` | Rewrite all methods to use SQL queries |
 | `internal/cache/mentor_cache.go` | Change data source from `airtable.Client` to repository/pool |
@@ -133,8 +146,8 @@ Bot    -> pg      -> PostgreSQL
 ### getmentor-infra (Infrastructure)
 | File | Change |
 |------|--------|
-| `docker-compose.yml` | Add PostgreSQL service |
-| `docker-compose.dev.yml` | Add PostgreSQL service for dev |
+| `docker-compose.yml` | Add `DATABASE_URL` env var to backend service (production PG is external managed service) |
+| `docker-compose.dev.yml` | Add PostgreSQL service for local development |
 | `.env.example` | Add `DATABASE_URL` |
 
 ---
@@ -143,17 +156,17 @@ Bot    -> pg      -> PostgreSQL
 
 ### Phase 0: Infrastructure
 
-#### Task 0.1: Add PostgreSQL to Docker Compose
+#### Task 0.1: Add PostgreSQL to Docker Compose (development only)
 **Repo**: `getmentor-infra`
-**Files**: `docker-compose.yml`, `docker-compose.dev.yml`, `.env.example`
+**Files**: `docker-compose.dev.yml`, `.env.example`
 **Details**:
-- Add a `postgres` service using `postgres:16-alpine` image
+- Add a `postgres` service using `postgres:16-alpine` image to `docker-compose.dev.yml` (dev only — production PG is a managed service, out of scope)
 - Mount a named volume `pgdata` for persistence
-- Expose port 5432 internally (not publicly)
-- Add `DATABASE_URL` to `.env.example`: `postgres://getmentor:password@postgres:5432/getmentor?sslmode=disable`
+- Expose port 5432 to host for local tools
+- Add `DATABASE_URL` to `.env.example`: `postgres://getmentor:password@localhost:5432/getmentor?sslmode=disable`
 - Add healthcheck: `pg_isready -U getmentor`
 - Make `backend` service depend on `postgres` with `condition: service_healthy`
-- In dev compose, optionally expose 5432 to host for local tools
+- Production `docker-compose.yml`: only add `DATABASE_URL` env var to backend service (connects to external managed PG)
 
 #### Task 0.2: Set up golang-migrate in Go API
 **Repo**: `getmentor-api`
@@ -199,13 +212,17 @@ Bot    -> pg      -> PostgreSQL
 - Remove `ToMentor()` method on `AirtableRecord`
 - Remove `AirtableRecordToMentor()` function
 - Change `Mentor` struct:
-    - Add `UUID string` field (for the PG UUID primary key)
-    - Keep `ID int` (maps to `legacy_id`)
-    - Keep `AirtableID string` temporarily (maps to `airtable_id` column for backwards compat)
+    - Rename/add `MentorID string` field (for the PG UUID primary key) — this is `mentorId` in API responses
+    - Keep `ID int` as `LegacyID int` (maps to `legacy_id`) — renamed to avoid confusion with UUID
+    - Keep `AirtableID string` temporarily (maps to `airtable_id` column, nullable)
+    - Remove `AuthToken` field (deprecated — login_token flow used instead)
+    - `IsNew` becomes computed: `created_at > NOW() - INTERVAL '14 days'` (set during scan, not stored)
+    - `IsVisible` becomes computed: `status = 'active' AND telegram_chat_id IS NOT NULL` (set during scan, not stored)
     - Keep all other fields the same
-- Add `ScanMentor(row pgx.Row) (*Mentor, error)` function that scans a PG row into a Mentor struct
+- Add `ScanMentor(row pgx.Row) (*Mentor, error)` function that scans a PG row into a Mentor struct, computing `IsNew` and `IsVisible`
 - Add `ScanMentors(rows pgx.Rows) ([]*Mentor, error)` function for bulk scanning
 - Keep `GetCalendarType()`, `GetMentorSponsor()`, `ToPublicResponse()`, `FilterOptions` unchanged
+- `ToPublicResponse()`: return `mentorId` (UUID) instead of `airtableId` in JSON
 - Write test: `test/internal/models/mentor_scan_test.go` - test `ScanMentor` with mock row (can use `pgx/pgxtest` or manual mock)
 
 #### Task 1.3: Update MentorClientRequest model for PostgreSQL
@@ -215,11 +232,14 @@ Bot    -> pg      -> PostgreSQL
 - Remove `import "github.com/mehanizm/airtable"`
 - Remove `AirtableRecordToMentorClientRequest()` function
 - Change `MentorClientRequest` struct:
-    - `ID` changes from `string` (Airtable rec ID) to `string` (UUID as string)
-    - `MentorID` changes from `string` (Airtable rec ID) to `string` (UUID as string)
-    - Add `MentorUUID string` if needed for joins
+    - `ID` changes from `string` (Airtable rec ID) to `string` (UUID) — this is `requestId`
+    - `MentorID` changes from `string` (Airtable rec ID) to `string` (UUID) — this is `mentorId`
+    - No separate `MentorID` field — `MentorID` IS the UUID
+    - `Review` field: populated via LEFT JOIN to `reviews` table (not stored on `client_requests`)
+    - `ReviewURL` field: computed in app from constant base URL + request ID (not stored)
 - Add `ScanClientRequest(row pgx.Row) (*MentorClientRequest, error)` function
 - Add `ScanClientRequests(rows pgx.Rows) ([]*MentorClientRequest, error)` function
+- Queries that need reviews should use: `SELECT cr.*, r.mentor_review FROM client_requests cr LEFT JOIN reviews r ON r.client_request_id = cr.id WHERE ...`
 - Keep all status types, `RequestStatus`, `DeclineReason`, transition logic unchanged
 - Write test: verify scan functions work correctly
 
@@ -229,7 +249,7 @@ Bot    -> pg      -> PostgreSQL
 **Details**:
 - `contact.go`: Change `MentorAirtableID string` to `MentorID string` (UUID). Update JSON tag from `mentorAirtableId` to `mentorId`. Update binding tag from `startswith=rec` to `uuid` (or just `required`).
 - `webhook.go`: Remove `WebhookPayload` struct (Airtable webhooks no longer needed). Keep `RevalidateNextJSRequest` and `RevalidateNextJSResponse` (ISR revalidation still needed).
-- `mentor_session.go`: Change `AirtableID string` to `MentorUUID string`. Update JSON tag. Update `MentorLoginData` similarly.
+- `mentor_session.go`: Change `AirtableID string` to `MentorID string`. Update JSON tag. Update `MentorLoginData` similarly.
 
 #### Task 1.5: Rewrite MentorRepository for PostgreSQL
 **Repo**: `getmentor-api`
@@ -242,7 +262,7 @@ Bot    -> pg      -> PostgreSQL
     - `GetAll()`: `SELECT id, airtable_id, legacy_id, slug, name, ... FROM mentors WHERE status = 'active' ORDER BY sort_order` (still uses cache, same pattern)
     - `GetByID()`: Stays as cache lookup (unchanged logic)
     - `GetBySlug()`: Stays as cache lookup (unchanged logic)
-    - `GetByRecordID()` -> rename to `GetByUUID()`: cache lookup by UUID
+    - `GetByRecordID()` -> rename to `GetByMentorId()`: cache lookup by UUID
     - `Update()`: `UPDATE mentors SET name=$1, job_title=$2, ... WHERE id=$3`
     - `UpdateImage()`: `UPDATE mentors SET ... WHERE id=$1` (no more Airtable attachment format)
     - `CreateMentor()`: `INSERT INTO mentors (...) VALUES (...) RETURNING id, legacy_id` - returns UUID and legacy_id
@@ -295,7 +315,7 @@ Bot    -> pg      -> PostgreSQL
 **Details**:
 - `SubmitContactForm()`: Change `MentorAirtableID` to `MentorID` (UUID)
 - `ClientRequest.MentorID` is now a UUID string instead of an Airtable record ID
-- `GetByRecordID()` call changes to `GetByUUID()` or equivalent
+- `GetByRecordID()` call changes to `GetByMentorId()` or equivalent
 - No other logic changes needed - the trigger mechanism stays the same
 - Write test: verify contact form submission still works with UUID-based mentor ID
 
@@ -314,29 +334,30 @@ Bot    -> pg      -> PostgreSQL
 **Files**: `internal/services/profile_service.go`
 **Details**:
 - `SaveProfile()`: Replace Airtable field name map with SQL update. `s.mentorRepo.Update()` takes UUID and a struct/map of updates.
-- `SaveProfileByAirtableID()` -> rename to `SaveProfileByUUID()` or merge with `SaveProfile()`
-- `UploadPictureByAirtableID()` -> rename to `UploadPictureByUUID()`
+- `SaveProfileByAirtableID()` -> rename to `SaveProfileByMentorId()` or merge with `SaveProfile()`
+- `UploadPictureByAirtableID()` -> rename to `UploadPictureByMentorId()`
 - Tag handling: `GetTagIDByName` returns UUID now instead of Airtable record ID. The `mentor_tags` join table uses UUIDs.
 - Update logic: instead of building `map[string]interface{}` with Airtable field names like `"JobTitle"`, use SQL column names like `job_title`
+- Remove any logic related to `authToken` (deprecated)
 - Write test
 
 #### Task 2.4: Update MentorAuthService for PostgreSQL
 **Repo**: `getmentor-api`
 **Files**: `internal/services/mentor_auth_service.go`
 **Details**:
-- `RequestLogin()`: `mentor.AirtableID` -> `mentor.UUID`
+- `RequestLogin()`: `mentor.AirtableID` -> `mentor.MentorID`
 - `SetLoginToken()`: uses UUID
 - `VerifyLogin()`: `GetByLoginToken()` returns mentor with UUID
 - `ClearLoginToken()`: uses UUID
-- JWT token generation: `GenerateToken(mentor.ID, mentor.UUID, ...)` instead of `(mentor.ID, mentor.AirtableID, ...)`
-- Session: `AirtableID` field -> `MentorUUID`
+- JWT token generation: `GenerateToken(mentor.LegacyID, mentor.MentorID, ...)` instead of `(mentor.ID, mentor.AirtableID, ...)`
+- Session: `AirtableID` field -> `MentorID`
 - Write test
 
 #### Task 2.5: Update MentorRequestsService for PostgreSQL
 **Repo**: `getmentor-api`
 **Files**: `internal/services/mentor_requests_service.go`
 **Details**:
-- `GetRequests()`: `mentorAirtableID` parameter -> `mentorUUID`
+- `GetRequests()`: `mentorAirtableID` parameter -> `mentorId`
 - `GetRequestByID()`: ownership check uses UUID
 - `UpdateStatus()`, `DeclineRequest()`: use UUID-based IDs
 - Trigger calls use UUID
@@ -359,19 +380,19 @@ Bot    -> pg      -> PostgreSQL
 **Repo**: `getmentor-api`
 **Files**: `internal/services/interfaces.go`
 **Details**:
-- `MentorServiceInterface`: `GetMentorByRecordID` -> `GetMentorByUUID`
-- `ProfileServiceInterface`: `SaveProfileByAirtableID` -> `SaveProfileByUUID`, `UploadPictureByAirtableID` -> `UploadPictureByUUID`
+- `MentorServiceInterface`: `GetMentorByRecordID` -> `GetMentorByMentorId`
+- `ProfileServiceInterface`: `SaveProfileByAirtableID` -> `SaveProfileByMentorId`, `UploadPictureByAirtableID` -> `UploadPictureByMentorId`
 - `WebhookServiceInterface`: remove or update
-- `MentorRequestsServiceInterface`: parameters change from `mentorAirtableID` to `mentorUUID`
+- `MentorRequestsServiceInterface`: parameters change from `mentorAirtableID` to `mentorId`
 - Update interface satisfaction checks at bottom of file
 
 #### Task 2.8: Update handlers for UUID-based IDs
 **Repo**: `getmentor-api`
 **Files**: `internal/handlers/mentor_profile_handler.go`, `internal/handlers/mentor_requests_handler.go`, `internal/middleware/mentor_session.go`
 **Details**:
-- `mentor_session.go`: `MentorSession.AirtableID` -> `MentorSession.MentorUUID`. Update session extraction from JWT claims.
-- `mentor_profile_handler.go`: Use `session.MentorUUID` instead of `session.AirtableID` for profile operations
-- `mentor_requests_handler.go`: Use `session.MentorUUID` for request filtering
+- `mentor_session.go`: `MentorSession.AirtableID` -> `MentorSession.MentorID`. Update session extraction from JWT claims.
+- `mentor_profile_handler.go`: Use `session.MentorID` instead of `session.AirtableID` for profile operations
+- `mentor_requests_handler.go`: Use `session.MentorID` for request filtering
 - Contact handler: parse `mentorId` (UUID) instead of `mentorAirtableId` from request body
 - Write test
 
@@ -449,7 +470,7 @@ Bot    -> pg      -> PostgreSQL
 - Replace `AirtableBase('Mentors').find(mentorId)` with PG query
 - Replace `AirtableBase('Mentors').update(mentor.id, {...})` with `UPDATE mentors SET ... WHERE id = $1`
 - Replace `findDuplicates()` Airtable query with `SELECT COUNT(*) FROM mentors WHERE email = $1 AND status IN ('active', 'inactive')`
-- The function still generates `tgSecret`, `authToken`, `alias`, `sortOrder` and writes them to DB
+- The function still generates `tgSecret`, `alias`, `sortOrder` and writes them to DB (`authToken` is deprecated)
 - Write test
 
 #### Task 3.4: Migrate remaining Azure Functions to PostgreSQL
@@ -466,30 +487,75 @@ Bot    -> pg      -> PostgreSQL
 
 #### Task 3.5: Update data models in getmentor-func
 **Repo**: `getmentor-func`
-**Files**: `lib/data/mentor.ts` (and related model files)
+**Files**: `lib/data/mentor.ts`
 **Details**:
+- This file contains four classes: `Mentor`, `Request`, `Review`, `Moderator` — all need updating
 - Update `Mentor` class constructor to accept a plain JS object (PG row) instead of an Airtable `Record`
-- Map PG column names (snake_case) to class properties
-- Update `Request` class similarly
+- Field mappings for `Mentor`: `record.get("Name")` → `row.name`, `record.get("JobTitle")` → `row.job_title`, `record.get("Calendly Url")` → `row.calendar_url`, `record.get("Telegram Chat Id")` → `row.telegram_chat_id`, `record.get("TgSecret")` → `row.tg_secret`, `record.get("Alias")` → `row.slug`, `record.get("Id")` → `row.legacy_id`, `record.get("Profile Url")` → computed from slug, `record.fields['Image_Attachment']` → removed (image built from slug on frontend)
+- `record.get("Pending Sessions Count")` → computed via SQL: `SELECT COUNT(*) FROM client_requests WHERE mentor_id = $1 AND status = 'pending'`
+- `record.get("MentorLoginToken")` → `row.login_token`
+- Update `Request` class: `record.get("Mentor")[0]` (array of linked IDs) → `row.mentor_id` (single UUID), `record.get("Created Days Ago")` → computed from `row.created_at`, `record.get("Mentor Name")` → fetched via JOIN
+- Update `Review` class: `record.get("RequestRecordId")` → `row.client_request_id`, `record.get("Mentor Id")` → `row.mentor_id` (via JOIN)
+- Update `Moderator` class: straightforward field rename
+- Update `MentorStorageRecord` interface: replace `get(fieldName)` pattern with plain object access, or remove if no longer needed
 - Update Telegram notification messages that reference `mentor.id` (now UUID instead of Airtable record ID)
 - Write test
 
 ### Phase 4: Telegram Bot (getmentor-bot)
 
-#### Task 4.1: Create PostgresStorage implementation
+#### Task 4.1: Create PG row adapter and PostgresStorage implementation
 **Repo**: `getmentor-bot`
-**Files**: `package.json`, `lib/storage/postgres/PostgresStorage.ts` (new), `lib/storage/airtable/AirtableBase.ts` (delete)
+**Files**: `package.json`, `lib/storage/postgres/PostgresStorage.ts` (new), `lib/storage/postgres/PgRowAdapter.ts` (new), `lib/storage/airtable/AirtableBase.ts` (delete)
 **Details**:
 - `npm install pg @types/pg`
 - `npm uninstall airtable`
+- Create `lib/storage/postgres/PgRowAdapter.ts` implementing `MentorStorageRecord` interface:
+  ```typescript
+  // Wraps a PG row object to implement the MentorStorageRecord interface
+  // so Mentor/MentorClientRequest constructors don't need to change
+  class PgRowAdapter implements MentorStorageRecord {
+    id: string;
+    fields: any;
+    constructor(row: any) {
+      this.id = row.id;
+      this.fields = row;
+    }
+    get(fieldName: string): any {
+      // Maps Airtable field names to PG column names
+      const mapping = {
+        'Name': 'name', 'Email': 'email', 'JobTitle': 'job_title',
+        'Workplace': 'workplace', 'Details': 'details', 'Profile Url': 'profile_url',
+        'Alias': 'slug', 'Id': 'legacy_id', 'TgSecret': 'tg_secret', 'Profile Url': '_profile_url', // computed
+
+        'Telegram': 'telegram', 'Telegram Chat Id': 'telegram_chat_id',
+        'Price': 'price', 'Status': 'status', 'Tags Links': 'tag_ids',
+        'Tags': 'tags', 'Image': null, // deprecated
+        'Experience': 'experience', 'Calendly Url': 'calendar_url',
+        'AuthToken': null, // deprecated
+        'Description': 'description', 'Level': 'level',
+        'Review': 'review', 'Review2': 'review2', 'ReviewFormUrl': 'review_form_url',
+        'Created Time': 'created_at', 'Last Modified Time': 'updated_at',
+        'Scheduled At': 'scheduled_at', 'Last Status Change': 'status_changed_at',
+        'Mentor': 'mentor_id', // returns string directly, not array
+        // ... other field mappings
+      };
+      if (fieldName === 'Profile Url') return `https://getmentor.dev/mentor/${this.fields.slug}`;
+      const pgCol = mapping[fieldName] || fieldName;
+      return this.fields[pgCol];
+    }
+  }
+  ```
+  - Note: `Mentor` field returns `row.mentor_id` (single UUID string), while Airtable returned `[recordId]` (array). The `MentorClientRequest` constructor does `record.get("Mentor")[0]` — the adapter should return the UUID directly, and the constructor needs a small fix: `this.mentorId = Array.isArray(val) ? val[0] : val`
 - Create `lib/storage/postgres/PostgresStorage.ts` implementing `MentorStorage` interface:
-    - `getMentorByTelegramId(chatId)`: `SELECT * FROM mentors WHERE telegram_chat_id = $1`
-    - `getMentorBySecretCode(code)`: `SELECT * FROM mentors WHERE tg_secret = $1`
+    - `getMentorByTelegramId(chatId)`: `SELECT m.*, array_agg(t.name) as tags FROM mentors m LEFT JOIN mentor_tags mt ON mt.mentor_id = m.id LEFT JOIN tags t ON t.id = mt.tag_id WHERE m.telegram_chat_id = $1 GROUP BY m.id`
+    - `getMentorBySecretCode(code)`: same JOIN pattern with `WHERE m.tg_secret = $1`
+    - Note: `profile_url` is not stored — compute as `https://getmentor.dev/mentor/${row.slug}` in the adapter or query
     - `setMentorStatus(mentor, newStatus)`: `UPDATE mentors SET status = $1 WHERE id = $2`
-    - `getMentorActiveRequests(mentor)`: `SELECT * FROM client_requests WHERE mentor_id = $1 AND status NOT IN ('done', 'declined', 'unavailable') ORDER BY created_at ASC`
-    - `getMentorArchivedRequests(mentor)`: `SELECT * FROM client_requests WHERE mentor_id = $1 AND status NOT IN ('pending', 'working', 'contacted') ORDER BY updated_at DESC`
+    - `getMentorActiveRequests(mentor)`: `SELECT cr.*, r.mentor_review as review FROM client_requests cr LEFT JOIN reviews r ON r.client_request_id = cr.id WHERE cr.mentor_id = $1 AND cr.status NOT IN ('done', 'declined', 'unavailable') ORDER BY cr.created_at ASC`
+    - `getMentorArchivedRequests(mentor)`: same pattern with `NOT IN ('pending', 'working', 'contacted') ORDER BY cr.updated_at DESC`
     - `setMentorTelegramChatId(mentorId, chatId)`: `UPDATE mentors SET telegram_chat_id = $1 WHERE id = $2`
     - `setRequestStatus(request, newStatus)`: `UPDATE client_requests SET status = $1, status_changed_at = NOW() WHERE id = $2`
+    - All query results wrapped with `PgRowAdapter` before passing to model constructors
 - Keep same NodeCache caching layer for bot (optional - can simplify since PG is fast)
 - Write test
 
@@ -497,9 +563,13 @@ Bot    -> pg      -> PostgreSQL
 **Repo**: `getmentor-bot`
 **Files**: `getmentor-bot/index.ts`, `lib/models/Mentor.ts`, `lib/models/MentorClientRequest.ts`
 **Details**:
-- Update `index.ts`: instantiate `PostgresStorage` instead of `AirtableBase`
-- Update `Mentor` model: constructor accepts PG row (snake_case fields) instead of Airtable record
-- Update `MentorClientRequest` model: same change
+- Update `index.ts`: instantiate `PostgresStorage` instead of `AirtableBase`, passing `DATABASE_URL`
+- `Mentor` model: constructor stays using `MentorStorageRecord` interface (works via `PgRowAdapter`)
+  - Minor fix: handle `Image` field returning `null` (deprecated, no longer stored)
+  - Minor fix: `AuthToken` returns `null` (deprecated)
+- `MentorClientRequest` model: constructor stays using `MentorStorageRecord` interface
+  - Fix: `this.mentorId = record.get("Mentor")` — handle both array (Airtable) and string (PG adapter) formats: `const val = record.get("Mentor"); this.mentorId = Array.isArray(val) ? val[0] : val;`
+  - `review_url`: computed from constant base URL + request ID instead of stored field
 - Update `local.settings.json` template: add `DATABASE_URL`, remove `AIRTABLE_*`
 - Write test
 
@@ -510,10 +580,10 @@ Bot    -> pg      -> PostgreSQL
 **Files**: `src/types/mentor.ts`, `src/types/mentor-requests.ts`, `src/lib/go-api-client.ts`
 **Details**:
 - In `MentorBase` interface: rename `airtableId: string` to `mentorId: string`
-- In `MentorWithSecureFields`: same rename
+- In `MentorWithSecureFields`: same rename; remove `authToken` field (deprecated)
 - In `go-api-client.ts`: rename `getOneMentorByRecordId()` to `getOneMentorById()`. The API path changes from `?rec=` to `?mentorId=`.
-- In `MentorClientRequest` type (if it has airtable references): rename to use `mentorId`
-- In `MentorSession` type: `airtable_id` -> `mentorId`
+- In `MentorClientRequest` type: `mentorId` already correct (no change needed)
+- In `MentorSession` type (`src/types/mentor-requests.ts:128`): rename `airtable_id: string` to `mentorId: string`
 - Search all `.ts`/`.tsx` files for `airtableId` and replace with `mentorId`
 - Search for `mentorAirtableId` and replace with `mentorId`
 - Update all test mocks that use `rec*` IDs to use UUID format
@@ -596,7 +666,8 @@ Bot    -> pg      -> PostgreSQL
 ## Risks & Mitigations
 
 1. **Data loss during cutover**: Mitigate by running data migration script right before cutover, verifying row counts match Airtable.
-2. **ID format change breaks external integrations**: Keep `airtable_id` column populated. Any external system referencing `rec*` IDs can still look up via that column.
+2. **ID format change breaks external integrations**: Keep `airtable_id` column populated (nullable). Any external system referencing `rec*` IDs can still look up via that column. New records created post-migration will have `airtable_id = NULL`.
 3. **Connection pool exhaustion**: PG pool configured with `MaxConns=10`, which is shared between cache refresh and request handling. Monitor `db_client_operation_*` metrics. Increase if needed.
-4. **Azure Functions cold start + PG connection**: PG connections from Azure Functions may be slow on cold start. Use connection pooling or PgBouncer if needed.
+4. **Azure Functions cold start + PG connection**: PG connections from Azure Functions may be slow on cold start. Use connection pooling or PgBouncer if needed. Azure Functions connect to managed PG directly via `DATABASE_URL`.
 5. **Frontend `airtableId` -> `mentorId` rename**: Requires coordinated deploy of Go API + frontend. Deploy both services simultaneously. Consider a brief maintenance window.
+6. **Coordinated deploy across 4 services**: All services must switch at the same time. Plan a maintenance window. Deploy order: PG schema + data migration → Go API → Azure Functions → Telegram Bot → Frontend.
