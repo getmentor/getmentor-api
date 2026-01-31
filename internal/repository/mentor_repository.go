@@ -295,6 +295,50 @@ func (r *MentorRepository) fetchAllMentorsFromDB(ctx context.Context) ([]*models
 	return models.ScanMentors(rows)
 }
 
+// fetchSingleMentorFromDB retrieves a single mentor by slug from PostgreSQL
+func (r *MentorRepository) fetchSingleMentorFromDB(ctx context.Context, slug string) (*models.Mentor, error) {
+	query := `
+		SELECT m.id, m.airtable_id, m.legacy_id, m.slug, m.name, m.job_title, m.workplace,
+			m.about, m.details, m.competencies, m.experience, m.price, m.status,
+			COALESCE(array_to_string(array_agg(t.name), ','), '') as tags,
+			m.telegram_chat_id, m.calendar_url, m.sort_order, m.created_at
+		FROM mentors m
+		LEFT JOIN mentor_tags mt ON mt.mentor_id = m.id
+		LEFT JOIN tags t ON t.id = mt.tag_id
+		WHERE m.slug = $1
+		GROUP BY m.id
+	`
+
+	row := r.pool.QueryRow(ctx, query, slug)
+	return models.ScanMentor(row)
+}
+
+// fetchAllTagsFromDB retrieves all tags from PostgreSQL for cache population
+func (r *MentorRepository) fetchAllTagsFromDB(ctx context.Context) (map[string]string, error) {
+	query := `SELECT id, name FROM tags ORDER BY name`
+
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch tags: %w", err)
+	}
+	defer rows.Close()
+
+	tags := make(map[string]string)
+	for rows.Next() {
+		var id, name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, fmt.Errorf("failed to scan tag: %w", err)
+		}
+		tags[name] = id
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating tags: %w", err)
+	}
+
+	return tags, nil
+}
+
 // applyFilters applies filtering options to a mentor list
 func (r *MentorRepository) applyFilters(mentors []*models.Mentor, opts models.FilterOptions) []*models.Mentor {
 	result := make([]*models.Mentor, 0, len(mentors))

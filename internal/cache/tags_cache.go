@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/getmentor/getmentor-api/pkg/airtable"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	gocache "github.com/patrickmn/go-cache"
 	"go.uber.org/zap"
@@ -17,22 +16,25 @@ const (
 	tagsCacheTTL = 24 * time.Hour
 )
 
+// TagsFetcher is a function that fetches all tags from the data source
+type TagsFetcher func(ctx context.Context) (map[string]string, error)
+
 // TagsCache manages the in-memory cache for tags
 type TagsCache struct {
-	cache          *gocache.Cache
-	airtableClient *airtable.Client
-	mu             sync.RWMutex
-	ready          bool
+	cache   *gocache.Cache
+	fetcher TagsFetcher
+	mu      sync.RWMutex
+	ready   bool
 }
 
 // NewTagsCache creates a new tags cache
-func NewTagsCache(airtableClient *airtable.Client) *TagsCache {
+func NewTagsCache(fetcher TagsFetcher) *TagsCache {
 	cache := gocache.New(tagsCacheTTL, time.Hour)
 
 	return &TagsCache{
-		cache:          cache,
-		airtableClient: airtableClient,
-		ready:          false,
+		cache:   cache,
+		fetcher: fetcher,
+		ready:   false,
 	}
 }
 
@@ -85,9 +87,9 @@ func (tc *TagsCache) Get() (map[string]string, error) {
 	return tc.refresh()
 }
 
-// refresh fetches tags from Airtable and updates the cache
+// refresh fetches tags from the data source and updates the cache
 func (tc *TagsCache) refresh() (map[string]string, error) {
-	tags, err := tc.airtableClient.GetAllTags(context.Background())
+	tags, err := tc.fetcher(context.Background())
 	if err != nil {
 		logger.Error("Failed to refresh tags cache", zap.Error(err))
 		return nil, err
