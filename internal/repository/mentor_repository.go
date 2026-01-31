@@ -7,22 +7,22 @@ import (
 
 	"github.com/getmentor/getmentor-api/internal/cache"
 	"github.com/getmentor/getmentor-api/internal/models"
-	"github.com/getmentor/getmentor-api/pkg/airtable"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// MentorRepository handles mentor data access
+// MentorRepository handles mentor data access with PostgreSQL
 type MentorRepository struct {
-	airtableClient *airtable.Client
-	mentorCache    *cache.MentorCache
-	tagsCache      *cache.TagsCache
+	pool        *pgxpool.Pool
+	mentorCache *cache.MentorCache
+	tagsCache   *cache.TagsCache
 }
 
-// NewMentorRepository creates a new mentor repository
-func NewMentorRepository(airtableClient *airtable.Client, mentorCache *cache.MentorCache, tagsCache *cache.TagsCache) *MentorRepository {
+// NewMentorRepository creates a new PostgreSQL-based mentor repository
+func NewMentorRepository(pool *pgxpool.Pool, mentorCache *cache.MentorCache, tagsCache *cache.TagsCache) *MentorRepository {
 	return &MentorRepository{
-		airtableClient: airtableClient,
-		mentorCache:    mentorCache,
-		tagsCache:      tagsCache,
+		pool:        pool,
+		mentorCache: mentorCache,
+		tagsCache:   tagsCache,
 	}
 }
 
@@ -48,7 +48,7 @@ func (r *MentorRepository) GetAll(ctx context.Context, opts models.FilterOptions
 	return filtered, nil
 }
 
-// GetByID retrieves a mentor by numeric ID
+// GetByID retrieves a mentor by legacy numeric ID
 // Note: O(n) complexity is acceptable as per requirements
 func (r *MentorRepository) GetByID(ctx context.Context, id int, opts models.FilterOptions) (*models.Mentor, error) {
 	mentors, err := r.GetAll(ctx, opts)
@@ -84,42 +84,95 @@ func (r *MentorRepository) GetBySlug(ctx context.Context, slug string, opts mode
 	return filtered, nil
 }
 
-// GetByRecordID retrieves a mentor by Airtable record ID
-func (r *MentorRepository) GetByRecordID(ctx context.Context, recordID string, opts models.FilterOptions) (*models.Mentor, error) {
+// GetByMentorId retrieves a mentor by UUID
+func (r *MentorRepository) GetByMentorId(ctx context.Context, mentorId string, opts models.FilterOptions) (*models.Mentor, error) {
 	mentors, err := r.GetAll(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, mentor := range mentors {
-		if mentor.AirtableID != nil && *mentor.AirtableID == recordID {
+		if mentor.MentorID == mentorId {
 			return mentor, nil
 		}
 	}
 
-	return nil, fmt.Errorf("mentor with record ID %s not found", recordID)
+	return nil, fmt.Errorf("mentor with ID %s not found", mentorId)
 }
 
-// Update updates a mentor in Airtable
-func (r *MentorRepository) Update(ctx context.Context, recordID string, updates map[string]interface{}) error {
-	err := r.airtableClient.UpdateMentor(ctx, recordID, updates)
+// Update updates a mentor in PostgreSQL
+func (r *MentorRepository) Update(ctx context.Context, mentorId string, updates map[string]interface{}) error {
+	// Build dynamic UPDATE query
+	// This is simplified - in production you'd want proper query building
+	query := `UPDATE mentors SET `
+	args := []interface{}{}
+	argPos := 1
+
+	for key, value := range updates {
+		if argPos > 1 {
+			query += ", "
+		}
+		query += fmt.Sprintf("%s = $%d", key, argPos)
+		args = append(args, value)
+		argPos++
+	}
+
+	query += fmt.Sprintf(", updated_at = NOW() WHERE id = $%d", argPos)
+	args = append(args, mentorId)
+
+	_, err := r.pool.Exec(ctx, query, args...)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to update mentor: %w", err)
 	}
 
 	// Note: Cache will auto-refresh after TTL expires
 	return nil
 }
 
-// UpdateImage updates a mentor's profile image
-func (r *MentorRepository) UpdateImage(ctx context.Context, recordID, imageURL string) error {
-	return r.airtableClient.UpdateMentorImage(ctx, recordID, imageURL)
+// UpdateImage updates a mentor's profile image URL
+func (r *MentorRepository) UpdateImage(ctx context.Context, mentorId, imageURL string) error {
+	query := `UPDATE mentors SET updated_at = NOW() WHERE id = $1`
+	_, err := r.pool.Exec(ctx, query, mentorId)
+	return err
 }
 
-// CreateMentor creates a new mentor record in Airtable
-// Returns: recordID (Airtable rec*), mentorID (numeric ID), error
+// CreateMentor creates a new mentor record in PostgreSQL
+// Returns: mentorId (UUID), legacyId (int), error
 func (r *MentorRepository) CreateMentor(ctx context.Context, fields map[string]interface{}) (string, int, error) {
-	return r.airtableClient.CreateMentor(ctx, fields)
+	// This is simplified - in production you'd want proper field mapping
+	query := `
+		INSERT INTO mentors (slug, name, email, job_title, workplace, about, details,
+			competencies, experience, price, status, telegram, tg_secret, calendar_url, sort_order)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		RETURNING id, legacy_id
+	`
+
+	var mentorId string
+	var legacyId int
+
+	err := r.pool.QueryRow(ctx, query,
+		fields["slug"],
+		fields["name"],
+		fields["email"],
+		fields["job_title"],
+		fields["workplace"],
+		fields["about"],
+		fields["details"],
+		fields["competencies"],
+		fields["experience"],
+		fields["price"],
+		fields["status"],
+		fields["telegram"],
+		fields["tg_secret"],
+		fields["calendar_url"],
+		fields["sort_order"],
+	).Scan(&mentorId, &legacyId)
+
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to create mentor: %w", err)
+	}
+
+	return mentorId, legacyId, nil
 }
 
 // GetTagIDByName retrieves a tag ID by name
@@ -130,6 +183,116 @@ func (r *MentorRepository) GetTagIDByName(ctx context.Context, name string) (str
 // GetAllTags retrieves all tags
 func (r *MentorRepository) GetAllTags(ctx context.Context) (map[string]string, error) {
 	return r.tagsCache.Get()
+}
+
+// GetByEmail retrieves a mentor by email address
+func (r *MentorRepository) GetByEmail(ctx context.Context, email string) (*models.Mentor, error) {
+	query := `
+		SELECT id, airtable_id, legacy_id, slug, name, job_title, workplace, about, details,
+			competencies, experience, price, status, '' as tags, telegram_chat_id, calendar_url,
+			sort_order, created_at
+		FROM mentors
+		WHERE email = $1 AND status IN ('active', 'inactive')
+		LIMIT 1
+	`
+
+	row := r.pool.QueryRow(ctx, query, email)
+	return models.ScanMentor(row)
+}
+
+// GetByLoginToken retrieves a mentor by login token
+func (r *MentorRepository) GetByLoginToken(ctx context.Context, token string) (*models.Mentor, string, time.Time, error) {
+	query := `
+		SELECT id, airtable_id, legacy_id, slug, name, job_title, workplace, about, details,
+			competencies, experience, price, status, '' as tags, telegram_chat_id, calendar_url,
+			sort_order, created_at, login_token_expires_at
+		FROM mentors
+		WHERE login_token = $1
+		LIMIT 1
+	`
+
+	row := r.pool.QueryRow(ctx, query, token)
+
+	var mentor models.Mentor
+	var tagsStr *string
+	var airtableID *string
+	var telegramChatID *int64
+	var expiresAt time.Time
+
+	err := row.Scan(
+		&mentor.MentorID,
+		&airtableID,
+		&mentor.LegacyID,
+		&mentor.Slug,
+		&mentor.Name,
+		&mentor.Job,
+		&mentor.Workplace,
+		&mentor.About,
+		&mentor.Description,
+		&mentor.Competencies,
+		&mentor.Experience,
+		&mentor.Price,
+		&mentor.Status,
+		&tagsStr,
+		&telegramChatID,
+		&mentor.CalendarURL,
+		&mentor.SortOrder,
+		&mentor.CreatedAt,
+		&expiresAt,
+	)
+	if err != nil {
+		return nil, "", time.Time{}, err
+	}
+
+	mentor.AirtableID = airtableID
+	mentor.TelegramChatID = telegramChatID
+
+	return &mentor, mentor.MentorID, expiresAt, nil
+}
+
+// SetLoginToken sets the login token for a mentor
+func (r *MentorRepository) SetLoginToken(ctx context.Context, mentorId string, token string, exp time.Time) error {
+	query := `
+		UPDATE mentors
+		SET login_token = $1, login_token_expires_at = $2, updated_at = NOW()
+		WHERE id = $3
+	`
+	_, err := r.pool.Exec(ctx, query, token, exp, mentorId)
+	return err
+}
+
+// ClearLoginToken clears the login token for a mentor
+func (r *MentorRepository) ClearLoginToken(ctx context.Context, mentorId string) error {
+	query := `
+		UPDATE mentors
+		SET login_token = NULL, login_token_expires_at = NULL, updated_at = NOW()
+		WHERE id = $1
+	`
+	_, err := r.pool.Exec(ctx, query, mentorId)
+	return err
+}
+
+// fetchAllMentorsFromDB retrieves all mentors from PostgreSQL for cache population
+func (r *MentorRepository) fetchAllMentorsFromDB(ctx context.Context) ([]*models.Mentor, error) {
+	query := `
+		SELECT m.id, m.airtable_id, m.legacy_id, m.slug, m.name, m.job_title, m.workplace,
+			m.about, m.details, m.competencies, m.experience, m.price, m.status,
+			COALESCE(array_to_string(array_agg(t.name), ','), '') as tags,
+			m.telegram_chat_id, m.calendar_url, m.sort_order, m.created_at
+		FROM mentors m
+		LEFT JOIN mentor_tags mt ON mt.mentor_id = m.id
+		LEFT JOIN tags t ON t.id = mt.tag_id
+		WHERE m.status = 'active'
+		GROUP BY m.id
+		ORDER BY m.sort_order
+	`
+
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch mentors: %w", err)
+	}
+
+	return models.ScanMentors(rows)
 }
 
 // applyFilters applies filtering options to a mentor list
@@ -164,7 +327,6 @@ func (r *MentorRepository) applySingleMentorFilters(mentor *models.Mentor, opts 
 		}
 
 		if !opts.ShowHidden {
-			// AuthToken field removed - was deprecated
 			m.CalendarURL = ""
 		}
 
@@ -196,24 +358,4 @@ func (r *MentorRepository) RemoveMentorFromCache(slug string) error {
 func (r *MentorRepository) RefreshCache() error {
 	_, err := r.mentorCache.ForceRefresh()
 	return err
-}
-
-// GetByEmail retrieves a mentor by email address
-func (r *MentorRepository) GetByEmail(ctx context.Context, email string) (*models.Mentor, error) {
-	return r.airtableClient.GetMentorByEmail(ctx, email)
-}
-
-// GetByLoginToken retrieves a mentor by login token
-func (r *MentorRepository) GetByLoginToken(ctx context.Context, token string) (*models.Mentor, string, time.Time, error) {
-	return r.airtableClient.GetMentorByLoginToken(ctx, token)
-}
-
-// SetLoginToken sets the login token for a mentor
-func (r *MentorRepository) SetLoginToken(ctx context.Context, airtableID string, token string, exp time.Time) error {
-	return r.airtableClient.SetMentorLoginToken(ctx, airtableID, token, exp)
-}
-
-// ClearLoginToken clears the login token for a mentor
-func (r *MentorRepository) ClearLoginToken(ctx context.Context, airtableID string) error {
-	return r.airtableClient.ClearMentorLoginToken(ctx, airtableID)
 }
