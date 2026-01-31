@@ -5,7 +5,7 @@ type ContactMentorRequest struct {
 	Name             string `json:"name" binding:"required,min=2,max=100"`
 	Email            string `json:"email" binding:"required,email,max=255"`
 	Experience       string `json:"experience" binding:"omitempty,oneof=Junior Middle Senior Менеджер 'Менеджер менеджеров' C-level"`
-	MentorAirtableID string `json:"mentorAirtableId" binding:"required,startswith=rec"`
+	MentorID         string `json:"mentorId" binding:"required,uuid"`
 	Intro            string `json:"intro" binding:"required,min=10,max=4000"`
 	TelegramUsername string `json:"telegramUsername" binding:"required,max=50"`
 	RecaptchaToken   string `json:"recaptchaToken" binding:"required,min=20"`
@@ -18,12 +18,12 @@ type ContactMentorResponse struct {
 	Error       string `json:"error,omitempty"`
 }
 
-// ClientRequest represents a client request record in Airtable
+// ClientRequest represents a client request record
 type ClientRequest struct {
 	Email       string
 	Name        string
 	Level       string
-	MentorID    string // Airtable record ID
+	MentorID    string // Mentor UUID
 	Description string
 	Telegram    string
 }
