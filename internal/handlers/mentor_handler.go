@@ -106,7 +106,7 @@ func (h *MentorHandler) GetInternalMentors(c *gin.Context) {
 	}
 
 	if rec != "" {
-		mentor, err := h.service.GetMentorByRecordID(c.Request.Context(), rec, opts)
+		mentor, err := h.service.GetMentorByMentorId(c.Request.Context(), rec, opts)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Mentor not found"})
 			return

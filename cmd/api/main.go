@@ -34,12 +34,11 @@ import (
 func registerAPIRoutes(
 	group *gin.RouterGroup,
 	cfg *config.Config,
-	generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter, registrationRateLimiter *middleware.RateLimiter,
+	generalRateLimiter, contactRateLimiter, profileRateLimiter, registrationRateLimiter *middleware.RateLimiter,
 	mentorHandler *handlers.MentorHandler,
 	contactHandler *handlers.ContactHandler,
 	profileHandler *handlers.ProfileHandler,
 	logsHandler *handlers.LogsHandler,
-	webhookHandler *handlers.WebhookHandler,
 	registrationHandler *handlers.RegistrationHandler,
 ) {
 
@@ -56,7 +55,6 @@ func registerAPIRoutes(
 	group.POST("/upload-profile-picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), profileHandler.UploadProfilePicture)
 	group.POST("/register-mentor", registrationRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), registrationHandler.RegisterMentor)
 	group.POST("/logs", generalRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(1*1024*1024), logsHandler.ReceiveFrontendLogs)
-	group.POST("/webhooks/airtable", webhookRateLimiter.Middleware(), middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
 }
 
 // registerMentorAdminRoutes registers mentor admin routes for authentication, request management, and profile
@@ -201,7 +199,6 @@ func main() {
 	contactService := services.NewContactService(clientRequestRepo, mentorRepo, cfg, httpClient)
 	profileService := services.NewProfileService(mentorRepo, azureClient, cfg, httpClient)
 	registrationService := services.NewRegistrationService(mentorRepo, azureClient, cfg, httpClient)
-	webhookService := services.NewWebhookService(mentorRepo, cfg)
 	mcpService := services.NewMCPService(mentorRepo, cfg.Server.BaseURL)
 	mentorAuthService := services.NewMentorAuthService(mentorRepo, cfg, httpClient)
 	mentorRequestsService := services.NewMentorRequestsService(clientRequestRepo, cfg, httpClient)
@@ -211,7 +208,6 @@ func main() {
 	contactHandler := handlers.NewContactHandler(contactService)
 	profileHandler := handlers.NewProfileHandler(profileService)
 	registrationHandler := handlers.NewRegistrationHandler(registrationService)
-	webhookHandler := handlers.NewWebhookHandler(webhookService)
 	mcpHandler := handlers.NewMCPHandler(mcpService)
 	healthHandler := handlers.NewHealthHandler(mentorCache.IsReady)
 	logsHandler := handlers.NewLogsHandler(cfg.Logging.Dir)
@@ -250,7 +246,6 @@ func main() {
 	generalRateLimiter := middleware.NewRateLimiter(100, 200)        // 100 req/sec, burst of 200
 	contactRateLimiter := middleware.NewRateLimiter(5, 10)           // 5 req/sec, burst of 10 (prevent spam)
 	profileRateLimiter := middleware.NewRateLimiter(10, 20)          // 10 req/sec, burst of 20
-	webhookRateLimiter := middleware.NewRateLimiter(10, 20)          // 10 req/sec, burst of 20
 	registrationRateLimiter := middleware.NewRateLimiter(0.00667, 3) // 2 req/5min (0.00667 req/sec), burst of 3
 	mcpRateLimiter := middleware.NewRateLimiter(20, 40)              // 20 req/sec, burst of 40 (for AI tool usage)
 	mentorAuthRateLimiter := middleware.NewRateLimiter(0.00667, 2)   // 2 req/5min (0.00667 req/sec), burst of 2 (login abuse prevention)
@@ -266,8 +261,8 @@ func main() {
 	// API v1 routes
 	// SECURITY: Apply body size limits to prevent DoS attacks
 	v1 := router.Group("/api/v1")
-	registerAPIRoutes(v1, cfg, generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter, registrationRateLimiter,
-		mentorHandler, contactHandler, profileHandler, logsHandler, webhookHandler, registrationHandler)
+	registerAPIRoutes(v1, cfg, generalRateLimiter, contactRateLimiter, profileRateLimiter, registrationRateLimiter,
+		mentorHandler, contactHandler, profileHandler, logsHandler, registrationHandler)
 
 	// Mentor admin routes (authentication, request management, and profile)
 	registerMentorAdminRoutes(router, cfg, mentorAuthRateLimiter, profileRateLimiter, mentorAuthHandler, mentorRequestsHandler, mentorProfileHandler, mentorAuthService.GetTokenManager())

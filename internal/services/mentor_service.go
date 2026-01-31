@@ -32,6 +32,6 @@ func (s *MentorService) GetMentorBySlug(ctx context.Context, slug string, opts m
 	return s.repo.GetBySlug(ctx, slug, opts)
 }
 
-func (s *MentorService) GetMentorByRecordID(ctx context.Context, recordID string, opts models.FilterOptions) (*models.Mentor, error) {
-	return s.repo.GetByRecordID(ctx, recordID, opts)
+func (s *MentorService) GetMentorByMentorId(ctx context.Context, mentorId string, opts models.FilterOptions) (*models.Mentor, error) {
+	return s.repo.GetByMentorId(ctx, mentorId, opts)
 }

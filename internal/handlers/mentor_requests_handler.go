@@ -47,7 +47,7 @@ func (h *MentorRequestsHandler) GetRequests(c *gin.Context) {
 		return
 	}
 
-	response, err := h.service.GetRequests(c.Request.Context(), session.AirtableID, group)
+	response, err := h.service.GetRequests(c.Request.Context(), session.MentorID, group)
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidRequestGroup) {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -81,7 +81,7 @@ func (h *MentorRequestsHandler) GetRequestByID(c *gin.Context) {
 		return
 	}
 
-	request, err := h.service.GetRequestByID(c.Request.Context(), session.AirtableID, requestID)
+	request, err := h.service.GetRequestByID(c.Request.Context(), session.MentorID, requestID)
 	if err != nil {
 		if errors.Is(err, services.ErrRequestNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -132,7 +132,7 @@ func (h *MentorRequestsHandler) UpdateStatus(c *gin.Context) {
 		return
 	}
 
-	request, err := h.service.UpdateStatus(c.Request.Context(), session.AirtableID, requestID, req.Status)
+	request, err := h.service.UpdateStatus(c.Request.Context(), session.MentorID, requestID, req.Status)
 	if err != nil {
 		h.handleRequestError(c, err, "Failed to update status")
 		return
@@ -169,7 +169,7 @@ func (h *MentorRequestsHandler) DeclineRequest(c *gin.Context) {
 		return
 	}
 
-	request, err := h.service.DeclineRequest(c.Request.Context(), session.AirtableID, requestID, &payload)
+	request, err := h.service.DeclineRequest(c.Request.Context(), session.MentorID, requestID, &payload)
 	if err != nil {
 		h.handleRequestError(c, err, "Failed to decline request")
 		return

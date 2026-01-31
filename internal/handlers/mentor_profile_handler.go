@@ -39,10 +39,10 @@ func (h *MentorProfileHandler) GetProfile(c *gin.Context) {
 	}
 
 	// Fetch mentor with secure fields (showHidden: true)
-	mentor, err := h.mentorService.GetMentorByRecordID(c.Request.Context(), session.AirtableID, models.FilterOptions{ShowHidden: true})
+	mentor, err := h.mentorService.GetMentorByMentorId(c.Request.Context(), session.MentorID, models.FilterOptions{ShowHidden: true})
 	if err != nil {
 		logger.Warn("Failed to fetch mentor profile",
-			zap.String("airtable_id", session.AirtableID),
+			zap.String("mentor_id", session.MentorID),
 			zap.Error(err))
 		c.JSON(http.StatusNotFound, gin.H{"error": "Profile not found"})
 		return
@@ -63,7 +63,7 @@ func (h *MentorProfileHandler) UpdateProfile(c *gin.Context) {
 	var req models.SaveProfileRequest
 	if bindErr := c.ShouldBindJSON(&req); bindErr != nil {
 		logger.Warn("Invalid profile update request",
-			zap.String("airtable_id", session.AirtableID),
+			zap.String("mentor_id", session.MentorID),
 			zap.Error(bindErr))
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request body",
@@ -72,17 +72,17 @@ func (h *MentorProfileHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	err = h.profileService.SaveProfileByAirtableID(c.Request.Context(), session.AirtableID, &req)
+	err = h.profileService.SaveProfileByMentorId(c.Request.Context(), session.MentorID, &req)
 	if err != nil {
 		logger.Error("Failed to update profile",
-			zap.String("airtable_id", session.AirtableID),
+			zap.String("mentor_id", session.MentorID),
 			zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
 		return
 	}
 
 	logger.Info("Profile updated via session",
-		zap.String("airtable_id", session.AirtableID),
+		zap.String("mentor_id", session.MentorID),
 		zap.String("mentor_name", session.Name))
 
 	c.JSON(http.StatusOK, models.SaveProfileResponse{Success: true})
@@ -100,7 +100,7 @@ func (h *MentorProfileHandler) UploadPicture(c *gin.Context) {
 	var req models.UploadProfilePictureRequest
 	if bindErr := c.ShouldBindJSON(&req); bindErr != nil {
 		logger.Warn("Invalid picture upload request",
-			zap.String("airtable_id", session.AirtableID),
+			zap.String("mentor_id", session.MentorID),
 			zap.Error(bindErr))
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request body",
@@ -110,31 +110,31 @@ func (h *MentorProfileHandler) UploadPicture(c *gin.Context) {
 	}
 
 	// Get mentor to fetch slug for storage path
-	mentor, err := h.mentorService.GetMentorByRecordID(c.Request.Context(), session.AirtableID, models.FilterOptions{ShowHidden: true})
+	mentor, err := h.mentorService.GetMentorByMentorId(c.Request.Context(), session.MentorID, models.FilterOptions{ShowHidden: true})
 	if err != nil {
 		logger.Error("Failed to fetch mentor for picture upload",
-			zap.String("airtable_id", session.AirtableID),
+			zap.String("mentor_id", session.MentorID),
 			zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch mentor"})
 		return
 	}
 
-	imageURL, err := h.profileService.UploadPictureByAirtableID(
+	imageURL, err := h.profileService.UploadPictureByMentorId(
 		c.Request.Context(),
-		session.AirtableID,
+		session.MentorID,
 		mentor.Slug,
 		&req,
 	)
 	if err != nil {
 		logger.Error("Failed to upload profile picture",
-			zap.String("airtable_id", session.AirtableID),
+			zap.String("mentor_id", session.MentorID),
 			zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload picture"})
 		return
 	}
 
 	logger.Info("Profile picture uploaded via session",
-		zap.String("airtable_id", session.AirtableID),
+		zap.String("mentor_id", session.MentorID),
 		zap.String("mentor_name", session.Name),
 		zap.String("image_url", imageURL))
 
