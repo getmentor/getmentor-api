@@ -12,7 +12,8 @@ import (
 //nolint:govet // Field alignment optimization would reduce readability
 type Config struct {
 	Server        ServerConfig
-	Airtable      AirtableConfig
+	Database      DatabaseConfig
+	Airtable      AirtableConfig // Deprecated: will be removed after migration
 	Azure         AzureConfig
 	Auth          AuthConfig
 	ReCAPTCHA     ReCAPTCHAConfig
@@ -31,6 +32,12 @@ type ServerConfig struct {
 	AppEnv         string
 	BaseURL        string
 	AllowedOrigins []string
+}
+
+type DatabaseConfig struct {
+	URL      string
+	MaxConns int32
+	MinConns int32
 }
 
 type AirtableConfig struct {
@@ -167,6 +174,11 @@ func Load() (*Config, error) {
 			BaseURL:        v.GetString("BASE_URL"),
 			AllowedOrigins: allowedOrigins,
 		},
+		Database: DatabaseConfig{
+			URL:      v.GetString("DATABASE_URL"),
+			MaxConns: 10,
+			MinConns: 2,
+		},
 		Airtable: AirtableConfig{
 			APIKey:      v.GetString("AIRTABLE_API_KEY"),
 			BaseID:      v.GetString("AIRTABLE_BASE_ID"),
@@ -236,7 +248,12 @@ func Load() (*Config, error) {
 
 // Validate checks if required configuration values are set
 func (c *Config) Validate() error {
-	// Airtable configuration
+	// Database configuration
+	if !c.Airtable.WorkOffline && c.Database.URL == "" {
+		return fmt.Errorf("DATABASE_URL is required when not in offline mode")
+	}
+
+	// Airtable configuration (deprecated, kept for backwards compatibility during migration)
 	if !c.Airtable.WorkOffline {
 		if c.Airtable.APIKey == "" {
 			return fmt.Errorf("AIRTABLE_API_KEY is required")
