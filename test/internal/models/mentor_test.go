@@ -108,10 +108,8 @@ func TestGetMentorSponsor(t *testing.T) {
 // See mentor_scan_test.go for PostgreSQL row scanning tests
 
 func TestMentorToPublicResponse(t *testing.T) {
-	airtableID := "rec123"
 	mentor := &models.Mentor{
 		LegacyID:     1,
-		AirtableID:   &airtableID,
 		Slug:         "john-doe",
 		Name:         "John Doe",
 		Job:          "Senior Engineer",

@@ -67,7 +67,7 @@ func (m *mockRow) Scan(dest ...interface{}) error {
 func TestScanMentor(t *testing.T) {
 	// Prepare test data
 	mentorID := "550e8400-e29b-41d4-a716-446655440000"
-	airtableID := "rec123456"
+	airtableID := "rec123456" // Still in database schema, scanned but not stored in model
 	legacyID := 42
 	slug := "ivan-ivanov"
 	name := "Иван Иванов"
@@ -89,7 +89,7 @@ func TestScanMentor(t *testing.T) {
 	row := &mockRow{
 		values: []interface{}{
 			mentorID,
-			airtableID,       // Will be scanned as *string
+			airtableID, // Still in database schema, scanned but not stored in model
 			legacyID,
 			slug,
 			name,
@@ -118,10 +118,6 @@ func TestScanMentor(t *testing.T) {
 	// Verify fields
 	if mentor.MentorID != mentorID {
 		t.Errorf("expected MentorID %s, got %s", mentorID, mentor.MentorID)
-	}
-
-	if mentor.AirtableID == nil || *mentor.AirtableID != airtableID {
-		t.Errorf("expected AirtableID %s, got %v", airtableID, mentor.AirtableID)
 	}
 
 	if mentor.LegacyID != legacyID {
@@ -204,11 +200,6 @@ func TestScanMentor_InactiveMentor(t *testing.T) {
 	// IsNew should be false (created 20 days ago)
 	if mentor.IsNew {
 		t.Errorf("expected IsNew to be false for mentor created 20 days ago")
-	}
-
-	// AirtableID should be nil
-	if mentor.AirtableID != nil {
-		t.Errorf("expected AirtableID to be nil, got %v", *mentor.AirtableID)
 	}
 }
 
