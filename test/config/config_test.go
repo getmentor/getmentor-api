@@ -104,9 +104,6 @@ func TestConfig_Validate(t *testing.T) {
 					BaseURL:        "https://example.com",
 					AllowedOrigins: []string{"https://example.com"},
 				},
-				Airtable: config.AirtableConfig{
-					WorkOffline: true,
-				},
 				Database: config.DatabaseConfig{
 					WorkOffline: true,
 				},
@@ -129,11 +126,6 @@ func TestConfig_Validate(t *testing.T) {
 					Port:           "8081",
 					BaseURL:        "https://example.com",
 					AllowedOrigins: []string{"https://example.com"},
-				},
-				Airtable: config.AirtableConfig{
-					WorkOffline: false,
-					APIKey:      "test-key",
-					BaseID:      "test-base",
 				},
 				Database: config.DatabaseConfig{
 					WorkOffline: false,
@@ -168,9 +160,6 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "missing internal API token",
 			cfg: &config.Config{
-				Airtable: config.AirtableConfig{
-					WorkOffline: true,
-				},
 				Database: config.DatabaseConfig{
 					WorkOffline: true,
 				},
@@ -184,9 +173,6 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "missing MCP auth token",
 			cfg: &config.Config{
-				Airtable: config.AirtableConfig{
-					WorkOffline: true,
-				},
 				Database: config.DatabaseConfig{
 					WorkOffline: true,
 				},
@@ -219,7 +205,6 @@ func TestLoad_WithDefaults(t *testing.T) {
 	os.Clearenv()
 
 	// Set only required fields
-	os.Setenv("AIRTABLE_WORK_OFFLINE", "true")
 	os.Setenv("DB_WORK_OFFLINE", "true")
 	os.Setenv("INTERNAL_MENTORS_API", "test-token")
 	os.Setenv("MENTORS_API_LIST_AUTH_TOKEN", "public-token")
@@ -251,9 +236,6 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	os.Setenv("GIN_MODE", "debug")
 	os.Setenv("APP_ENV", "development")
 	os.Setenv("LOG_LEVEL", "debug")
-	os.Setenv("AIRTABLE_WORK_OFFLINE", "false")
-	os.Setenv("AIRTABLE_API_KEY", "test-key-123")
-	os.Setenv("AIRTABLE_BASE_ID", "test-base-456")
 	os.Setenv("DB_WORK_OFFLINE", "false")
 	os.Setenv("DATABASE_URL", "pg://test.db")
 	os.Setenv("INTERNAL_MENTORS_API", "internal-token-789")
@@ -276,9 +258,6 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	assert.Equal(t, "debug", cfg.Server.GinMode)
 	assert.Equal(t, "development", cfg.Server.AppEnv)
 	assert.Equal(t, "debug", cfg.Logging.Level)
-	assert.Equal(t, "test-key-123", cfg.Airtable.APIKey)
-	assert.Equal(t, "test-base-456", cfg.Airtable.BaseID)
-	assert.False(t, cfg.Airtable.WorkOffline)
 	assert.Equal(t, "internal-token-789", cfg.Auth.InternalMentorsAPI)
 	assert.Equal(t, "mcp-token-xyz", cfg.Auth.MCPAuthToken)
 	assert.Equal(t, "token1", cfg.Auth.MentorsAPIToken)
@@ -298,9 +277,7 @@ func TestLoad_ValidationFailure(t *testing.T) {
 
 	// Clean environment - missing required fields
 	os.Clearenv()
-	os.Setenv("AIRTABLE_WORK_OFFLINE", "false")
 	os.Setenv("DB_WORK_OFFLINE", "false")
-	// Missing AIRTABLE_API_KEY, AIRTABLE_BASE_ID, and INTERNAL_MENTORS_API
 
 	cfg, err := config.Load()
 
