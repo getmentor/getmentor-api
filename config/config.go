@@ -13,7 +13,6 @@ import (
 type Config struct {
 	Server        ServerConfig
 	Database      DatabaseConfig
-	Airtable      AirtableConfig // Deprecated: will be removed after migration
 	Azure         AzureConfig
 	Auth          AuthConfig
 	ReCAPTCHA     ReCAPTCHAConfig
@@ -38,12 +37,6 @@ type DatabaseConfig struct {
 	URL         string
 	MaxConns    int32
 	MinConns    int32
-	WorkOffline bool
-}
-
-type AirtableConfig struct {
-	APIKey      string
-	BaseID      string
 	WorkOffline bool
 }
 
@@ -128,7 +121,6 @@ func Load() (*Config, error) {
 	v.SetDefault("ALLOWED_CORS_ORIGINS", "https://getmentor.dev,https://www.getmentor.dev")
 	v.SetDefault("LOG_LEVEL", "info")
 	v.SetDefault("LOG_DIR", "/app/logs")
-	v.SetDefault("AIRTABLE_WORK_OFFLINE", false)
 	v.SetDefault("NEXTJS_BASE_URL", "http://localhost:3000")
 	v.SetDefault("O11Y_EXPORTER_ENDPOINT", "alloy:4318") // OTLP over HTTP
 	v.SetDefault("O11Y_BE_SERVICE_NAME", "getmentor-api")
@@ -180,11 +172,6 @@ func Load() (*Config, error) {
 			MaxConns:    10,
 			MinConns:    2,
 			WorkOffline: v.GetBool("DB_WORK_OFFLINE"),
-		},
-		Airtable: AirtableConfig{
-			APIKey:      v.GetString("AIRTABLE_API_KEY"),
-			BaseID:      v.GetString("AIRTABLE_BASE_ID"),
-			WorkOffline: v.GetBool("AIRTABLE_WORK_OFFLINE"),
 		},
 		Azure: AzureConfig{
 			ConnectionString: v.GetString("AZURE_STORAGE_CONNECTION_STRING"),
@@ -253,16 +240,6 @@ func (c *Config) Validate() error {
 	// Database configuration
 	if !c.Database.WorkOffline && c.Database.URL == "" {
 		return fmt.Errorf("DATABASE_URL is required when not in offline mode")
-	}
-
-	// Airtable configuration (deprecated, kept for backwards compatibility during migration)
-	if !c.Airtable.WorkOffline {
-		if c.Airtable.APIKey == "" {
-			return fmt.Errorf("AIRTABLE_API_KEY is required")
-		}
-		if c.Airtable.BaseID == "" {
-			return fmt.Errorf("AIRTABLE_BASE_ID is required")
-		}
 	}
 
 	// Authentication tokens
