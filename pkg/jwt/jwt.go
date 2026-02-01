@@ -17,10 +17,9 @@ var (
 
 // MentorClaims represents the JWT claims for a mentor session
 type MentorClaims struct {
-	MentorID   int    `json:"mentor_id"`
-	AirtableID string `json:"airtable_id"`
-	Email      string `json:"email"`
-	Name       string `json:"name"`
+	MentorID int    `json:"mentor_id"`
+	Email    string `json:"email"`
+	Name     string `json:"name"`
 	jwt.RegisteredClaims
 }
 
@@ -41,21 +40,20 @@ func NewTokenManager(secret string, issuer string, ttlHours int) *TokenManager {
 }
 
 // GenerateToken creates a new JWT token for a mentor
-func (tm *TokenManager) GenerateToken(mentorID int, airtableID, email, name string) (string, error) {
+func (tm *TokenManager) GenerateToken(mentorID int, mentorUUID, email, name string) (string, error) {
 	now := time.Now()
 	expiresAt := now.Add(tm.ttl)
 
 	claims := MentorClaims{
-		MentorID:   mentorID,
-		AirtableID: airtableID,
-		Email:      email,
-		Name:       name,
+		MentorID: mentorID,
+		Email:    email,
+		Name:     name,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
 			Issuer:    tm.issuer,
-			Subject:   airtableID,
+			Subject:   mentorUUID,
 		},
 	}
 

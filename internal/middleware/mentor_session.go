@@ -59,12 +59,11 @@ func MentorSessionMiddleware(tokenManager *jwt.TokenManager, cookieDomain string
 		}
 
 		// Create session from claims
-		// Note: JWT claims use old field names for backwards compatibility
 		// claims.MentorID (int) = legacy ID
-		// claims.AirtableID (string) = mentor UUID
+		// claims.Subject (string) = mentor UUID
 		session := &models.MentorSession{
 			LegacyID:  claims.MentorID,
-			MentorID:  claims.AirtableID,
+			MentorID:  claims.Subject,
 			Email:     claims.Email,
 			Name:      claims.Name,
 			ExpiresAt: claims.ExpiresAt.Unix(),
