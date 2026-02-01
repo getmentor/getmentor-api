@@ -22,8 +22,6 @@ type MentorServiceInterface interface {
 
 // ProfileServiceInterface defines the interface for profile service operations
 type ProfileServiceInterface interface {
-	SaveProfile(ctx context.Context, id int, token string, req *models.SaveProfileRequest) error
-	UploadProfilePicture(ctx context.Context, id int, token string, req *models.UploadProfilePictureRequest) (string, error)
 	SaveProfileByMentorId(ctx context.Context, mentorId string, req *models.SaveProfileRequest) error
 	UploadPictureByMentorId(ctx context.Context, mentorId string, mentorSlug string, req *models.UploadProfilePictureRequest) (string, error)
 }

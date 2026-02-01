@@ -52,8 +52,6 @@ func registerAPIRoutes(
 	group.GET("/mentor/:id", generalRateLimiter.Middleware(), middleware.TokenAuthMiddleware(cfg.Auth.MentorsAPIToken, cfg.Auth.MentorsAPITokenInno), mentorHandler.GetPublicMentorByID)
 	group.POST("/internal/mentors", generalRateLimiter.Middleware(), middleware.InternalAPIAuthMiddleware(cfg.Auth.InternalMentorsAPI), mentorHandler.GetInternalMentors)
 	group.POST("/contact-mentor", contactRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(100*1024), contactHandler.ContactMentor)
-	group.POST("/save-profile", profileRateLimiter.Middleware(), profileHandler.SaveProfile)
-	group.POST("/upload-profile-picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), profileHandler.UploadProfilePicture)
 	group.POST("/register-mentor", registrationRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), registrationHandler.RegisterMentor)
 	group.POST("/logs", generalRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(1*1024*1024), logsHandler.ReceiveFrontendLogs)
 }
