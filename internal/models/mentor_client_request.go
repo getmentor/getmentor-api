@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/mehanizm/airtable"
 )
 
 // RequestStatus represents the status of a client request
@@ -180,85 +179,4 @@ func ScanClientRequests(rows pgx.Rows) ([]*MentorClientRequest, error) {
 	}
 
 	return requests, nil
-}
-
-// Deprecated: AirtableRecordToMentorClientRequest is deprecated and will be removed in Task 2.11
-// Use ScanClientRequest for PostgreSQL row scanning instead
-// AirtableRecordToMentorClientRequest converts an Airtable record to MentorClientRequest
-func AirtableRecordToMentorClientRequest(record *airtable.Record) *MentorClientRequest {
-	getString := func(field string) string {
-		if v, ok := record.Fields[field].(string); ok {
-			return v
-		}
-		return ""
-	}
-
-	getStringPtr := func(field string) *string {
-		if v, ok := record.Fields[field].(string); ok && v != "" {
-			return &v
-		}
-		return nil
-	}
-
-	getLookupStringPtr := func(field string) *string {
-		if arr, ok := record.Fields[field].([]interface{}); ok && len(arr) > 0 {
-			if v, ok := arr[0].(string); ok && v != "" {
-				return &v
-			}
-		}
-		return nil
-	}
-
-	getTime := func(field string) time.Time {
-		if v, ok := record.Fields[field].(string); ok && v != "" {
-			t, err := time.Parse(time.RFC3339, v)
-			if err == nil {
-				return t
-			}
-		}
-		return time.Time{}
-	}
-
-	getTimePtr := func(field string) *time.Time {
-		if v, ok := record.Fields[field].(string); ok && v != "" {
-			t, err := time.Parse(time.RFC3339, v)
-			if err == nil {
-				return &t
-			}
-		}
-		return nil
-	}
-
-	getMentorID := func() string {
-		if mentors, ok := record.Fields["Mentor"].([]interface{}); ok && len(mentors) > 0 {
-			if mentorID, ok := mentors[0].(string); ok {
-				return mentorID
-			}
-		}
-		return ""
-	}
-
-	review := getStringPtr("Review")
-	if review == nil {
-		review = getLookupStringPtr("Review2")
-	}
-
-	return &MentorClientRequest{
-		ID:              record.ID,
-		Email:           getString("Email"),
-		Name:            getString("Name"),
-		Telegram:        getString("Telegram"),
-		Details:         getString("Description"),
-		Level:           getString("Level"),
-		CreatedAt:       getTime("Created Time"),
-		ModifiedAt:      getTime("Last Modified Time"),
-		StatusChangedAt: getTime("Last Status Change"),
-		ScheduledAt:     getTimePtr("Scheduled At"),
-		Review:          review,
-		ReviewURL:       getStringPtr("ReviewFormUrl"),
-		Status:          RequestStatus(getString("Status")),
-		MentorID:        getMentorID(),
-		DeclineReason:   getString("DeclineReason"),
-		DeclineComment:  getStringPtr("DeclineComment"),
-	}
 }

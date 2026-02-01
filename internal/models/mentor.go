@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/mehanizm/airtable"
 )
 
 // Mentor represents a mentor in the system
@@ -209,80 +208,4 @@ func GetMentorSponsor(tags []string) string {
 	return strings.Join(sponsors, "|")
 }
 
-// Deprecated: AirtableRecordToMentor is deprecated and will be removed in Task 2.11
-// Use ScanMentor for PostgreSQL row scanning instead
-func AirtableRecordToMentor(record *airtable.Record) *Mentor {
-	// Helper function to safely get field values
-	getString := func(field string) string {
-		if v, ok := record.Fields[field].(string); ok {
-			return v
-		}
-		return ""
-	}
-
-	getInt := func(field string) int {
-		// Airtable may return numbers as float64
-		if v, ok := record.Fields[field].(float64); ok {
-			return int(v)
-		}
-		if v, ok := record.Fields[field].(int); ok {
-			return v
-		}
-		return 0
-	}
-
-	// Parse tags
-	tags := []string{}
-	tagsStr := getString("Tags")
-	if tagsStr != "" {
-		for _, tag := range strings.Split(tagsStr, ",") {
-			tag = strings.TrimSpace(tag)
-			if tag != "" {
-				tags = append(tags, tag)
-			}
-		}
-	}
-
-	// Determine visibility
-	onSite := getInt("OnSite")
-	status := getString("Status")
-	isVisible := onSite == 1 && status == "active"
-
-	// Calendar URL
-	calendlyURL := getString("Calendly Url")
-	calendarType := GetCalendarType(calendlyURL)
-
-	// Get sponsor
-	sponsor := GetMentorSponsor(tags)
-
-	// Is New field
-	isNew := getInt("Is New") == 1
-
-	// Convert to pointer for nullable field
-	airtableID := record.ID
-
-	return &Mentor{
-		MentorID:     "",           // Not populated from Airtable
-		LegacyID:     getInt("Id"),
-		AirtableID:   &airtableID,
-		Slug:         getString("Alias"),
-		Name:         getString("Name"),
-		Job:          getString("JobTitle"),
-		Workplace:    getString("Workplace"),
-		Description:  getString("Details"),
-		About:        getString("About"),
-		Competencies: getString("Competencies"),
-		Experience:   getString("Experience"),
-		Price:        getString("Price"),
-		MenteeCount:  getInt("Done Sessions Count"),
-		Tags:         tags,
-		SortOrder:    getInt("SortOrder"),
-		IsVisible:    isVisible,
-		Sponsors:     sponsor,
-		CalendarType: calendarType,
-		IsNew:        isNew,
-		Status:       status,
-		CalendarURL:  calendlyURL,
-	}
-}
 
