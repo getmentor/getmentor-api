@@ -180,6 +180,37 @@ func (r *MentorRepository) GetTagIDByName(ctx context.Context, name string) (str
 	return r.tagsCache.GetTagIDByName(name)
 }
 
+// UpdateMentorTags updates the tags for a mentor
+func (r *MentorRepository) UpdateMentorTags(ctx context.Context, mentorID string, tagIDs []string) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Delete existing tags for this mentor
+	_, err = tx.Exec(ctx, "DELETE FROM mentor_tags WHERE mentor_id = $1", mentorID)
+	if err != nil {
+		return fmt.Errorf("failed to delete existing tags: %w", err)
+	}
+
+	// Insert new tags
+	for _, tagID := range tagIDs {
+		_, err = tx.Exec(ctx,
+			"INSERT INTO mentor_tags (mentor_id, tag_id) VALUES ($1, $2)",
+			mentorID, tagID)
+		if err != nil {
+			return fmt.Errorf("failed to insert tag: %w", err)
+		}
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
 // GetAllTags retrieves all tags
 func (r *MentorRepository) GetAllTags(ctx context.Context) (map[string]string, error) {
 	return r.tagsCache.Get()

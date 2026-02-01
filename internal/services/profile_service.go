@@ -98,9 +98,6 @@ func (s *ProfileService) SaveProfileByMentorId(ctx context.Context, mentorID str
 		updates["calendar_url"] = req.CalendarURL
 	}
 
-	// Note: Tags will be handled separately via mentor_tags table
-	_ = tagIDs // TODO: Implement tag updates in repository
-
 	// Update in database
 	if err := s.mentorRepo.Update(ctx, mentorID, updates); err != nil {
 		metrics.ProfileUpdates.WithLabelValues("error").Inc()
@@ -108,6 +105,14 @@ func (s *ProfileService) SaveProfileByMentorId(ctx context.Context, mentorID str
 			zap.Error(err),
 			zap.String("mentor_id", mentorID))
 		return fmt.Errorf("failed to update profile")
+	}
+
+	// Update tags in mentor_tags table
+	if err := s.mentorRepo.UpdateMentorTags(ctx, mentorID, tagIDs); err != nil {
+		logger.Error("Failed to update mentor tags",
+			zap.Error(err),
+			zap.String("mentor_id", mentorID))
+		// Don't fail the whole update if tags fail - log and continue
 	}
 
 	metrics.ProfileUpdates.WithLabelValues("success").Inc()
