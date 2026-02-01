@@ -42,15 +42,6 @@ func DefaultConfig() Config {
 	}
 }
 
-// AirtableConfig returns retry config optimized for Airtable API
-func AirtableConfig() Config {
-	config := DefaultConfig()
-	config.MaxRetries = 3
-	config.InitialDelay = 500 * time.Millisecond
-	config.MaxDelay = 10 * time.Second
-	return config
-}
-
 // AzureConfig returns retry config optimized for Azure Storage
 func AzureConfig() Config {
 	config := DefaultConfig()
