@@ -88,6 +88,7 @@ func ScanMentor(row pgx.Row) (*Mentor, error) {
 	var tagsStr *string
 	var airtableID *string
 	var telegramChatID *int64
+	var calendarURL *string
 
 	err := row.Scan(
 		&m.MentorID,
@@ -105,7 +106,7 @@ func ScanMentor(row pgx.Row) (*Mentor, error) {
 		&m.Status,
 		&tagsStr,
 		&telegramChatID,
-		&m.CalendarURL,
+		&calendarURL,
 		&m.SortOrder,
 		&m.CreatedAt,
 	)
@@ -116,6 +117,9 @@ func ScanMentor(row pgx.Row) (*Mentor, error) {
 	// Set nullable fields
 	m.AirtableID = airtableID
 	m.TelegramChatID = telegramChatID
+	if calendarURL != nil {
+		m.CalendarURL = *calendarURL
+	}
 
 	// Parse tags from comma-separated string
 	m.Tags = []string{}
