@@ -2,8 +2,8 @@ package models
 
 // MentorSession represents an authenticated mentor session
 type MentorSession struct {
-	LegacyID  int    `json:"legacy_id"`  // Old integer ID for backwards compatibility
-	MentorID  string `json:"mentor_id"`  // UUID primary key
+	LegacyID  int    `json:"legacy_id"` // Old integer ID for backwards compatibility
+	MentorID  string `json:"mentor_id"` // UUID primary key
 	Email     string `json:"email"`
 	Name      string `json:"name"`
 	ExpiresAt int64  `json:"exp"`

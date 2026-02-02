@@ -62,7 +62,7 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 	telegram = strings.TrimPrefix(telegram, "t.me/")
 
 	// 3. Get tag IDs for selected tags
-	tagIDs := []string{}
+	var tagIDs []string
 	for _, tagName := range req.Tags {
 		tagID, err := s.mentorRepo.GetTagIDByName(ctx, tagName)
 		if err == nil && tagID != "" {
@@ -108,6 +108,14 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 		zap.String("mentor_id", mentorID),
 		zap.Int("legacy_id", legacyID),
 		zap.String("email", req.Email))
+
+	// Set mentor tags if any were provided
+	if len(tagIDs) > 0 {
+		if err := s.mentorRepo.UpdateMentorTags(ctx, mentorID, tagIDs); err != nil {
+			logger.Error("Failed to set mentor tags", zap.Error(err))
+			// Don't fail registration if tags fail - continue
+		}
+	}
 
 	// 5. Upload profile picture (non-blocking on failure)
 	if err := s.uploadProfilePicture(ctx, legacyID, mentorID, &req.ProfilePicture); err != nil {

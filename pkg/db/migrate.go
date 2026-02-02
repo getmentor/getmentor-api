@@ -7,7 +7,7 @@ import (
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/golang-migrate/migrate/v4/source/file" // Register file source driver
 )
 
 // RunMigrations executes database migrations from the specified path
@@ -25,8 +25,8 @@ func RunMigrations(databaseURL, migrationsPath string) error {
 	defer db.Close()
 
 	// Ping database to verify connection
-	if err := db.Ping(); err != nil {
-		return fmt.Errorf("failed to ping database: %w", err)
+	if pingErr := db.Ping(); pingErr != nil {
+		return fmt.Errorf("failed to ping database: %w", pingErr)
 	}
 
 	// Create postgres driver instance for migrations

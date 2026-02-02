@@ -9,9 +9,9 @@ import (
 
 // Mentor represents a mentor in the system
 type Mentor struct {
-	MentorID     string   `json:"mentorId"`     // UUID primary key
-	LegacyID     int      `json:"id"`           // Old integer ID (maps to legacy_id column)
-	AirtableID   *string  `json:"airtableId"`   // Nullable - for backwards compatibility during migration
+	MentorID     string   `json:"mentorId"`   // UUID primary key
+	LegacyID     int      `json:"id"`         // Old integer ID (maps to legacy_id column)
+	AirtableID   *string  `json:"airtableId"` // Nullable - for backwards compatibility during migration
 	Slug         string   `json:"slug"`
 	Name         string   `json:"name"`
 	Job          string   `json:"job"`
@@ -24,10 +24,10 @@ type Mentor struct {
 	MenteeCount  int      `json:"menteeCount"`
 	Tags         []string `json:"tags"`
 	SortOrder    int      `json:"sortOrder"`
-	IsVisible    bool     `json:"isVisible"`    // Computed: status = 'active' AND telegram_chat_id IS NOT NULL
+	IsVisible    bool     `json:"isVisible"` // Computed: status = 'active' AND telegram_chat_id IS NOT NULL
 	Sponsors     string   `json:"sponsors"`
 	CalendarType string   `json:"calendarType"`
-	IsNew        bool     `json:"isNew"`        // Computed: created_at > NOW() - 14 days
+	IsNew        bool     `json:"isNew"` // Computed: created_at > NOW() - 14 days
 
 	// Status field for login eligibility checks
 	Status string `json:"status"`
@@ -207,5 +207,3 @@ func GetMentorSponsor(tags []string) string {
 
 	return strings.Join(sponsors, "|")
 }
-
-

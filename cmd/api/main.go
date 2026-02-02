@@ -35,10 +35,9 @@ import (
 func registerAPIRoutes(
 	group *gin.RouterGroup,
 	cfg *config.Config,
-	generalRateLimiter, contactRateLimiter, profileRateLimiter, registrationRateLimiter *middleware.RateLimiter,
+	generalRateLimiter, contactRateLimiter, registrationRateLimiter *middleware.RateLimiter,
 	mentorHandler *handlers.MentorHandler,
 	contactHandler *handlers.ContactHandler,
-	profileHandler *handlers.ProfileHandler,
 	logsHandler *handlers.LogsHandler,
 	registrationHandler *handlers.RegistrationHandler,
 ) {
@@ -156,8 +155,8 @@ func main() {
 	defer pool.Close()
 
 	// Run database migrations
-	if err := db.RunMigrations(cfg.Database.URL, "file://migrations"); err != nil {
-		logger.Fatal("Failed to run database migrations", zap.Error(err))
+	if migrationErr := db.RunMigrations(cfg.Database.URL, "file://migrations"); migrationErr != nil {
+		logger.Fatal("Failed to run database migrations", zap.Error(migrationErr))
 	}
 
 	// Initialize Azure Storage client
@@ -234,7 +233,6 @@ func main() {
 	// Initialize handlers
 	mentorHandler := handlers.NewMentorHandler(mentorService, cfg.Server.BaseURL)
 	contactHandler := handlers.NewContactHandler(contactService)
-	profileHandler := handlers.NewProfileHandler(profileService)
 	registrationHandler := handlers.NewRegistrationHandler(registrationService)
 	mcpHandler := handlers.NewMCPHandler(mcpService)
 	healthHandler := handlers.NewHealthHandler(mentorCache.IsReady)
@@ -289,8 +287,8 @@ func main() {
 	// API v1 routes
 	// SECURITY: Apply body size limits to prevent DoS attacks
 	v1 := router.Group("/api/v1")
-	registerAPIRoutes(v1, cfg, generalRateLimiter, contactRateLimiter, profileRateLimiter, registrationRateLimiter,
-		mentorHandler, contactHandler, profileHandler, logsHandler, registrationHandler)
+	registerAPIRoutes(v1, cfg, generalRateLimiter, contactRateLimiter, registrationRateLimiter,
+		mentorHandler, contactHandler, logsHandler, registrationHandler)
 
 	// Mentor admin routes (authentication, request management, and profile)
 	registerMentorAdminRoutes(router, cfg, mentorAuthRateLimiter, profileRateLimiter, mentorAuthHandler, mentorRequestsHandler, mentorProfileHandler, mentorAuthService.GetTokenManager())

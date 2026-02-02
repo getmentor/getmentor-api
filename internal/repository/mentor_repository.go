@@ -186,7 +186,11 @@ func (r *MentorRepository) UpdateMentorTags(ctx context.Context, mentorID string
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		// Rollback is safe to call even after Commit
+		// Error is ignored as we prioritize the Commit error
+		_ = tx.Rollback(ctx) //nolint:errcheck
+	}()
 
 	// Delete existing tags for this mentor
 	_, err = tx.Exec(ctx, "DELETE FROM mentor_tags WHERE mentor_id = $1", mentorID)

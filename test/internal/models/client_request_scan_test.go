@@ -26,10 +26,11 @@ func (m *mockClientRequestRow) Scan(dest ...interface{}) error {
 
 		switch d := dest[i].(type) {
 		case *string:
-			if str, ok := v.(string); ok {
-				*d = str
-			} else if rs, ok := v.(models.RequestStatus); ok {
-				*d = string(rs)
+			switch val := v.(type) {
+			case string:
+				*d = val
+			case models.RequestStatus:
+				*d = string(val)
 			}
 		case **string:
 			if v == nil {
@@ -39,10 +40,11 @@ func (m *mockClientRequestRow) Scan(dest ...interface{}) error {
 				*d = &temp
 			}
 		case *models.RequestStatus:
-			if str, ok := v.(string); ok {
-				*d = models.RequestStatus(str)
-			} else if rs, ok := v.(models.RequestStatus); ok {
-				*d = rs
+			switch val := v.(type) {
+			case string:
+				*d = models.RequestStatus(val)
+			case models.RequestStatus:
+				*d = val
 			}
 		case *time.Time:
 			if t, ok := v.(time.Time); ok {
@@ -51,11 +53,14 @@ func (m *mockClientRequestRow) Scan(dest ...interface{}) error {
 		case **time.Time:
 			if v == nil {
 				*d = nil
-			} else if tp, ok := v.(*time.Time); ok {
-				*d = tp
-			} else if t, ok := v.(time.Time); ok {
-				temp := t
-				*d = &temp
+			} else {
+				switch val := v.(type) {
+				case *time.Time:
+					*d = val
+				case time.Time:
+					temp := val
+					*d = &temp
+				}
 			}
 		}
 	}
@@ -96,10 +101,10 @@ func TestScanClientRequest(t *testing.T) {
 			createdAt,
 			modifiedAt,
 			statusChangedAt,
-			&scheduledAt,      // nullable *time.Time
+			&scheduledAt, // nullable *time.Time
 			declineReason,
-			declineComment,    // nullable
-			review,            // nullable, from LEFT JOIN
+			declineComment, // nullable
+			review,         // nullable, from LEFT JOIN
 		},
 	}
 

@@ -101,8 +101,8 @@ func TestScanMentor(t *testing.T) {
 			experience,
 			price,
 			status,
-			tags,            // Will be scanned as *string
-			telegramChatID,  // Will be scanned as *int64
+			tags,           // Will be scanned as *string
+			telegramChatID, // Will be scanned as *int64
 			calendarURL,
 			sortOrder,
 			createdAt,
