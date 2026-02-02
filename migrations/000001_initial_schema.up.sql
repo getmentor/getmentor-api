@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS mentors (
   status TEXT NOT NULL,
   email CITEXT,
   telegram TEXT,
-  telegram_chat_id TEXT,
+  telegram_chat_id BIGINT,
   tg_secret TEXT,
   calendar_url TEXT,
   privacy BOOLEAN NOT NULL DEFAULT FALSE,
@@ -39,7 +39,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS mentors_legacy_id_uniq ON mentors (legacy_id);
 CREATE INDEX IF NOT EXISTS mentors_status_idx ON mentors (status);
 CREATE UNIQUE INDEX IF NOT EXISTS mentors_active_email_uniq
   ON mentors (email)
-  WHERE status = 'active' AND email IS NOT NULL;
+  WHERE status = 'active' AND telegram_chat_id IS NOT NULL AND email IS NOT NULL;
 CREATE INDEX IF NOT EXISTS mentors_slug_idx ON mentors (slug);
 
 -- Tags
