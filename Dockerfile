@@ -47,6 +47,9 @@ RUN mkdir -p /app/logs && \
 COPY --from=builder /app/bin/getmentor-api /app/getmentor-api
 RUN chmod +x /app/getmentor-api
 
+# Copy migrations directory
+COPY --chown=appuser:appgroup migrations /app/migrations
+
 # Set proper ownership
 RUN chown -R appuser:appgroup /app
 
