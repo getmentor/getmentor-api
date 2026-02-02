@@ -3,7 +3,7 @@
 
 # GetMentor API (Go)
 
-Backend API service for GetMentor.dev platform, written in Go. This service handles all backend operations including Airtable integration, caching, profile management, and contact form submissions.
+Backend API service for GetMentor.dev platform, written in Go. This service handles all backend operations including PostgreSQL database, caching, profile management, and contact form submissions.
 
 ## Overview
 
@@ -11,7 +11,7 @@ This is a complete rewrite of the Next.js backend API in Go, providing:
 - High-performance API endpoints
 - In-memory caching with auto-refresh
 - Comprehensive observability (Prometheus metrics + structured logging)
-- Airtable integration for mentor data
+- PostgreSQL database for mentor data
 - Azure Blob Storage for profile images
 - ReCAPTCHA verification for forms
 
@@ -28,7 +28,7 @@ This is a complete rewrite of the Next.js backend API in Go, providing:
 │   ├── repository/      # Data access layer
 │   └── services/        # Business logic layer
 └── pkg/
-    ├── airtable/        # Airtable client
+    ├── db/              # PostgreSQL database client
     ├── azure/           # Azure Storage client
     ├── logger/          # Structured logging
     └── metrics/         # Prometheus metrics
@@ -38,7 +38,7 @@ This is a complete rewrite of the Next.js backend API in Go, providing:
 
 - Go 1.22 or higher
 - Docker (for containerized deployment)
-- Airtable account with API key
+- PostgreSQL database (14 or higher)
 - Azure Storage account
 - Grafana Cloud account (for observability)
 
@@ -67,8 +67,7 @@ cp .env.example .env
 ```
 
 Required variables:
-- `AIRTABLE_API_KEY` - Your Airtable API key
-- `AIRTABLE_BASE_ID` - Your Airtable base ID
+- `DATABASE_URL` - PostgreSQL connection string (e.g., `postgresql://user:pass@host:5432/dbname`)
 - `AZURE_STORAGE_CONNECTION_STRING` - Azure Storage connection string
 - `INTERNAL_MENTORS_API` - Internal API authentication token
 - All auth tokens and Grafana Cloud credentials
@@ -121,7 +120,7 @@ golangci-lint run
 ### Internal Endpoints
 
 - `POST /api/internal/mentors` - Main cached mentor API (requires `x-internal-mentors-api-auth-token`)
-  - Query params: `id`, `slug`, `rec`, `force_reset_cache`
+  - Query params: `id`, `slug`, `force_reset_cache`
   - Body params: `only_visible`, `show_hidden`, `drop_long_fields`
 
 ### Profile Management
@@ -131,7 +130,6 @@ golangci-lint run
 
 ### Webhooks
 
-- `POST /api/webhooks/airtable` - Receive Airtable updates (requires `X-Webhook-Secret` header)
 - `POST /api/revalidate-nextjs?slug=X&secret=Y` - Trigger Next.js ISR revalidation
 
 ### Utility
@@ -171,7 +169,7 @@ See `DEPLOYMENT.md` for detailed deployment instructions.
 
 Prometheus metrics are exposed at `/api/metrics` and include:
 - HTTP request duration and count
-- Airtable API request metrics
+- Database query metrics
 - Cache hit/miss rates
 - Azure Storage metrics
 - Business metrics (profile views, contact submissions, etc.)
@@ -197,7 +195,7 @@ Key configurations:
 - `PORT` - Server port (default: 8080)
 - `GIN_MODE` - Gin mode (debug/release)
 - `LOG_LEVEL` - Logging level (debug/info/warn/error)
-- `AIRTABLE_WORK_OFFLINE` - Use test data instead of real Airtable
+- `DATABASE_URL` - PostgreSQL connection string
 
 ## Caching
 
