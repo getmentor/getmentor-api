@@ -7,6 +7,7 @@ import (
 
 	"github.com/getmentor/getmentor-api/internal/cache"
 	"github.com/getmentor/getmentor-api/internal/models"
+	"github.com/getmentor/getmentor-api/pkg/slug"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -138,20 +139,44 @@ func (r *MentorRepository) UpdateImage(ctx context.Context, mentorId, imageURL s
 
 // CreateMentor creates a new mentor record in PostgreSQL
 // Returns: mentorId (UUID), legacyId (int), error
+// Note: slug is generated automatically using pre-fetched legacy_id
 func (r *MentorRepository) CreateMentor(ctx context.Context, fields map[string]interface{}) (string, int, error) {
-	// This is simplified - in production you'd want proper field mapping
+	// Begin transaction to ensure atomicity
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		// Rollback is safe to call even after Commit
+		_ = tx.Rollback(ctx) //nolint:errcheck
+	}()
+
+	// Pre-fetch the next legacy_id from the sequence
+	var nextLegacyID int
+	err = tx.QueryRow(ctx, "SELECT nextval('mentors_legacy_id_seq')").Scan(&nextLegacyID)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to get next legacy_id: %w", err)
+	}
+
+	// Generate slug from name and legacy_id
+	name, ok := fields["name"].(string)
+	if !ok || name == "" {
+		return "", 0, fmt.Errorf("name is required")
+	}
+	mentorSlug := slug.GenerateMentorSlug(name, nextLegacyID)
+
 	query := `
-		INSERT INTO mentors (slug, name, email, job_title, workplace, about, details,
+		INSERT INTO mentors (legacy_id, slug, name, email, job_title, workplace, about, details,
 			competencies, experience, price, status, telegram, tg_secret, calendar_url, sort_order)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-		RETURNING id, legacy_id
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		RETURNING id
 	`
 
 	var mentorId string
-	var legacyId int
 
-	err := r.pool.QueryRow(ctx, query,
-		fields["slug"],
+	err = tx.QueryRow(ctx, query,
+		nextLegacyID, // Explicit legacy_id
+		mentorSlug,   // Generated slug
 		fields["name"],
 		fields["email"],
 		fields["job_title"],
@@ -166,13 +191,18 @@ func (r *MentorRepository) CreateMentor(ctx context.Context, fields map[string]i
 		fields["tg_secret"],
 		fields["calendar_url"],
 		fields["sort_order"],
-	).Scan(&mentorId, &legacyId)
+	).Scan(&mentorId)
 
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to create mentor: %w", err)
 	}
 
-	return mentorId, legacyId, nil
+	// Commit transaction
+	if err = tx.Commit(ctx); err != nil {
+		return "", 0, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return mentorId, nextLegacyID, nil
 }
 
 // GetTagIDByName retrieves a tag ID by name
