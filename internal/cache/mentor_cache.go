@@ -99,7 +99,7 @@ func (mc *MentorCache) IsReady() bool {
 }
 
 // GetBySlug retrieves a single mentor by slug with O(1) complexity
-// Returns immediately without blocking, never triggers Airtable fetch
+// Returns immediately without blocking, never triggers database fetch
 func (mc *MentorCache) GetBySlug(slug string) (*models.Mentor, error) {
 	if !mc.IsReady() {
 		return nil, fmt.Errorf("cache not initialized")
@@ -129,7 +129,7 @@ func (mc *MentorCache) GetBySlug(slug string) (*models.Mentor, error) {
 }
 
 // Get retrieves all mentors from cache
-// Returns immediately without blocking, never triggers Airtable fetch
+// Returns immediately without blocking, never triggers database fetch
 func (mc *MentorCache) Get() ([]*models.Mentor, error) {
 	if !mc.IsReady() {
 		return nil, fmt.Errorf("cache not initialized")

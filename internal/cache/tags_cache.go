@@ -81,7 +81,7 @@ func (tc *TagsCache) Get() (map[string]string, error) {
 		return tags, nil
 	}
 
-	logger.Info("Tags cache miss, fetching from Airtable")
+	logger.Info("Tags cache miss, fetching from database")
 
 	// Cache miss, fetch and populate
 	return tc.refresh()
