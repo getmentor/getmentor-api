@@ -54,7 +54,7 @@ type AuthConfig struct {
 	MCPAuthToken        string
 	MCPAllowAll         bool
 	RevalidateSecret    string
-	WebhookSecret       string
+	WebhookSecret       string // Optional: Kept for backwards compatibility, no longer required
 }
 
 type ReCAPTCHAConfig struct {
@@ -248,9 +248,6 @@ func (c *Config) Validate() error {
 	}
 	if c.Auth.MentorsAPIToken == "" {
 		return fmt.Errorf("MENTORS_API_LIST_AUTH_TOKEN is required")
-	}
-	if c.Auth.WebhookSecret == "" {
-		return fmt.Errorf("WEBHOOK_SECRET is required")
 	}
 
 	if c.Auth.MCPAuthToken == "" && !c.Auth.MCPAllowAll {
