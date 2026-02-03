@@ -235,7 +235,7 @@ func main() {
 	contactHandler := handlers.NewContactHandler(contactService)
 	registrationHandler := handlers.NewRegistrationHandler(registrationService)
 	mcpHandler := handlers.NewMCPHandler(mcpService)
-	healthHandler := handlers.NewHealthHandler(mentorCache.IsReady)
+	healthHandler := handlers.NewHealthHandler(pool, mentorCache.IsReady)
 	logsHandler := handlers.NewLogsHandler(cfg.Logging.Dir)
 	mentorAuthHandler := handlers.NewMentorAuthHandler(mentorAuthService)
 	mentorRequestsHandler := handlers.NewMentorRequestsHandler(mentorRequestsService)

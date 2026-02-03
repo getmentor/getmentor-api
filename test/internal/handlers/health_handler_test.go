@@ -1,13 +1,16 @@
 package handlers_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/getmentor/getmentor-api/internal/handlers"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,10 +18,28 @@ func init() {
 	gin.SetMode(gin.TestMode)
 }
 
+func getTestDBPool(t *testing.T) *pgxpool.Pool {
+	// Use DATABASE_URL from environment or skip test if not available
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		t.Skip("DATABASE_URL not set, skipping database connectivity test")
+	}
+
+	pool, err := pgxpool.New(context.Background(), dbURL)
+	if err != nil {
+		t.Skipf("Could not connect to database: %v", err)
+	}
+
+	return pool
+}
+
 func TestHealthHandler_Healthcheck(t *testing.T) {
 	// Setup
+	pool := getTestDBPool(t)
+	defer pool.Close()
+
 	mockReadyFunc := func() bool { return true }
-	handler := handlers.NewHealthHandler(mockReadyFunc)
+	handler := handlers.NewHealthHandler(pool, mockReadyFunc)
 	router := gin.New()
 	router.GET("/healthcheck", handler.Healthcheck)
 
@@ -33,5 +54,5 @@ func TestHealthHandler_Healthcheck(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "application/json; charset=utf-8", w.Header().Get("Content-Type"))
 	assert.Equal(t, "no-cache, no-store, max-age=0, must-revalidate", w.Header().Get("Cache-Control"))
-	assert.JSONEq(t, `{"status":"ok"}`, w.Body.String())
+	assert.JSONEq(t, `{"status":"healthy"}`, w.Body.String())
 }
