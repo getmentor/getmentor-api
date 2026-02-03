@@ -9,9 +9,9 @@ import (
 
 // Mentor represents a mentor in the system
 type Mentor struct {
-	MentorID     string   `json:"mentorId"`   // UUID primary key
-	LegacyID     int      `json:"id"`         // Old integer ID (maps to legacy_id column)
-	AirtableID   *string  `json:"-"` // Internal only - not exposed in API
+	MentorID     string   `json:"mentorId"` // UUID primary key
+	LegacyID     int      `json:"id"`       // Old integer ID (maps to legacy_id column)
+	AirtableID   *string  `json:"-"`        // Internal only - not exposed in API
 	Slug         string   `json:"slug"`
 	Name         string   `json:"name"`
 	Job          string   `json:"job"`

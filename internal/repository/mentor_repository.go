@@ -67,11 +67,11 @@ func (r *MentorRepository) GetByID(ctx context.Context, id int, opts models.Filt
 }
 
 // GetBySlug retrieves a mentor by slug with O(1) complexity
-func (r *MentorRepository) GetBySlug(ctx context.Context, slug string, opts models.FilterOptions) (*models.Mentor, error) {
+func (r *MentorRepository) GetBySlug(ctx context.Context, mentorSlug string, opts models.FilterOptions) (*models.Mentor, error) {
 	// Note: ForceRefresh is ignored for single lookups
 	// Only webhook/profile updates trigger single-mentor refresh
 
-	mentor, err := r.mentorCache.GetBySlug(slug)
+	mentor, err := r.mentorCache.GetBySlug(mentorSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (r *MentorRepository) GetBySlug(ctx context.Context, slug string, opts mode
 	// Apply filters to single mentor
 	filtered := r.applySingleMentorFilters(mentor, opts)
 	if filtered == nil {
-		return nil, fmt.Errorf("mentor with slug %s not found or not visible", slug)
+		return nil, fmt.Errorf("mentor with slug %s not found or not visible", mentorSlug)
 	}
 
 	return filtered, nil
@@ -431,7 +431,7 @@ func (r *MentorRepository) FetchAllMentorsFromDB(ctx context.Context) ([]*models
 }
 
 // FetchSingleMentorFromDB retrieves a single mentor by slug from PostgreSQL
-func (r *MentorRepository) FetchSingleMentorFromDB(ctx context.Context, slug string) (*models.Mentor, error) {
+func (r *MentorRepository) FetchSingleMentorFromDB(ctx context.Context, mentorSlug string) (*models.Mentor, error) {
 	query := `
 		SELECT m.id, m.airtable_id, m.legacy_id, m.slug, m.name, m.job_title, m.workplace,
 			m.about, m.details, m.competencies, m.experience, m.price, m.status,
@@ -451,7 +451,7 @@ func (r *MentorRepository) FetchSingleMentorFromDB(ctx context.Context, slug str
 		GROUP BY m.id
 	`
 
-	row := r.pool.QueryRow(ctx, query, slug)
+	row := r.pool.QueryRow(ctx, query, mentorSlug)
 	return models.ScanMentor(row)
 }
 
@@ -530,14 +530,14 @@ func (r *MentorRepository) InvalidateCache() {
 
 // UpdateSingleMentorCache updates a single mentor in cache
 // Called by webhook or profile update flow
-func (r *MentorRepository) UpdateSingleMentorCache(slug string) error {
-	return r.mentorCache.UpdateSingleMentor(slug)
+func (r *MentorRepository) UpdateSingleMentorCache(mentorSlug string) error {
+	return r.mentorCache.UpdateSingleMentor(mentorSlug)
 }
 
 // RemoveMentorFromCache removes a mentor from cache
 // Called when a mentor is deleted
-func (r *MentorRepository) RemoveMentorFromCache(slug string) error {
-	return r.mentorCache.RemoveMentor(slug)
+func (r *MentorRepository) RemoveMentorFromCache(mentorSlug string) error {
+	return r.mentorCache.RemoveMentor(mentorSlug)
 }
 
 // RefreshCache triggers a background cache refresh
