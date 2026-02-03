@@ -255,7 +255,7 @@ func (r *MentorRepository) GetByEmail(ctx context.Context, email string) (*model
 	query := `
 		SELECT id, airtable_id, legacy_id, slug, name, job_title, workplace, about, details,
 			competencies, experience, price, status, '' as tags, telegram_chat_id, calendar_url,
-			sort_order, created_at
+			sort_order, created_at, 0 as mentee_count
 		FROM mentors
 		WHERE email = $1 AND status IN ('active', 'inactive')
 		LIMIT 1
@@ -270,7 +270,7 @@ func (r *MentorRepository) GetByLoginToken(ctx context.Context, token string) (*
 	query := `
 		SELECT id, airtable_id, legacy_id, slug, name, job_title, workplace, about, details,
 			competencies, experience, price, status, '' as tags, telegram_chat_id, calendar_url,
-			sort_order, created_at, login_token_expires_at
+			sort_order, created_at, 0 as mentee_count, login_token_expires_at
 		FROM mentors
 		WHERE login_token = $1
 		LIMIT 1
@@ -303,6 +303,7 @@ func (r *MentorRepository) GetByLoginToken(ctx context.Context, token string) (*
 		&mentor.CalendarURL,
 		&mentor.SortOrder,
 		&mentor.CreatedAt,
+		&mentor.MenteeCount,
 		&expiresAt,
 	)
 	if err != nil {
@@ -343,7 +344,14 @@ func (r *MentorRepository) FetchAllMentorsFromDB(ctx context.Context) ([]*models
 		SELECT m.id, m.airtable_id, m.legacy_id, m.slug, m.name, m.job_title, m.workplace,
 			m.about, m.details, m.competencies, m.experience, m.price, m.status,
 			COALESCE(array_to_string(array_agg(t.name), ','), '') as tags,
-			m.telegram_chat_id, m.calendar_url, m.sort_order, m.created_at
+			m.telegram_chat_id, m.calendar_url, m.sort_order, m.created_at,
+			COALESCE(
+				(SELECT COUNT(*)
+				 FROM client_requests cr
+				 WHERE cr.mentor_id = m.id
+				 AND cr.status = 'done'),
+				0
+			) AS mentee_count
 		FROM mentors m
 		LEFT JOIN mentor_tags mt ON mt.mentor_id = m.id
 		LEFT JOIN tags t ON t.id = mt.tag_id
@@ -366,7 +374,14 @@ func (r *MentorRepository) FetchSingleMentorFromDB(ctx context.Context, slug str
 		SELECT m.id, m.airtable_id, m.legacy_id, m.slug, m.name, m.job_title, m.workplace,
 			m.about, m.details, m.competencies, m.experience, m.price, m.status,
 			COALESCE(array_to_string(array_agg(t.name), ','), '') as tags,
-			m.telegram_chat_id, m.calendar_url, m.sort_order, m.created_at
+			m.telegram_chat_id, m.calendar_url, m.sort_order, m.created_at,
+			COALESCE(
+				(SELECT COUNT(*)
+				 FROM client_requests cr
+				 WHERE cr.mentor_id = m.id
+				 AND cr.status = 'done'),
+				0
+			) AS mentee_count
 		FROM mentors m
 		LEFT JOIN mentor_tags mt ON mt.mentor_id = m.id
 		LEFT JOIN tags t ON t.id = mt.tag_id

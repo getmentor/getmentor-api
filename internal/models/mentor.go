@@ -109,6 +109,7 @@ func ScanMentor(row pgx.Row) (*Mentor, error) {
 		&calendarURL,
 		&m.SortOrder,
 		&m.CreatedAt,
+		&m.MenteeCount,
 	)
 	if err != nil {
 		return nil, err
@@ -144,9 +145,6 @@ func ScanMentor(row pgx.Row) (*Mentor, error) {
 
 	// Get sponsor from tags
 	m.Sponsors = GetMentorSponsor(m.Tags)
-
-	// Note: MenteeCount should be computed separately via COUNT query
-	// We'll set it to 0 here and let the repository populate it if needed
 
 	return &m, nil
 }
