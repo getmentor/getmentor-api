@@ -101,8 +101,31 @@ func (r *MentorRepository) GetByMentorId(ctx context.Context, mentorId string, o
 	return nil, fmt.Errorf("mentor with ID %s not found", mentorId)
 }
 
+// allowedUpdateColumns defines the columns that can be updated via the Update method
+var allowedUpdateColumns = map[string]bool{
+	"name":         true,
+	"job_title":    true,
+	"workplace":    true,
+	"about":        true,
+	"details":      true,
+	"competencies": true,
+	"experience":   true,
+	"price":        true,
+	"telegram":     true,
+	"calendar_url": true,
+	"status":       true,
+	"updated_at":   true,
+}
+
 // Update updates a mentor in PostgreSQL
 func (r *MentorRepository) Update(ctx context.Context, mentorId string, updates map[string]interface{}) error {
+	// Validate all keys against allowlist to prevent SQL injection
+	for key := range updates {
+		if !allowedUpdateColumns[key] {
+			return fmt.Errorf("invalid column name: %s", key)
+		}
+	}
+
 	// Build dynamic UPDATE query
 	// This is simplified - in production you'd want proper query building
 	query := `UPDATE mentors SET `
