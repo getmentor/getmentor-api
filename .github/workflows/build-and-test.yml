@@ -82,9 +82,6 @@ jobs:
       - name: Test Docker image
         run: |
           docker run -d --name test-container \
-            -e AIRTABLE_WORK_OFFLINE=1 \
-            -e AIRTABLE_API_KEY=test \
-            -e AIRTABLE_BASE_ID=test \
             -e INTERNAL_MENTORS_API=test-token \
             -e MCP_AUTH_TOKEN=test-mcp-token \
             -e MENTORS_API_LIST_AUTH_TOKEN=test-token-1 \
