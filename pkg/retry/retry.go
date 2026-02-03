@@ -42,13 +42,19 @@ func DefaultConfig() Config {
 	}
 }
 
-// AzureConfig returns retry config optimized for Azure Storage
-func AzureConfig() Config {
+// DatabaseConfig returns retry config optimized for database operations
+func DatabaseConfig() Config {
 	config := DefaultConfig()
 	config.MaxRetries = 3
 	config.InitialDelay = 200 * time.Millisecond
 	config.MaxDelay = 3 * time.Second
 	return config
+}
+
+// AzureConfig is deprecated, use DatabaseConfig instead
+// Kept for backwards compatibility
+func AzureConfig() Config {
+	return DatabaseConfig()
 }
 
 // Do executes the function with retry logic
