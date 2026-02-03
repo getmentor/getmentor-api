@@ -59,11 +59,9 @@ func MentorSessionMiddleware(tokenManager *jwt.TokenManager, cookieDomain string
 		}
 
 		// Create session from claims
-		// claims.MentorID (int) = legacy ID
-		// claims.Subject (string) = mentor UUID
 		session := &models.MentorSession{
-			LegacyID:  claims.MentorID,
-			MentorID:  claims.Subject,
+			LegacyID:  claims.LegacyID,
+			MentorID:  claims.MentorUUID,
 			Email:     claims.Email,
 			Name:      claims.Name,
 			ExpiresAt: claims.ExpiresAt.Unix(),

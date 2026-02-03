@@ -184,7 +184,7 @@ func (s *MentorAuthService) VerifyLogin(ctx context.Context, token string) (*mod
 	}
 
 	// Generate JWT session token
-	jwtToken, err := s.tokenManager.GenerateToken(mentor.LegacyID, mentor.MentorID, "", mentor.Name)
+	jwtToken, err := s.tokenManager.GenerateToken(mentor.MentorID, mentor.LegacyID, "", mentor.Name)
 	if err != nil {
 		logger.Error("Failed to generate JWT",
 			zap.String("mentor_id", mentor.MentorID),
