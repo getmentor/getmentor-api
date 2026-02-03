@@ -86,7 +86,9 @@ func (r *MentorRepository) GetBySlug(ctx context.Context, slug string, opts mode
 }
 
 // GetByMentorId retrieves a mentor by UUID
+// First tries cache (active mentors only), then falls back to database query
 func (r *MentorRepository) GetByMentorId(ctx context.Context, mentorId string, opts models.FilterOptions) (*models.Mentor, error) {
+	// Try cache first (contains only active mentors)
 	mentors, err := r.GetAll(ctx, opts)
 	if err != nil {
 		return nil, err
@@ -98,7 +100,44 @@ func (r *MentorRepository) GetByMentorId(ctx context.Context, mentorId string, o
 		}
 	}
 
-	return nil, fmt.Errorf("mentor with ID %s not found", mentorId)
+	// Fallback to DB query for inactive mentors or mentors not in cache
+	mentor, err := r.fetchMentorByUUIDFromDB(ctx, mentorId)
+	if err != nil {
+		return nil, fmt.Errorf("mentor with ID %s not found", mentorId)
+	}
+
+	// Apply filters to the fetched mentor
+	filtered := r.applySingleMentorFilters(mentor, opts)
+	if filtered == nil {
+		return nil, fmt.Errorf("mentor with ID %s not found or filtered out", mentorId)
+	}
+
+	return filtered, nil
+}
+
+// fetchMentorByUUIDFromDB retrieves a single mentor by UUID from PostgreSQL
+func (r *MentorRepository) fetchMentorByUUIDFromDB(ctx context.Context, mentorId string) (*models.Mentor, error) {
+	query := `
+		SELECT m.id, m.airtable_id, m.legacy_id, m.slug, m.name, m.job_title, m.workplace,
+			m.about, m.details, m.competencies, m.experience, m.price, m.status,
+			COALESCE(array_to_string(array_agg(t.name), ','), '') as tags,
+			m.telegram_chat_id, m.calendar_url, m.sort_order, m.created_at,
+			COALESCE(
+				(SELECT COUNT(*)
+				 FROM client_requests cr
+				 WHERE cr.mentor_id = m.id
+				 AND cr.status = 'done'),
+				0
+			) AS mentee_count
+		FROM mentors m
+		LEFT JOIN mentor_tags mt ON mt.mentor_id = m.id
+		LEFT JOIN tags t ON t.id = mt.tag_id
+		WHERE m.id = $1
+		GROUP BY m.id
+	`
+
+	row := r.pool.QueryRow(ctx, query, mentorId)
+	return models.ScanMentor(row)
 }
 
 // allowedUpdateColumns defines the columns that can be updated via the Update method
