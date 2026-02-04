@@ -6,7 +6,9 @@ import (
 
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/services"
+	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type MentorHandler struct {
@@ -118,6 +120,10 @@ func (h *MentorHandler) GetInternalMentors(c *gin.Context) {
 	// Return all mentors
 	mentors, err := h.service.GetAllMentors(c.Request.Context(), opts)
 	if err != nil {
+		logger.Error("Failed to fetch mentors in GetInternalMentors",
+			zap.Error(err),
+			zap.Bool("only_visible", opts.OnlyVisible),
+			zap.Bool("force_refresh", opts.ForceRefresh))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch mentors"})
 		return
 	}

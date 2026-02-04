@@ -89,6 +89,11 @@ func ScanMentor(row pgx.Row) (*Mentor, error) {
 	var airtableID *string
 	var telegramChatID *int64
 	var calendarURL *string
+	var job *string
+	var workplace *string
+	var about *string
+	var description *string
+	var competencies *string
 
 	err := row.Scan(
 		&m.MentorID,
@@ -96,11 +101,11 @@ func ScanMentor(row pgx.Row) (*Mentor, error) {
 		&m.LegacyID,
 		&m.Slug,
 		&m.Name,
-		&m.Job,
-		&m.Workplace,
-		&m.About,
-		&m.Description,
-		&m.Competencies,
+		&job,
+		&workplace,
+		&about,
+		&description,
+		&competencies,
 		&m.Experience,
 		&m.Price,
 		&m.Status,
@@ -120,6 +125,21 @@ func ScanMentor(row pgx.Row) (*Mentor, error) {
 	m.TelegramChatID = telegramChatID
 	if calendarURL != nil {
 		m.CalendarURL = *calendarURL
+	}
+	if job != nil {
+		m.Job = *job
+	}
+	if workplace != nil {
+		m.Workplace = *workplace
+	}
+	if about != nil {
+		m.About = *about
+	}
+	if description != nil {
+		m.Description = *description
+	}
+	if competencies != nil {
+		m.Competencies = *competencies
 	}
 
 	// Parse tags from comma-separated string

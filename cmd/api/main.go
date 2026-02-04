@@ -193,7 +193,7 @@ func main() {
 	)
 
 	// Initialize repositories with pool and caches
-	mentorRepo := repository.NewMentorRepository(pool, mentorCache, tagsCache)
+	mentorRepo := repository.NewMentorRepository(pool, mentorCache, tagsCache, cfg.Cache.DisableMentorsCache)
 	clientRequestRepo := repository.NewClientRequestRepository(pool)
 
 	// Now update cache with actual fetcher functions from repository
@@ -205,12 +205,16 @@ func main() {
 	tagsCache = cache.NewTagsCache(mentorRepo.FetchAllTagsFromDB)
 
 	// Re-initialize repository with updated caches
-	mentorRepo = repository.NewMentorRepository(pool, mentorCache, tagsCache)
+	mentorRepo = repository.NewMentorRepository(pool, mentorCache, tagsCache, cfg.Cache.DisableMentorsCache)
 
 	// Initialize mentor cache synchronously before accepting requests
 	// This ensures the cache is populated before the container is marked as healthy
-	if err := mentorCache.Initialize(); err != nil {
-		logger.Fatal("Failed to initialize mentor cache", zap.Error(err))
+	if cfg.Cache.DisableMentorsCache {
+		logger.Warn("Mentor cache is DISABLED - reading from database on every request (experimental feature)")
+	} else {
+		if err := mentorCache.Initialize(); err != nil {
+			logger.Fatal("Failed to initialize mentor cache", zap.Error(err))
+		}
 	}
 
 	// Initialize tags cache synchronously
@@ -235,7 +239,12 @@ func main() {
 	contactHandler := handlers.NewContactHandler(contactService)
 	registrationHandler := handlers.NewRegistrationHandler(registrationService)
 	mcpHandler := handlers.NewMCPHandler(mcpService)
-	healthHandler := handlers.NewHealthHandler(pool, mentorCache.IsReady)
+	// Health check: If cache is disabled, always return true for cache readiness
+	cacheReadyFunc := mentorCache.IsReady
+	if cfg.Cache.DisableMentorsCache {
+		cacheReadyFunc = func() bool { return true }
+	}
+	healthHandler := handlers.NewHealthHandler(pool, cacheReadyFunc)
 	logsHandler := handlers.NewLogsHandler(cfg.Logging.Dir)
 	mentorAuthHandler := handlers.NewMentorAuthHandler(mentorAuthService)
 	mentorRequestsHandler := handlers.NewMentorRequestsHandler(mentorRequestsService)
