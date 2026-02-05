@@ -3,7 +3,6 @@ package handlers
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/getmentor/getmentor-api/internal/middleware"
 	"github.com/getmentor/getmentor-api/internal/models"
@@ -74,7 +73,7 @@ func (h *MentorRequestsHandler) GetRequestByID(c *gin.Context) {
 	}
 
 	requestID := c.Param("id")
-	if requestID == "" || !strings.HasPrefix(requestID, "rec") {
+	if requestID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid request ID",
 		})
@@ -114,7 +113,7 @@ func (h *MentorRequestsHandler) UpdateStatus(c *gin.Context) {
 	}
 
 	requestID := c.Param("id")
-	if requestID == "" || !strings.HasPrefix(requestID, "rec") {
+	if requestID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid request ID",
 		})
@@ -151,7 +150,7 @@ func (h *MentorRequestsHandler) DeclineRequest(c *gin.Context) {
 	}
 
 	requestID := c.Param("id")
-	if requestID == "" || !strings.HasPrefix(requestID, "rec") {
+	if requestID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid request ID",
 		})
