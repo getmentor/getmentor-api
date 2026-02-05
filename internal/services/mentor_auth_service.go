@@ -109,7 +109,7 @@ func (s *MentorAuthService) RequestLogin(ctx context.Context, email string) (*mo
 			"login_url": loginURL,
 		}
 		trigger.CallAsyncWithPayload(s.config.EventTriggers.MentorLoginEmailTriggerURL, payload, s.httpClient)
-	} else if s.config.Server.AppEnv == "development" {
+	} else if s.config.IsDevelopment() {
 		// In development mode without email trigger, log the login URL to console
 		logger.Info("=== DEVELOPMENT LOGIN URL ===",
 			zap.String("mentor_email", email),

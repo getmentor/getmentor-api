@@ -263,7 +263,7 @@ func main() {
 	// CORS configuration - SECURITY: Only allow specific origins
 	allowedOrigins := cfg.Server.AllowedOrigins
 	// Allow localhost in development
-	if cfg.Server.AppEnv == "development" {
+	if cfg.IsDevelopment() {
 		allowedOrigins = append(allowedOrigins, "http://localhost:3000", "http://127.0.0.1:3000")
 	}
 
