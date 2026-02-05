@@ -358,7 +358,7 @@ func (r *MentorRepository) GetByEmail(ctx context.Context, email string) (*model
 // GetByLoginToken finds a mentor by their login token
 // Note: Returns the token parameter for backwards compatibility, but it's not used for validation
 // The SQL WHERE clause (login_token = $1) is the actual security check
-func (r *MentorRepository) GetByLoginToken(ctx context.Context, token string) (*models.Mentor, string, time.Time, error) {
+func (r *MentorRepository) GetByLoginToken(ctx context.Context, token string) (*models.Mentor, time.Time, error) {
 	query := `
 		SELECT id, airtable_id, legacy_id, slug, name, job_title, workplace, about, details,
 			competencies, experience, price, status, '' as tags, telegram_chat_id, calendar_url,
@@ -399,14 +399,14 @@ func (r *MentorRepository) GetByLoginToken(ctx context.Context, token string) (*
 		&expiresAt,
 	)
 	if err != nil {
-		return nil, "", time.Time{}, err
+		return nil, time.Time{}, err
 	}
 
 	mentor.AirtableID = airtableID
 	mentor.TelegramChatID = telegramChatID
 
 	// Return the token that was used to find this mentor (already validated by SQL query)
-	return &mentor, token, expiresAt, nil
+	return &mentor, expiresAt, nil
 }
 
 // SetLoginToken sets the login token for a mentor

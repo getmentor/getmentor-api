@@ -144,7 +144,7 @@ func (s *MentorAuthService) VerifyLogin(ctx context.Context, token string) (*mod
 	// Find mentor by login token
 	// Note: Token validation happens in the SQL WHERE clause (login_token = $1)
 	// If a mentor is returned, the token was valid in the database
-	mentor, _, tokenExp, err := s.mentorRepo.GetByLoginToken(ctx, token)
+	mentor, tokenExp, err := s.mentorRepo.GetByLoginToken(ctx, token)
 	if err != nil {
 		logger.Warn("Login verification with invalid token", zap.Error(err))
 		metrics.MentorAuthVerifyRequests.WithLabelValues("invalid_token").Inc()
