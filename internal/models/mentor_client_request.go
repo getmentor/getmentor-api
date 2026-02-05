@@ -70,7 +70,7 @@ type MentorClientRequest struct {
 	Level           string        `json:"level"`
 	CreatedAt       time.Time     `json:"createdAt"`
 	ModifiedAt      time.Time     `json:"modifiedAt"`
-	StatusChangedAt time.Time     `json:"statusChangedAt"`
+	StatusChangedAt *time.Time    `json:"statusChangedAt"` // Nullable - may be NULL for old records
 	ScheduledAt     *time.Time    `json:"scheduledAt"`
 	Review          *string       `json:"review"`
 	ReviewURL       *string       `json:"reviewUrl"`
@@ -124,6 +124,7 @@ func (g RequestGroup) GetStatuses() []RequestStatus {
 func ScanClientRequest(row pgx.Row) (*MentorClientRequest, error) {
 	var r MentorClientRequest
 	var scheduledAt *time.Time
+	var statusChangedAt *time.Time // Allow NULL from database
 	var review *string
 	var declineComment *string
 	var level *string        // Allow NULL from database
@@ -140,7 +141,7 @@ func ScanClientRequest(row pgx.Row) (*MentorClientRequest, error) {
 		&r.Status,
 		&r.CreatedAt,
 		&r.ModifiedAt,
-		&r.StatusChangedAt,
+		&statusChangedAt, // Scan into nullable variable
 		&scheduledAt,
 		&declineReason, // Scan into nullable variable
 		&declineComment,
@@ -161,6 +162,7 @@ func ScanClientRequest(row pgx.Row) (*MentorClientRequest, error) {
 	} else {
 		r.DeclineReason = "" // Default to empty string for NULL values
 	}
+	r.StatusChangedAt = statusChangedAt
 	r.ScheduledAt = scheduledAt
 	r.DeclineComment = declineComment
 	r.Review = review
