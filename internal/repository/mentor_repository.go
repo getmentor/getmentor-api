@@ -402,7 +402,8 @@ func (r *MentorRepository) GetByLoginToken(ctx context.Context, token string) (*
 	mentor.AirtableID = airtableID
 	mentor.TelegramChatID = telegramChatID
 
-	return &mentor, mentor.MentorID, expiresAt, nil
+	// Return the token that was used to find this mentor (already validated by SQL query)
+	return &mentor, token, expiresAt, nil
 }
 
 // SetLoginToken sets the login token for a mentor
