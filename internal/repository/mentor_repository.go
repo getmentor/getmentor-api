@@ -355,6 +355,9 @@ func (r *MentorRepository) GetByEmail(ctx context.Context, email string) (*model
 }
 
 // GetByLoginToken retrieves a mentor by login token
+// GetByLoginToken finds a mentor by their login token
+// Note: Returns the token parameter for backwards compatibility, but it's not used for validation
+// The SQL WHERE clause (login_token = $1) is the actual security check
 func (r *MentorRepository) GetByLoginToken(ctx context.Context, token string) (*models.Mentor, string, time.Time, error) {
 	query := `
 		SELECT id, airtable_id, legacy_id, slug, name, job_title, workplace, about, details,
