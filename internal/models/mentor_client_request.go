@@ -126,6 +126,8 @@ func ScanClientRequest(row pgx.Row) (*MentorClientRequest, error) {
 	var scheduledAt *time.Time
 	var review *string
 	var declineComment *string
+	var level *string        // Allow NULL from database
+	var declineReason *string // Allow NULL from database
 
 	err := row.Scan(
 		&r.ID,
@@ -134,13 +136,13 @@ func ScanClientRequest(row pgx.Row) (*MentorClientRequest, error) {
 		&r.Name,
 		&r.Telegram,
 		&r.Details,
-		&r.Level,
+		&level,         // Scan into nullable variable
 		&r.Status,
 		&r.CreatedAt,
 		&r.ModifiedAt,
 		&r.StatusChangedAt,
 		&scheduledAt,
-		&r.DeclineReason,
+		&declineReason, // Scan into nullable variable
 		&declineComment,
 		&review, // from LEFT JOIN reviews
 	)
@@ -149,6 +151,16 @@ func ScanClientRequest(row pgx.Row) (*MentorClientRequest, error) {
 	}
 
 	// Set nullable fields
+	if level != nil {
+		r.Level = *level
+	} else {
+		r.Level = "" // Default to empty string for NULL values
+	}
+	if declineReason != nil {
+		r.DeclineReason = *declineReason
+	} else {
+		r.DeclineReason = "" // Default to empty string for NULL values
+	}
 	r.ScheduledAt = scheduledAt
 	r.DeclineComment = declineComment
 	r.Review = review
