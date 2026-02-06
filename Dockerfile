@@ -16,13 +16,17 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application and migration tool
 # CGO_ENABLED=0 creates a statically linked binary
 # -ldflags="-w -s" strips debug information to reduce binary size
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
     -ldflags="-w -s" \
     -o /app/bin/getmentor-api \
-    ./cmd/api/main.go
+    ./cmd/api/main.go && \
+    CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
+    -ldflags="-w -s" \
+    -o /app/bin/migrate \
+    ./cmd/migrate/main.go
 
 # Stage 2: Production runtime image
 # Using Debian for better compatibility with various dependencies
@@ -43,9 +47,10 @@ RUN groupadd -g 1001 appgroup && \
 RUN mkdir -p /app/logs && \
     chown -R appuser:appgroup /app
 
-# Copy Go binary from builder
+# Copy Go binaries from builder
 COPY --from=builder /app/bin/getmentor-api /app/getmentor-api
-RUN chmod +x /app/getmentor-api
+COPY --from=builder /app/bin/migrate /app/migrate
+RUN chmod +x /app/getmentor-api /app/migrate
 
 # Copy migrations directory
 COPY --chown=appuser:appgroup migrations /app/migrations

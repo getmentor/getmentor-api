@@ -1,4 +1,4 @@
-.PHONY: help build run test test-coverage test-race lint docker-build docker-run clean fmt fmt-check vet security staticcheck ci pre-commit install-tools
+.PHONY: help build build-migrate run test test-coverage test-race lint docker-build docker-run clean fmt fmt-check vet security staticcheck ci pre-commit install-tools migrate migrate-build
 
 # Default target
 help:
@@ -23,11 +23,15 @@ help:
 	@echo "  clean          - Clean build artifacts"
 	@echo "  deps           - Download dependencies"
 	@echo "  tidy           - Tidy dependencies"
+	@echo "  migrate        - Run database migrations"
+	@echo "  migrate-build  - Build migration binary"
 
 # Build the application
 build:
 	@echo "Building GetMentor API..."
 	@go build -o bin/getmentor-api cmd/api/main.go
+	@go build -o bin/migrate cmd/migrate/main.go
+	@echo "✅ Built: bin/getmentor-api, bin/migrate"
 
 # Run the application
 run:
@@ -145,3 +149,14 @@ install-tools:
 	@go install github.com/securego/gosec/v2/cmd/gosec@latest
 	@go install honnef.co/go/tools/cmd/staticcheck@latest
 	@echo "✅ All tools installed!"
+
+# Build migration binary
+migrate-build:
+	@echo "Building migration tool..."
+	@go build -o bin/migrate cmd/migrate/main.go
+	@echo "✅ Migration tool built at bin/migrate"
+
+# Run database migrations
+migrate: migrate-build
+	@echo "Running database migrations..."
+	@./scripts/migrate.sh

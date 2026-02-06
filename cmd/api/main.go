@@ -154,10 +154,8 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Run database migrations
-	if migrationErr := db.RunMigrations(cfg.Database.URL, "file://migrations"); migrationErr != nil {
-		logger.Fatal("Failed to run database migrations", zap.Error(migrationErr))
-	}
+	// NOTE: Database migrations are now run separately via the migrate command
+	// Run migrations before starting the app: ./migrate or docker-compose run migrate
 
 	// Initialize Azure Storage client
 	var azureClient *azure.StorageClient
