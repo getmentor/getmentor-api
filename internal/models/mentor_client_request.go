@@ -127,7 +127,7 @@ func ScanClientRequest(row pgx.Row) (*MentorClientRequest, error) {
 	var statusChangedAt *time.Time // Allow NULL from database
 	var review *string
 	var declineComment *string
-	var level *string        // Allow NULL from database
+	var level *string         // Allow NULL from database
 	var declineReason *string // Allow NULL from database
 
 	err := row.Scan(
@@ -137,7 +137,7 @@ func ScanClientRequest(row pgx.Row) (*MentorClientRequest, error) {
 		&r.Name,
 		&r.Telegram,
 		&r.Details,
-		&level,         // Scan into nullable variable
+		&level, // Scan into nullable variable
 		&r.Status,
 		&r.CreatedAt,
 		&r.ModifiedAt,

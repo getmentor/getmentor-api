@@ -97,8 +97,8 @@ type ObservabilityConfig struct {
 }
 
 type CacheConfig struct {
-	MentorTTLSeconds     int  // Mentor cache TTL in seconds
-	DisableMentorsCache  bool // Experimental: disable cache and read from DB on every request
+	MentorTTLSeconds    int  // Mentor cache TTL in seconds
+	DisableMentorsCache bool // Experimental: disable cache and read from DB on every request
 }
 
 type MentorSessionConfig struct {
@@ -127,7 +127,7 @@ func Load() (*Config, error) {
 	v.SetDefault("O11Y_BE_SERVICE_NAME", "getmentor-api")
 	v.SetDefault("O11Y_SERVICE_NAMESPACE", "getmentor-dev")
 	v.SetDefault("O11Y_BE_SERVICE_VERSION", "1.0.0")
-	v.SetDefault("MENTOR_CACHE_TTL", 600) // 10 minutes in seconds
+	v.SetDefault("MENTOR_CACHE_TTL", 600)        // 10 minutes in seconds
 	v.SetDefault("DISABLE_MENTORS_CACHE", false) // Experimental: disable cache
 	v.SetDefault("MCP_ALLOW_ALL", false)
 
@@ -171,7 +171,7 @@ func Load() (*Config, error) {
 		},
 		Database: DatabaseConfig{
 			URL:         v.GetString("DATABASE_URL"),
-			MaxConns:    10,
+			MaxConns:    20,
 			MinConns:    2,
 			WorkOffline: v.GetBool("DB_WORK_OFFLINE"),
 		},
