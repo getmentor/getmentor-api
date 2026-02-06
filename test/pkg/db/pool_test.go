@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/pkg/db"
 )
 
@@ -12,7 +13,7 @@ func TestNewPool_InvalidURL(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with empty URL
-	pool, err := db.NewPool(ctx, db.PoolConfig{
+	pool, err := db.NewPool(ctx, config.DatabaseConfig{
 		URL:      "",
 		MaxConns: 10,
 		MinConns: 2,
@@ -25,7 +26,7 @@ func TestNewPool_InvalidURL(t *testing.T) {
 	}
 
 	// Test with malformed URL
-	pool, err = db.NewPool(ctx, db.PoolConfig{
+	pool, err = db.NewPool(ctx, config.DatabaseConfig{
 		URL:      "not-a-valid-url",
 		MaxConns: 10,
 		MinConns: 2,
@@ -38,7 +39,7 @@ func TestNewPool_InvalidURL(t *testing.T) {
 	}
 
 	// Test with invalid postgres URL (wrong scheme)
-	pool, err = db.NewPool(ctx, db.PoolConfig{
+	pool, err = db.NewPool(ctx, config.DatabaseConfig{
 		URL:      "mysql://user:pass@localhost:3306/db",
 		MaxConns: 10,
 		MinConns: 2,
@@ -56,7 +57,7 @@ func TestNewPool_UnreachableDatabase(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with unreachable database (wrong port)
-	pool, err := db.NewPool(ctx, db.PoolConfig{
+	pool, err := db.NewPool(ctx, config.DatabaseConfig{
 		URL:      "postgres://getmentor:password@localhost:9999/getmentor?sslmode=disable",
 		MaxConns: 10,
 		MinConns: 2,

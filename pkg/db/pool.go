@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/getmentor/getmentor-api/config"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -58,17 +59,10 @@ func containsSSLMode(url string) bool {
 		strings.Contains(url, "sslmode=verify-ca")
 }
 
-// PoolConfig contains database pool configuration parameters
-type PoolConfig struct {
-	URL      string
-	MaxConns int32
-	MinConns int32
-}
-
 // NewPool creates a new PostgreSQL connection pool with configuration
 // Parameters:
 //   - ctx: Context for the connection
-//   - poolCfg: Pool configuration with URL and connection limits
+//   - dbCfg: Database configuration with URL and connection limits
 //
 // Returns:
 //   - *pgxpool.Pool: Configured connection pool
@@ -86,31 +80,31 @@ type PoolConfig struct {
 //   - Reads CA certificate from certs/yandex-ca.crt
 //   - DATABASE_TLS_SERVER_NAME is optional (only needed if cert name differs from hostname)
 //   - Local development (localhost without sslmode) connects without TLS
-func NewPool(ctx context.Context, poolCfg PoolConfig) (*pgxpool.Pool, error) {
+func NewPool(ctx context.Context, dbCfg config.DatabaseConfig) (*pgxpool.Pool, error) {
 	// Parse connection string and configure pool
-	config, err := pgxpool.ParseConfig(poolCfg.URL)
+	poolConfig, err := pgxpool.ParseConfig(dbCfg.URL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse database URL: %w", err)
 	}
 
 	// Configure TLS if required
-	tlsConfig, err := configureTLS(poolCfg.URL)
+	tlsConfig, err := configureTLS(dbCfg.URL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure TLS: %w", err)
 	}
 	if tlsConfig != nil {
-		config.ConnConfig.TLSConfig = tlsConfig
+		poolConfig.ConnConfig.TLSConfig = tlsConfig
 	}
 
 	// Configure pool settings from provided config
-	config.MaxConns = poolCfg.MaxConns
-	config.MinConns = poolCfg.MinConns
-	config.HealthCheckPeriod = 30 * time.Second
-	config.MaxConnLifetime = 1 * time.Hour
-	config.MaxConnIdleTime = 30 * time.Minute
+	poolConfig.MaxConns = dbCfg.MaxConns
+	poolConfig.MinConns = dbCfg.MinConns
+	poolConfig.HealthCheckPeriod = 30 * time.Second
+	poolConfig.MaxConnLifetime = 1 * time.Hour
+	poolConfig.MaxConnIdleTime = 30 * time.Minute
 
 	// Create pool with config
-	pool, err := pgxpool.NewWithConfig(ctx, config)
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create connection pool: %w", err)
 	}
