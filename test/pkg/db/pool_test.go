@@ -12,7 +12,11 @@ func TestNewPool_InvalidURL(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with empty URL
-	pool, err := db.NewPool(ctx, "")
+	pool, err := db.NewPool(ctx, db.PoolConfig{
+		URL:      "",
+		MaxConns: 10,
+		MinConns: 2,
+	})
 	if err == nil {
 		t.Error("expected error with empty database URL, got nil")
 		if pool != nil {
@@ -21,7 +25,11 @@ func TestNewPool_InvalidURL(t *testing.T) {
 	}
 
 	// Test with malformed URL
-	pool, err = db.NewPool(ctx, "not-a-valid-url")
+	pool, err = db.NewPool(ctx, db.PoolConfig{
+		URL:      "not-a-valid-url",
+		MaxConns: 10,
+		MinConns: 2,
+	})
 	if err == nil {
 		t.Error("expected error with malformed database URL, got nil")
 		if pool != nil {
@@ -30,7 +38,11 @@ func TestNewPool_InvalidURL(t *testing.T) {
 	}
 
 	// Test with invalid postgres URL (wrong scheme)
-	pool, err = db.NewPool(ctx, "mysql://user:pass@localhost:3306/db")
+	pool, err = db.NewPool(ctx, db.PoolConfig{
+		URL:      "mysql://user:pass@localhost:3306/db",
+		MaxConns: 10,
+		MinConns: 2,
+	})
 	if err == nil {
 		t.Error("expected error with non-postgres URL, got nil")
 		if pool != nil {
@@ -44,8 +56,11 @@ func TestNewPool_UnreachableDatabase(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with unreachable database (wrong port)
-	databaseURL := "postgres://getmentor:password@localhost:9999/getmentor?sslmode=disable"
-	pool, err := db.NewPool(ctx, databaseURL)
+	pool, err := db.NewPool(ctx, db.PoolConfig{
+		URL:      "postgres://getmentor:password@localhost:9999/getmentor?sslmode=disable",
+		MaxConns: 10,
+		MinConns: 2,
+	})
 	if err == nil {
 		t.Error("expected error with unreachable database, got nil")
 		if pool != nil {

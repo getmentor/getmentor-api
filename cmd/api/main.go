@@ -148,7 +148,11 @@ func main() {
 	metrics.RecordInfrastructureMetrics()
 
 	// Initialize PostgreSQL connection pool
-	pool, err := db.NewPool(context.Background(), cfg.Database.URL)
+	pool, err := db.NewPool(context.Background(), db.PoolConfig{
+		URL:      cfg.Database.URL,
+		MaxConns: cfg.Database.MaxConns,
+		MinConns: cfg.Database.MinConns,
+	})
 	if err != nil {
 		logger.Fatal("Failed to initialize database connection pool", zap.Error(err))
 	}
