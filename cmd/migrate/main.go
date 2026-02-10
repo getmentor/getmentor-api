@@ -36,7 +36,8 @@ func main() {
 	// Run migrations
 	if err := db.RunMigrations(cfg.Database.URL, "file://migrations"); err != nil {
 		logger.Error("Failed to run migrations", zap.Error(err))
-		os.Exit(1)
+		logger.Sync() //nolint:errcheck // Best effort sync before exit
+		os.Exit(1)    //nolint:gocritic // Manually synced logger above
 	}
 
 	logger.Info("Database migrations completed successfully")

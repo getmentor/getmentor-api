@@ -20,13 +20,13 @@ import (
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
 	"github.com/getmentor/getmentor-api/internal/services"
-	"github.com/getmentor/getmentor-api/pkg/azure"
 	"github.com/getmentor/getmentor-api/pkg/db"
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/jwt"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
 	"github.com/getmentor/getmentor-api/pkg/tracing"
+	"github.com/getmentor/getmentor-api/pkg/yandex"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/zap"
 )
@@ -157,16 +157,18 @@ func main() {
 	// NOTE: Database migrations are now run separately via the migrate command
 	// Run migrations before starting the app: ./migrate or docker-compose run migrate
 
-	// Initialize Azure Storage client
-	var azureClient *azure.StorageClient
-	if cfg.Azure.ConnectionString != "" {
-		azureClient, err = azure.NewStorageClient(
-			cfg.Azure.ConnectionString,
-			cfg.Azure.ContainerName,
-			cfg.Azure.StorageDomain,
+	// Initialize Yandex Object Storage client
+	var yandexClient *yandex.StorageClient
+	if cfg.YandexStorage.AccessKeyID != "" && cfg.YandexStorage.SecretAccessKey != "" {
+		yandexClient, err = yandex.NewStorageClient(
+			cfg.YandexStorage.AccessKeyID,
+			cfg.YandexStorage.SecretAccessKey,
+			cfg.YandexStorage.BucketName,
+			cfg.YandexStorage.Endpoint,
+			cfg.YandexStorage.Region,
 		)
 		if err != nil {
-			logger.Fatal("Failed to initialize Azure Storage client", zap.Error(err))
+			logger.Fatal("Failed to initialize Yandex Storage client", zap.Error(err))
 		}
 	}
 
@@ -226,8 +228,8 @@ func main() {
 	// Initialize services
 	mentorService := services.NewMentorService(mentorRepo, cfg)
 	contactService := services.NewContactService(clientRequestRepo, mentorRepo, cfg, httpClient)
-	profileService := services.NewProfileService(mentorRepo, azureClient, cfg, httpClient)
-	registrationService := services.NewRegistrationService(mentorRepo, azureClient, cfg, httpClient)
+	profileService := services.NewProfileService(mentorRepo, yandexClient, cfg, httpClient)
+	registrationService := services.NewRegistrationService(mentorRepo, yandexClient, cfg, httpClient)
 	mcpService := services.NewMCPService(mentorRepo, cfg.Server.BaseURL)
 	mentorAuthService := services.NewMentorAuthService(mentorRepo, cfg, httpClient)
 	mentorRequestsService := services.NewMentorRequestsService(clientRequestRepo, cfg, httpClient)

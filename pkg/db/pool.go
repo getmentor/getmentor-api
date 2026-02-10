@@ -40,7 +40,8 @@ func configureTLS(databaseURL string) (*tls.Config, error) {
 
 	// Configure TLS with CA cert
 	tlsConfig := &tls.Config{
-		RootCAs: rootCertPool,
+		RootCAs:    rootCertPool,
+		MinVersion: tls.VersionTLS12, // Minimum TLS 1.2 for security
 	}
 
 	// Optional: Set ServerName if certificate name differs from connection hostname

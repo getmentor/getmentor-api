@@ -8,19 +8,19 @@ import (
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
-	"github.com/getmentor/getmentor-api/pkg/azure"
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
 	"github.com/getmentor/getmentor-api/pkg/recaptcha"
 	"github.com/getmentor/getmentor-api/pkg/trigger"
+	"github.com/getmentor/getmentor-api/pkg/yandex"
 	"go.uber.org/zap"
 )
 
 // RegistrationService handles mentor registration
 type RegistrationService struct {
 	mentorRepo        *repository.MentorRepository
-	azureClient       *azure.StorageClient
+	yandexClient      *yandex.StorageClient
 	config            *config.Config
 	httpClient        httpclient.Client
 	recaptchaVerifier *recaptcha.Verifier
@@ -29,14 +29,14 @@ type RegistrationService struct {
 // NewRegistrationService creates a new registration service instance
 func NewRegistrationService(
 	mentorRepo *repository.MentorRepository,
-	azureClient *azure.StorageClient,
+	yandexClient *yandex.StorageClient,
 	cfg *config.Config,
 	httpClient httpclient.Client,
 ) *RegistrationService {
 
 	return &RegistrationService{
 		mentorRepo:        mentorRepo,
-		azureClient:       azureClient,
+		yandexClient:      yandexClient,
 		config:            cfg,
 		httpClient:        httpClient,
 		recaptchaVerifier: recaptcha.NewVerifier(cfg.ReCAPTCHA.SecretKey, httpClient),
@@ -94,7 +94,7 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 	// Note: Tags will be inserted separately into mentor_tags table
 	// This is handled by the repository CreateMentor method
 
-	mentorID, legacyID, err := s.mentorRepo.CreateMentor(ctx, fields)
+	mentorID, legacyID, mentorSlug, err := s.mentorRepo.CreateMentor(ctx, fields)
 	if err != nil {
 		metrics.MentorRegistrations.WithLabelValues("db_error").Inc()
 		logger.Error("Failed to create mentor in database", zap.Error(err))
@@ -118,7 +118,7 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 	}
 
 	// 5. Upload profile picture (non-blocking on failure)
-	if err := s.uploadProfilePicture(ctx, legacyID, mentorID, &req.ProfilePicture); err != nil {
+	if err := s.uploadProfilePicture(ctx, mentorSlug, mentorID, &req.ProfilePicture); err != nil {
 		logger.Error("Failed to upload profile picture",
 			zap.Error(err),
 			zap.String("mentor_id", mentorID),
@@ -142,33 +142,36 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 	}, nil
 }
 
-// uploadProfilePicture handles the image upload to Azure Storage
-func (s *RegistrationService) uploadProfilePicture(ctx context.Context, legacyID int, mentorID string, picture *models.ProfilePictureData) error {
+// uploadProfilePicture handles the image upload to Yandex Object Storage
+func (s *RegistrationService) uploadProfilePicture(ctx context.Context, mentorSlug string, mentorID string, picture *models.ProfilePictureData) error {
 	// Validate file type
-	if err := s.azureClient.ValidateImageType(picture.ContentType); err != nil {
+	if err := s.yandexClient.ValidateImageType(picture.ContentType); err != nil {
 		return err
 	}
 
 	// Validate file size
-	if err := s.azureClient.ValidateImageSize(picture.Image); err != nil {
+	if err := s.yandexClient.ValidateImageSize(picture.Image); err != nil {
 		return err
 	}
 
-	// Generate filename using legacy ID for backwards compatibility
-	fileName := s.azureClient.GenerateFileName(legacyID, picture.FileName)
+	// Upload to Yandex Object Storage in 3 sizes: full, large, small
+	// NOTE: Currently uploading same image 3 times (tech debt - future: generate thumbnails)
+	sizes := []string{"full", "large", "small"}
 
-	// Upload to Azure
-	imageURL, err := s.azureClient.UploadImage(ctx, picture.Image, fileName, picture.ContentType)
-	if err != nil {
-		return fmt.Errorf("failed to upload image: %w", err)
-	}
+	for _, size := range sizes {
+		// Generate key: {slug}/{size} (e.g., "john-doe-42/full")
+		key := fmt.Sprintf("%s/%s", mentorSlug, size)
 
-	// Update mentor record with image URL
-	if err := s.mentorRepo.UpdateImage(ctx, mentorID, imageURL); err != nil {
-		logger.Error("Failed to update image URL in database",
-			zap.Error(err),
-			zap.String("mentor_id", mentorID))
-		// Image is uploaded but not linked - admin can fix manually
+		// Upload to Yandex
+		imageURL, err := s.yandexClient.UploadImage(ctx, picture.Image, key, picture.ContentType)
+		if err != nil {
+			return fmt.Errorf("failed to upload image size %s: %w", size, err)
+		}
+
+		logger.Info("Uploaded profile picture size during registration",
+			zap.String("mentor_id", mentorID),
+			zap.String("size", size),
+			zap.String("url", imageURL))
 	}
 
 	return nil

@@ -26,9 +26,9 @@ var (
 	CacheMisses *prometheus.CounterVec
 	CacheSize   *prometheus.GaugeVec
 
-	// Storage Client Metrics (Azure)
-	AzureStorageRequestDuration *prometheus.HistogramVec
-	AzureStorageRequestTotal    *prometheus.CounterVec
+	// Storage Client Metrics (Yandex Object Storage)
+	YandexStorageRequestDuration *prometheus.HistogramVec
+	YandexStorageRequestTotal    *prometheus.CounterVec
 
 	// Business Metrics
 	MentorProfileViews     *prometheus.CounterVec
@@ -145,20 +145,20 @@ func Init(serviceName string) {
 		[]string{"cache_name"},
 	)
 
-	// Storage Client Metrics (Azure)
-	AzureStorageRequestDuration = factory.NewHistogramVec(
+	// Storage Client Metrics (Yandex Object Storage)
+	YandexStorageRequestDuration = factory.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "storage_client_operation_duration_seconds",
-			Help:    "Storage client operation duration in seconds",
+			Name:    "yandex_storage_operation_duration_seconds",
+			Help:    "Yandex Object Storage operation duration in seconds",
 			Buckets: prometheus.DefBuckets,
 		},
 		[]string{"operation", "status"},
 	)
 
-	AzureStorageRequestTotal = factory.NewCounterVec(
+	YandexStorageRequestTotal = factory.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "storage_client_operation_total",
-			Help: "Total number of storage client operations",
+			Name: "yandex_storage_operation_total",
+			Help: "Total number of Yandex Object Storage operations",
 		},
 		[]string{"operation", "status"},
 	)

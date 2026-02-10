@@ -13,7 +13,7 @@ import (
 type Config struct {
 	Server        ServerConfig
 	Database      DatabaseConfig
-	Azure         AzureConfig
+	YandexStorage YandexStorageConfig
 	Auth          AuthConfig
 	ReCAPTCHA     ReCAPTCHAConfig
 	EventTriggers EventTriggerFunctionsConfig
@@ -40,10 +40,12 @@ type DatabaseConfig struct {
 	WorkOffline bool
 }
 
-type AzureConfig struct {
-	ConnectionString string
-	ContainerName    string
-	StorageDomain    string
+type YandexStorageConfig struct {
+	AccessKeyID     string
+	SecretAccessKey string
+	BucketName      string
+	Endpoint        string
+	Region          string
 }
 
 type AuthConfig struct {
@@ -175,10 +177,12 @@ func Load() (*Config, error) {
 			MinConns:    2,
 			WorkOffline: v.GetBool("DB_WORK_OFFLINE"),
 		},
-		Azure: AzureConfig{
-			ConnectionString: v.GetString("AZURE_STORAGE_CONNECTION_STRING"),
-			ContainerName:    v.GetString("AZURE_STORAGE_CONTAINER_NAME"),
-			StorageDomain:    v.GetString("AZURE_STORAGE_DOMAIN"),
+		YandexStorage: YandexStorageConfig{
+			AccessKeyID:     v.GetString("YANDEX_STORAGE_ACCESS_KEY_ID"),
+			SecretAccessKey: v.GetString("YANDEX_STORAGE_SECRET_ACCESS_KEY"),
+			BucketName:      v.GetString("YANDEX_STORAGE_BUCKET_NAME"),
+			Endpoint:        v.GetString("YANDEX_STORAGE_ENDPOINT"),
+			Region:          v.GetString("YANDEX_STORAGE_REGION"),
 		},
 		Auth: AuthConfig{
 			MentorsAPIToken:     v.GetString("MENTORS_API_LIST_AUTH_TOKEN"),

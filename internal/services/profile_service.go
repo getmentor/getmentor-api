@@ -7,34 +7,34 @@ import (
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
-	"github.com/getmentor/getmentor-api/pkg/azure"
 	apperrors "github.com/getmentor/getmentor-api/pkg/errors"
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
 	"github.com/getmentor/getmentor-api/pkg/trigger"
+	"github.com/getmentor/getmentor-api/pkg/yandex"
 	"go.uber.org/zap"
 )
 
 type ProfileService struct {
-	mentorRepo  *repository.MentorRepository
-	azureClient *azure.StorageClient
-	config      *config.Config
-	httpClient  httpclient.Client
+	mentorRepo   *repository.MentorRepository
+	yandexClient *yandex.StorageClient
+	config       *config.Config
+	httpClient   httpclient.Client
 }
 
 func NewProfileService(
 	mentorRepo *repository.MentorRepository,
-	azureClient *azure.StorageClient,
+	yandexClient *yandex.StorageClient,
 	cfg *config.Config,
 	httpClient httpclient.Client,
 ) *ProfileService {
 
 	return &ProfileService{
-		mentorRepo:  mentorRepo,
-		azureClient: azureClient,
-		config:      cfg,
-		httpClient:  httpClient,
+		mentorRepo:   mentorRepo,
+		yandexClient: yandexClient,
+		config:       cfg,
+		httpClient:   httpClient,
 	}
 }
 
@@ -125,44 +125,61 @@ func (s *ProfileService) SaveProfileByMentorId(ctx context.Context, mentorID str
 // UploadPictureByMentorId uploads a profile picture using Mentor ID (UUID) for session-based auth
 func (s *ProfileService) UploadPictureByMentorId(ctx context.Context, mentorID string, mentorSlug string, req *models.UploadProfilePictureRequest) (string, error) {
 	// Validate file type
-	if typeErr := s.azureClient.ValidateImageType(req.ContentType); typeErr != nil {
+	if typeErr := s.yandexClient.ValidateImageType(req.ContentType); typeErr != nil {
 		return "", typeErr
 	}
 
 	// Validate file size
-	if sizeErr := s.azureClient.ValidateImageSize(req.Image); sizeErr != nil {
+	if sizeErr := s.yandexClient.ValidateImageSize(req.Image); sizeErr != nil {
 		return "", sizeErr
 	}
 
-	// Generate filename using slug
-	fileName := fmt.Sprintf("%s/%s", mentorSlug, req.FileName)
+	// Upload to Yandex Object Storage in 3 sizes: full, large, small
+	// NOTE: Currently uploading same image 3 times (tech debt - future: generate thumbnails)
+	// This replicates the behavior from Azure Functions storageClient.ts
+	sizes := []string{"full", "large", "small"}
+	var fullImageURL string
 
-	// Upload to Azure
-	imageURL, err := s.azureClient.UploadImage(ctx, req.Image, fileName, req.ContentType)
-	if err != nil {
-		metrics.ProfilePictureUploads.WithLabelValues("error").Inc()
-		logger.Error("Failed to upload profile picture",
-			zap.Error(err),
-			zap.String("mentor_id", mentorID))
-		return "", fmt.Errorf("failed to upload image")
+	for _, size := range sizes {
+		// Generate key: {slug}/{size} (e.g., "john-doe/full")
+		key := fmt.Sprintf("%s/%s", mentorSlug, size)
+
+		// Upload to Yandex
+		imageURL, err := s.yandexClient.UploadImage(ctx, req.Image, key, req.ContentType)
+		if err != nil {
+			metrics.ProfilePictureUploads.WithLabelValues("error").Inc()
+			logger.Error("Failed to upload profile picture to Yandex",
+				zap.Error(err),
+				zap.String("mentor_id", mentorID),
+				zap.String("size", size))
+			return "", fmt.Errorf("failed to upload image")
+		}
+
+		// Store the 'full' URL for database
+		if size == "full" {
+			fullImageURL = imageURL
+		}
+
+		logger.Info("Uploaded profile picture size",
+			zap.String("mentor_id", mentorID),
+			zap.String("size", size),
+			zap.String("url", imageURL))
 	}
 
+	// TODO: Re-enable webhook trigger when thumbnail generation is implemented
 	// Update database asynchronously
 	go func() {
-		if updateErr := s.mentorRepo.UpdateImage(context.Background(), mentorID, imageURL); updateErr != nil {
-			logger.Error("Failed to update mentor image in database",
-				zap.Error(updateErr),
-				zap.String("mentor_id", mentorID))
-		} else {
-			// Trigger mentor updated webhook after successful database update
-			trigger.CallAsync(s.config.EventTriggers.MentorUpdatedTriggerURL, mentorID, s.httpClient)
-		}
+		// This webhook will trigger Azure Function to generate thumbnails
+		// trigger.CallAsync(s.config.EventTriggers.MentorUpdatedTriggerURL, mentorID, s.httpClient)
+		_ = s.config.EventTriggers.MentorUpdatedTriggerURL // Keep for future use
+		_ = s.httpClient                                   // Keep for future use
+		_ = trigger.CallAsync                              // Keep for future use
 	}()
 
 	metrics.ProfilePictureUploads.WithLabelValues("success").Inc()
 	logger.Info("Profile picture uploaded via session",
 		zap.String("mentor_id", mentorID),
-		zap.String("url", imageURL))
+		zap.String("url", fullImageURL))
 
-	return imageURL, nil
+	return fullImageURL, nil
 }

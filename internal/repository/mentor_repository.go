@@ -219,21 +219,14 @@ func (r *MentorRepository) Update(ctx context.Context, mentorId string, updates 
 	return nil
 }
 
-// UpdateImage updates a mentor's profile image URL
-func (r *MentorRepository) UpdateImage(ctx context.Context, mentorId, imageURL string) error {
-	query := `UPDATE mentors SET updated_at = NOW() WHERE id = $1`
-	_, err := r.pool.Exec(ctx, query, mentorId)
-	return err
-}
-
 // CreateMentor creates a new mentor record in PostgreSQL
 // Returns: mentorId (UUID), legacyId (int), error
 // Note: slug is generated automatically using pre-fetched legacy_id
-func (r *MentorRepository) CreateMentor(ctx context.Context, fields map[string]interface{}) (string, int, error) {
+func (r *MentorRepository) CreateMentor(ctx context.Context, fields map[string]interface{}) (string, int, string, error) {
 	// Begin transaction to ensure atomicity
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return "", 0, fmt.Errorf("failed to begin transaction: %w", err)
+		return "", 0, "", fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		// Rollback is safe to call even after Commit
@@ -244,13 +237,13 @@ func (r *MentorRepository) CreateMentor(ctx context.Context, fields map[string]i
 	var nextLegacyID int
 	err = tx.QueryRow(ctx, "SELECT nextval('mentors_legacy_id_seq')").Scan(&nextLegacyID)
 	if err != nil {
-		return "", 0, fmt.Errorf("failed to get next legacy_id: %w", err)
+		return "", 0, "", fmt.Errorf("failed to get next legacy_id: %w", err)
 	}
 
 	// Generate slug from name and legacy_id
 	name, ok := fields["name"].(string)
 	if !ok || name == "" {
-		return "", 0, fmt.Errorf("name is required")
+		return "", 0, "", fmt.Errorf("name is required")
 	}
 	mentorSlug := slug.GenerateMentorSlug(name, nextLegacyID)
 
@@ -283,15 +276,15 @@ func (r *MentorRepository) CreateMentor(ctx context.Context, fields map[string]i
 	).Scan(&mentorId)
 
 	if err != nil {
-		return "", 0, fmt.Errorf("failed to create mentor: %w", err)
+		return "", 0, "", fmt.Errorf("failed to create mentor: %w", err)
 	}
 
 	// Commit transaction
 	if err = tx.Commit(ctx); err != nil {
-		return "", 0, fmt.Errorf("failed to commit transaction: %w", err)
+		return "", 0, "", fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	return mentorId, nextLegacyID, nil
+	return mentorId, nextLegacyID, mentorSlug, nil
 }
 
 // GetTagIDByName retrieves a tag ID by name
