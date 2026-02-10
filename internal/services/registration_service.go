@@ -154,25 +154,31 @@ func (s *RegistrationService) uploadProfilePicture(ctx context.Context, mentorSl
 		return err
 	}
 
-	// Upload to Yandex Object Storage in 3 sizes: full, large, small
-	// NOTE: Currently uploading same image 3 times (tech debt - future: generate thumbnails)
-	sizes := []string{"full", "large", "small"}
+	go func() {
+		// Upload to Yandex Object Storage in 3 sizes: full, large, small
+		// NOTE: Currently uploading same image 3 times (tech debt - future: generate thumbnails)
+		sizes := []string{"full", "large", "small"}
 
-	for _, size := range sizes {
-		// Generate key: {slug}/{size} (e.g., "john-doe-42/full")
-		key := fmt.Sprintf("%s/%s", mentorSlug, size)
+		for _, size := range sizes {
+			// Generate key: {slug}/{size} (e.g., "john-doe-42/full")
+			key := fmt.Sprintf("%s/%s", mentorSlug, size)
 
-		// Upload to Yandex
-		imageURL, err := s.yandexClient.UploadImage(ctx, picture.Image, key, picture.ContentType)
-		if err != nil {
-			return fmt.Errorf("failed to upload image size %s: %w", size, err)
+			// Upload to Yandex
+			imageURL, err := s.yandexClient.UploadImage(ctx, picture.Image, key, picture.ContentType)
+			if err != nil {
+				logger.Error("Failed to upload profile picture",
+					zap.Error(err),
+					zap.String("mentor_id", mentorID),
+					zap.String("size", size),
+					zap.String("url", imageURL))
+			} else {
+				logger.Info("Uploaded profile picture size during registration",
+					zap.String("mentor_id", mentorID),
+					zap.String("size", size),
+					zap.String("url", imageURL))
+			}
 		}
-
-		logger.Info("Uploaded profile picture size during registration",
-			zap.String("mentor_id", mentorID),
-			zap.String("size", size),
-			zap.String("url", imageURL))
-	}
+	}()
 
 	return nil
 }
