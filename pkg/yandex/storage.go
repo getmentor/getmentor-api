@@ -164,3 +164,65 @@ func (s *StorageClient) ValidateImageSize(imageData string) error {
 
 	return nil
 }
+
+// UploadImageAllSizes uploads the same image in 3 sizes (full, large, small) synchronously
+// NOTE: Currently uploads same image 3 times (tech debt - future: generate thumbnails)
+// Validates image type and size before uploading. Returns the URL of the 'full' size image
+func (s *StorageClient) UploadImageAllSizes(ctx context.Context, imageData, slug, contentType string) (string, error) {
+	// Validate image type
+	if err := s.ValidateImageType(contentType); err != nil {
+		return "", err
+	}
+
+	// Validate image size
+	if err := s.ValidateImageSize(imageData); err != nil {
+		return "", err
+	}
+
+	sizes := []string{"full", "large", "small"}
+	var fullImageURL string
+
+	for _, size := range sizes {
+		// Generate key: {slug}/{size} (e.g., "john-doe/full")
+		key := fmt.Sprintf("%s/%s", slug, size)
+
+		// Upload to Yandex
+		imageURL, err := s.UploadImage(ctx, imageData, key, contentType)
+		if err != nil {
+			return "", fmt.Errorf("failed to upload image size %s: %w", size, err)
+		}
+
+		// Store the 'full' URL to return
+		if size == "full" {
+			fullImageURL = imageURL
+		}
+
+		logger.Info("Uploaded image size to Yandex",
+			zap.String("slug", slug),
+			zap.String("size", size),
+			zap.String("url", imageURL))
+	}
+
+	return fullImageURL, nil
+}
+
+// UploadImageAllSizesAsync uploads the same image in 3 sizes (full, large, small) asynchronously
+// NOTE: Currently uploads same image 3 times (tech debt - future: generate thumbnails)
+// This is non-blocking and returns immediately. Errors are logged but not returned.
+// Use this when you don't need to wait for upload completion (e.g., during registration)
+func (s *StorageClient) UploadImageAllSizesAsync(ctx context.Context, imageData, slug, contentType, mentorID string) {
+	go func() {
+		fullImageURL, err := s.UploadImageAllSizes(ctx, imageData, slug, contentType)
+		if err != nil {
+			logger.Error("Failed to upload profile picture asynchronously",
+				zap.Error(err),
+				zap.String("mentor_id", mentorID),
+				zap.String("slug", slug))
+		} else {
+			logger.Info("Profile picture uploaded successfully during registration",
+				zap.String("mentor_id", mentorID),
+				zap.String("slug", slug),
+				zap.String("full_image_url", fullImageURL))
+		}
+	}()
+}

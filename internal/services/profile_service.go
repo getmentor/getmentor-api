@@ -124,46 +124,15 @@ func (s *ProfileService) SaveProfileByMentorId(ctx context.Context, mentorID str
 
 // UploadPictureByMentorId uploads a profile picture using Mentor ID (UUID) for session-based auth
 func (s *ProfileService) UploadPictureByMentorId(ctx context.Context, mentorID string, mentorSlug string, req *models.UploadProfilePictureRequest) (string, error) {
-	// Validate file type
-	if typeErr := s.yandexClient.ValidateImageType(req.ContentType); typeErr != nil {
-		return "", typeErr
-	}
-
-	// Validate file size
-	if sizeErr := s.yandexClient.ValidateImageSize(req.Image); sizeErr != nil {
-		return "", sizeErr
-	}
-
-	// Upload to Yandex Object Storage in 3 sizes: full, large, small
-	// NOTE: Currently uploading same image 3 times (tech debt - future: generate thumbnails)
-	// This replicates the behavior from Azure Functions storageClient.ts
-	sizes := []string{"full", "large", "small"}
-	var fullImageURL string
-
-	for _, size := range sizes {
-		// Generate key: {slug}/{size} (e.g., "john-doe/full")
-		key := fmt.Sprintf("%s/%s", mentorSlug, size)
-
-		// Upload to Yandex
-		imageURL, err := s.yandexClient.UploadImage(ctx, req.Image, key, req.ContentType)
-		if err != nil {
-			metrics.ProfilePictureUploads.WithLabelValues("error").Inc()
-			logger.Error("Failed to upload profile picture to Yandex",
-				zap.Error(err),
-				zap.String("mentor_id", mentorID),
-				zap.String("size", size))
-			return "", fmt.Errorf("failed to upload image")
-		}
-
-		// Store the 'full' URL for database
-		if size == "full" {
-			fullImageURL = imageURL
-		}
-
-		logger.Info("Uploaded profile picture size",
-			zap.String("mentor_id", mentorID),
-			zap.String("size", size),
-			zap.String("url", imageURL))
+	// Upload to Yandex Object Storage in 3 sizes: full, large, small (synchronous)
+	// Validation (type and size) is handled automatically by UploadImageAllSizes
+	fullImageURL, err := s.yandexClient.UploadImageAllSizes(ctx, req.Image, mentorSlug, req.ContentType)
+	if err != nil {
+		metrics.ProfilePictureUploads.WithLabelValues("error").Inc()
+		logger.Error("Failed to upload profile picture to Yandex",
+			zap.Error(err),
+			zap.String("mentor_id", mentorID))
+		return "", fmt.Errorf("failed to upload image")
 	}
 
 	// TODO: Re-enable webhook trigger when thumbnail generation is implemented
