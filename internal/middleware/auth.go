@@ -93,21 +93,3 @@ func InternalAPIAuthMiddleware(validToken string) gin.HandlerFunc {
 	}
 }
 
-// WebhookAuthMiddleware validates webhook secret
-func WebhookAuthMiddleware(validSecret string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		secret := c.GetHeader("X-Webhook-Secret")
-
-		if secret == "" || !jwt.TimingSafeCompare(secret, validSecret) {
-			logger.Warn("Invalid webhook secret",
-				zap.String("path", c.Request.URL.Path),
-				zap.String("client_ip", c.ClientIP()),
-			)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid webhook secret"})
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
-}
