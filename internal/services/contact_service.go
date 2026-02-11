@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
@@ -48,7 +49,7 @@ func (s *ContactService) SubmitContactForm(ctx context.Context, req *models.Cont
 		return &models.ContactMentorResponse{
 			Success: false,
 			Error:   "Captcha verification failed",
-		}, nil
+		}, fmt.Errorf("captcha verification failed: %w", err)
 	}
 
 	// Create client request in PostgreSQL
@@ -68,7 +69,7 @@ func (s *ContactService) SubmitContactForm(ctx context.Context, req *models.Cont
 		return &models.ContactMentorResponse{
 			Success: false,
 			Error:   "Failed to save contact request",
-		}, nil
+		}, fmt.Errorf("failed to create client request: %w", err)
 	}
 
 	// Trigger contact created webhook (non-blocking)

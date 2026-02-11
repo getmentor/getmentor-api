@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/getmentor/getmentor-api/config"
@@ -51,7 +52,7 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 		return &models.RegisterMentorResponse{
 			Success: false,
 			Error:   "Captcha verification failed",
-		}, nil
+		}, fmt.Errorf("captcha verification failed: %w", err)
 	}
 
 	// 2. Clean telegram handle (remove @ and t.me/ prefix)
@@ -100,7 +101,7 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 		return &models.RegisterMentorResponse{
 			Success: false,
 			Error:   "Failed to create mentor profile",
-		}, nil
+		}, fmt.Errorf("failed to create mentor: %w", err)
 	}
 
 	logger.Info("Mentor created in database",

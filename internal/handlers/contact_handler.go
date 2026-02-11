@@ -29,12 +29,11 @@ func (h *ContactHandler) ContactMentor(c *gin.Context) {
 
 	resp, err := h.service.SubmitContactForm(c.Request.Context(), &req)
 	if err != nil {
+		if resp != nil && resp.Error != "" {
+			c.JSON(http.StatusBadRequest, resp)
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
-	}
-
-	if !resp.Success {
-		c.JSON(http.StatusBadRequest, resp)
 		return
 	}
 

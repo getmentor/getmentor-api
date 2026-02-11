@@ -32,6 +32,10 @@ func (h *RegistrationHandler) RegisterMentor(c *gin.Context) {
 
 	resp, err := h.service.RegisterMentor(c.Request.Context(), &req)
 	if err != nil {
+		if resp != nil && resp.Error != "" {
+			c.JSON(http.StatusBadRequest, resp)
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   "Internal server error",
