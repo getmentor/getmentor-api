@@ -11,7 +11,6 @@ import (
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
-	"github.com/getmentor/getmentor-api/pkg/trigger"
 	"github.com/getmentor/getmentor-api/pkg/yandex"
 	"go.uber.org/zap"
 )
@@ -135,15 +134,15 @@ func (s *ProfileService) UploadPictureByMentorId(ctx context.Context, mentorID s
 		return "", fmt.Errorf("failed to upload image")
 	}
 
-	// TODO: Re-enable webhook trigger when thumbnail generation is implemented
+	// TODO: Re-enable webhook trigger for thumbnail generation or remove this dead goroutine
 	// Update database asynchronously
-	go func() {
-		// This webhook will trigger Azure Function to generate thumbnails
-		// trigger.CallAsync(s.config.EventTriggers.MentorUpdatedTriggerURL, mentorID, s.httpClient)
-		_ = s.config.EventTriggers.MentorUpdatedTriggerURL // Keep for future use
-		_ = s.httpClient                                   // Keep for future use
-		_ = trigger.CallAsync                              // Keep for future use
-	}()
+	//go func() {
+	//	// This webhook will trigger Azure Function to generate thumbnails
+	//	// trigger.CallAsync(s.config.EventTriggers.MentorUpdatedTriggerURL, mentorID, s.httpClient)
+	//	_ = s.config.EventTriggers.MentorUpdatedTriggerURL // Keep for future use
+	//	_ = s.httpClient                                   // Keep for future use
+	//	_ = trigger.CallAsync                              // Keep for future use
+	//}()
 
 	metrics.ProfilePictureUploads.WithLabelValues("success").Inc()
 	logger.Info("Profile picture uploaded via session",

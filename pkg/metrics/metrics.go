@@ -331,6 +331,7 @@ func Init(serviceName string) {
 // RecordInfrastructureMetrics collects infrastructure metrics periodically
 func RecordInfrastructureMetrics() {
 	ticker := time.NewTicker(15 * time.Second)
+	// TODO: Add stop channel/context to metrics goroutine to prevent leak on shutdown
 	go func() {
 		for range ticker.C {
 			var m runtime.MemStats
