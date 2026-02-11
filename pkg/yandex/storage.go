@@ -59,6 +59,19 @@ func NewStorageClient(accessKeyID, secretAccessKey, bucketName, endpoint, region
 	}, nil
 }
 
+// decodeBase64Image decodes a base64-encoded image string, handling both raw base64
+// and data URI format (data:image/png;base64,...). Returns the decoded bytes.
+func decodeBase64Image(imageData string) ([]byte, error) {
+	if strings.HasPrefix(imageData, "data:") {
+		parts := strings.SplitN(imageData, ",", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid data URI format")
+		}
+		return base64.StdEncoding.DecodeString(parts[1])
+	}
+	return base64.StdEncoding.DecodeString(imageData)
+}
+
 // UploadImage uploads an image to Yandex Object Storage
 // Returns the public URL of the uploaded image
 func (s *StorageClient) UploadImage(ctx context.Context, imageData, key, contentType string) (string, error) {
@@ -66,20 +79,7 @@ func (s *StorageClient) UploadImage(ctx context.Context, imageData, key, content
 	operation := "uploadImage"
 
 	// Decode base64 image data
-	var imageBytes []byte
-	var err error
-
-	// Handle data URI format (data:image/png;base64,...)
-	if strings.HasPrefix(imageData, "data:") {
-		parts := strings.SplitN(imageData, ",", 2)
-		if len(parts) != 2 {
-			return "", fmt.Errorf("invalid data URI format")
-		}
-		imageBytes, err = base64.StdEncoding.DecodeString(parts[1])
-	} else {
-		imageBytes, err = base64.StdEncoding.DecodeString(imageData)
-	}
-
+	imageBytes, err := decodeBase64Image(imageData)
 	if err != nil {
 		metrics.YandexStorageRequestDuration.WithLabelValues(operation, "error").Observe(metrics.MeasureDuration(start))
 		metrics.YandexStorageRequestTotal.WithLabelValues(operation, "error").Inc()
@@ -141,19 +141,7 @@ func (s *StorageClient) ValidateImageSize(imageData string) error {
 	const maxSize = 10 * 1024 * 1024 // 10MB
 
 	// Decode to check size
-	var imageBytes []byte
-	var err error
-
-	if strings.HasPrefix(imageData, "data:") {
-		parts := strings.SplitN(imageData, ",", 2)
-		if len(parts) != 2 {
-			return fmt.Errorf("invalid data URI format")
-		}
-		imageBytes, err = base64.StdEncoding.DecodeString(parts[1])
-	} else {
-		imageBytes, err = base64.StdEncoding.DecodeString(imageData)
-	}
-
+	imageBytes, err := decodeBase64Image(imageData)
 	if err != nil {
 		return fmt.Errorf("failed to decode image for size validation: %w", err)
 	}
