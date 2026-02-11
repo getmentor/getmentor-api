@@ -209,12 +209,16 @@ func GetCalendarType(url string) string {
 	}
 }
 
+// SponsorTags defines the set of tags that represent sponsors.
+// These tags are preserved during profile updates and cannot be modified by mentors.
+var SponsorTags = map[string]bool{
+	"Сообщество Онтико": true,
+	"Эксперт Авито":     true,
+}
+
 // GetMentorSponsor extracts sponsor information from tags
 func GetMentorSponsor(tags []string) string {
-	sponsorTags := map[string]bool{
-		"Сообщество Онтико": true,
-		"Эксперт Авито":     true,
-	}
+	sponsorTags := SponsorTags
 
 	sponsors := []string{}
 	for _, tag := range tags {

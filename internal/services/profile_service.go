@@ -37,13 +37,6 @@ func NewProfileService(
 	}
 }
 
-func (s *ProfileService) getSponsorTags() map[string]bool {
-	return map[string]bool{
-		"Сообщество Онтико": true,
-		"Эксперт Авито":     true,
-	}
-}
-
 // SaveProfileByMentorId updates a mentor's profile using Mentor ID (UUID) for session-based auth
 func (s *ProfileService) SaveProfileByMentorId(ctx context.Context, mentorID string, req *models.SaveProfileRequest) error {
 	// Get mentor to get current tags (for sponsor preservation)
@@ -53,7 +46,7 @@ func (s *ProfileService) SaveProfileByMentorId(ctx context.Context, mentorID str
 	}
 
 	// Get sponsor tags to preserve them
-	sponsorTags := s.getSponsorTags()
+	sponsorTags := models.SponsorTags
 	preservedSponsors := []string{}
 	for _, tag := range mentor.Tags {
 		if sponsorTags[tag] {
