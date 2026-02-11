@@ -3,6 +3,7 @@ package httpclient
 import (
 	"io"
 	"net/http"
+	"time"
 )
 
 // Client defines an interface for making HTTP requests
@@ -21,7 +22,7 @@ type StandardHTTPClient struct {
 // NewStandardClient creates a new HTTP client with default settings
 func NewStandardClient() Client {
 	return &StandardHTTPClient{
-		client: &http.Client{},
+		client: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
