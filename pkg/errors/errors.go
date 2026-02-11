@@ -49,4 +49,3 @@ func InvalidInputError(field, reason string) error {
 func InternalError(msg string) error {
 	return fmt.Errorf("%s: %w", msg, ErrInternal)
 }
-

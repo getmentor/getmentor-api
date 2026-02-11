@@ -129,13 +129,13 @@ func (s *ProfileService) UploadPictureByMentorId(ctx context.Context, mentorID s
 
 	// TODO: Re-enable webhook trigger for thumbnail generation or remove this dead goroutine
 	// Update database asynchronously
-	//go func() {
-	//	// This webhook will trigger Azure Function to generate thumbnails
-	//	// trigger.CallAsync(s.config.EventTriggers.MentorUpdatedTriggerURL, mentorID, s.httpClient)
-	//	_ = s.config.EventTriggers.MentorUpdatedTriggerURL // Keep for future use
-	//	_ = s.httpClient                                   // Keep for future use
-	//	_ = trigger.CallAsync                              // Keep for future use
-	//}()
+	// go func() {
+	//	 // This webhook will trigger Azure Function to generate thumbnails
+	//	 // trigger.CallAsync(s.config.EventTriggers.MentorUpdatedTriggerURL, mentorID, s.httpClient)
+	//	 _ = s.config.EventTriggers.MentorUpdatedTriggerURL // Keep for future use
+	//	 _ = s.httpClient                                   // Keep for future use
+	//	 _ = trigger.CallAsync                              // Keep for future use
+	// }()
 
 	metrics.ProfilePictureUploads.WithLabelValues("success").Inc()
 	logger.Info("Profile picture uploaded via session",

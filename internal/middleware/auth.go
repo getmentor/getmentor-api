@@ -92,4 +92,3 @@ func InternalAPIAuthMiddleware(validToken string) gin.HandlerFunc {
 		c.Next()
 	}
 }
-

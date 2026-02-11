@@ -202,4 +202,3 @@ func TestInternalAPIAuthMiddleware_MissingToken(t *testing.T) {
 	assert.False(t, handlerCalled, "Handler should not be called when internal token is missing")
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
-
