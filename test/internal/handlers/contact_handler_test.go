@@ -344,7 +344,7 @@ func TestContactHandler_ContactMentor_CaptchaFailed(t *testing.T) {
 			Success: false,
 			Error:   "Captcha verification failed",
 		},
-		nil,
+		errors.New("captcha verification failed"),
 	)
 
 	body, _ := json.Marshal(reqBody)

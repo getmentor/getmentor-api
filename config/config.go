@@ -70,6 +70,7 @@ type EventTriggerFunctionsConfig struct {
 	MentorRequestCreatedTriggerURL   string
 	MentorLoginEmailTriggerURL       string
 	RequestProcessFinishedTriggerURL string
+	ReviewCreatedTriggerURL          string
 }
 
 type NextJSConfig struct {
@@ -204,6 +205,7 @@ func Load() (*Config, error) {
 			MentorRequestCreatedTriggerURL:   v.GetString("MENTOR_REQUEST_CREATED_TRIGGER_URL"),
 			MentorLoginEmailTriggerURL:       v.GetString("MENTOR_LOGIN_EMAIL_TRIGGER_URL"),
 			RequestProcessFinishedTriggerURL: v.GetString("REQUEST_PROCESS_FINISHED_TRIGGER_URL"),
+			ReviewCreatedTriggerURL:          v.GetString("REVIEW_CREATED_TRIGGER_URL"),
 		},
 		NextJS: NextJSConfig{
 			BaseURL:          v.GetString("NEXTJS_BASE_URL"),

@@ -168,8 +168,7 @@ func ScanClientRequest(row pgx.Row) (*MentorClientRequest, error) {
 	r.Review = review
 
 	// Compute ReviewURL from constant base URL + request ID
-	// Format: https://getmentor.dev/review/{requestId}
-	reviewURL := fmt.Sprintf("https://getmentor.dev/review/%s", r.ID)
+	reviewURL := fmt.Sprintf("https://getmentor.dev/reviews/new?request_id=%s", r.ID)
 	r.ReviewURL = &reviewURL
 
 	return &r, nil

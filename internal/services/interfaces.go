@@ -49,6 +49,12 @@ type MentorRequestsServiceInterface interface {
 	DeclineRequest(ctx context.Context, mentorId string, requestID string, payload *models.DeclineRequestPayload) (*models.MentorClientRequest, error)
 }
 
+// ReviewServiceInterface defines the interface for review service operations
+type ReviewServiceInterface interface {
+	CheckReview(ctx context.Context, requestID string) (*models.ReviewCheckResponse, error)
+	SubmitReview(ctx context.Context, requestID string, req *models.SubmitReviewRequest) (*models.SubmitReviewResponse, error)
+}
+
 // Ensure services implement their interfaces
 var _ ContactServiceInterface = (*ContactService)(nil)
 var _ MentorServiceInterface = (*MentorService)(nil)
@@ -56,3 +62,4 @@ var _ ProfileServiceInterface = (*ProfileService)(nil)
 var _ RegistrationServiceInterface = (*RegistrationService)(nil)
 var _ MentorAuthServiceInterface = (*MentorAuthService)(nil)
 var _ MentorRequestsServiceInterface = (*MentorRequestsService)(nil)
+var _ ReviewServiceInterface = (*ReviewService)(nil)

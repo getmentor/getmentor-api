@@ -149,7 +149,7 @@ func TestScanClientRequest(t *testing.T) {
 	}
 
 	// Verify computed ReviewURL
-	expectedReviewURL := "https://getmentor.dev/review/" + requestID
+	expectedReviewURL := "https://getmentor.dev/reviews/new?request_id=" + requestID
 	if request.ReviewURL == nil || *request.ReviewURL != expectedReviewURL {
 		t.Errorf("expected ReviewURL %s, got %v", expectedReviewURL, request.ReviewURL)
 	}

@@ -40,6 +40,7 @@ func registerAPIRoutes(
 	contactHandler *handlers.ContactHandler,
 	logsHandler *handlers.LogsHandler,
 	registrationHandler *handlers.RegistrationHandler,
+	reviewHandler *handlers.ReviewHandler,
 ) {
 
 	publicTokens := []string{
@@ -53,6 +54,10 @@ func registerAPIRoutes(
 	group.POST("/contact-mentor", contactRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(100*1024), contactHandler.ContactMentor)
 	group.POST("/register-mentor", registrationRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), registrationHandler.RegisterMentor)
 	group.POST("/logs", generalRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(1*1024*1024), logsHandler.ReceiveFrontendLogs)
+
+	// Review routes (public - uses captcha for protection)
+	group.GET("/reviews/:requestId/check", generalRateLimiter.Middleware(), reviewHandler.CheckReview)
+	group.POST("/reviews/:requestId", contactRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(100*1024), reviewHandler.SubmitReview)
 }
 
 // registerMentorAdminRoutes registers mentor admin routes for authentication, request management, and profile
@@ -225,6 +230,9 @@ func main() {
 	// Initialize HTTP client for external API calls
 	httpClient := httpclient.NewStandardClient()
 
+	// Initialize repositories for reviews
+	reviewRepo := repository.NewReviewRepository(pool)
+
 	// Initialize services
 	mentorService := services.NewMentorService(mentorRepo, cfg)
 	contactService := services.NewContactService(clientRequestRepo, mentorRepo, cfg, httpClient)
@@ -233,11 +241,13 @@ func main() {
 	mcpService := services.NewMCPService(mentorRepo, cfg.Server.BaseURL)
 	mentorAuthService := services.NewMentorAuthService(mentorRepo, cfg, httpClient)
 	mentorRequestsService := services.NewMentorRequestsService(clientRequestRepo, cfg, httpClient)
+	reviewService := services.NewReviewService(reviewRepo, cfg, httpClient)
 
 	// Initialize handlers
 	mentorHandler := handlers.NewMentorHandler(mentorService, cfg.Server.BaseURL)
 	contactHandler := handlers.NewContactHandler(contactService)
 	registrationHandler := handlers.NewRegistrationHandler(registrationService)
+	reviewHandler := handlers.NewReviewHandler(reviewService)
 	mcpHandler := handlers.NewMCPHandler(mcpService)
 	// Health check: If cache is disabled, always return true for cache readiness
 	cacheReadyFunc := mentorCache.IsReady
@@ -297,7 +307,7 @@ func main() {
 	// SECURITY: Apply body size limits to prevent DoS attacks
 	v1 := router.Group("/api/v1")
 	registerAPIRoutes(v1, cfg, generalRateLimiter, contactRateLimiter, registrationRateLimiter,
-		mentorHandler, contactHandler, logsHandler, registrationHandler)
+		mentorHandler, contactHandler, logsHandler, registrationHandler, reviewHandler)
 
 	// Mentor admin routes (authentication, request management, and profile)
 	registerMentorAdminRoutes(router, cfg, mentorAuthRateLimiter, profileRateLimiter, mentorAuthHandler, mentorRequestsHandler, mentorProfileHandler, mentorAuthService.GetTokenManager())
