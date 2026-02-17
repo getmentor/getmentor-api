@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
@@ -45,6 +46,7 @@ func NewReviewService(reviewRepo *repository.ReviewRepository, cfg *config.Confi
 func (s *ReviewService) CheckReview(ctx context.Context, requestID string) (*models.ReviewCheckResponse, error) {
 	result, err := s.reviewRepo.CheckCanSubmitReview(ctx, requestID)
 	if err != nil {
+		metrics.ReviewChecks.WithLabelValues("error").Inc()
 		logger.Error("Failed to check review eligibility",
 			zap.String("request_id", requestID),
 			zap.Error(err))
@@ -52,6 +54,9 @@ func (s *ReviewService) CheckReview(ctx context.Context, requestID string) (*mod
 	}
 
 	if result.MentorName == "" && !result.CanSubmit {
+		metrics.ReviewChecks.WithLabelValues("not_found").Inc()
+		logger.Info("Review check: request not found",
+			zap.String("request_id", requestID))
 		return &models.ReviewCheckResponse{
 			CanSubmit: false,
 			Error:     "Заявка не найдена",
@@ -59,12 +64,21 @@ func (s *ReviewService) CheckReview(ctx context.Context, requestID string) (*mod
 	}
 
 	if !result.CanSubmit {
+		metrics.ReviewChecks.WithLabelValues("ineligible").Inc()
+		logger.Info("Review check: not eligible",
+			zap.String("request_id", requestID),
+			zap.String("mentor_name", result.MentorName))
 		return &models.ReviewCheckResponse{
 			CanSubmit:  false,
 			MentorName: result.MentorName,
 			Error:      "Отзыв уже оставлен или заявка ещё не завершена",
 		}, nil
 	}
+
+	metrics.ReviewChecks.WithLabelValues("eligible").Inc()
+	logger.Info("Review check: eligible",
+		zap.String("request_id", requestID),
+		zap.String("mentor_name", result.MentorName))
 
 	return &models.ReviewCheckResponse{
 		CanSubmit:  true,
@@ -74,9 +88,11 @@ func (s *ReviewService) CheckReview(ctx context.Context, requestID string) (*mod
 
 // SubmitReview creates a new review after verifying captcha and eligibility
 func (s *ReviewService) SubmitReview(ctx context.Context, requestID string, req *models.SubmitReviewRequest) (*models.SubmitReviewResponse, error) {
+	start := time.Now()
+
 	// Verify ReCAPTCHA
 	if err := s.recaptchaVerifier.Verify(req.RecaptchaToken); err != nil {
-		metrics.ContactFormSubmissions.WithLabelValues("review_captcha_failed").Inc()
+		metrics.ReviewSubmissions.WithLabelValues("captcha_failed").Inc()
 		logger.Warn("ReCAPTCHA verification failed for review",
 			zap.String("request_id", requestID),
 			zap.Error(err))
@@ -89,6 +105,7 @@ func (s *ReviewService) SubmitReview(ctx context.Context, requestID string, req 
 	// Check eligibility
 	checkResult, err := s.reviewRepo.CheckCanSubmitReview(ctx, requestID)
 	if err != nil {
+		metrics.ReviewSubmissions.WithLabelValues("error").Inc()
 		logger.Error("Failed to check review eligibility",
 			zap.String("request_id", requestID),
 			zap.Error(err))
@@ -99,6 +116,7 @@ func (s *ReviewService) SubmitReview(ctx context.Context, requestID string, req 
 	}
 
 	if checkResult.MentorName == "" && !checkResult.CanSubmit {
+		metrics.ReviewSubmissions.WithLabelValues("not_found").Inc()
 		return &models.SubmitReviewResponse{
 			Success: false,
 			Error:   "Заявка не найдена",
@@ -106,6 +124,7 @@ func (s *ReviewService) SubmitReview(ctx context.Context, requestID string, req 
 	}
 
 	if !checkResult.CanSubmit {
+		metrics.ReviewSubmissions.WithLabelValues("already_exists").Inc()
 		return &models.SubmitReviewResponse{
 			Success: false,
 			Error:   "Отзыв уже оставлен или заявка ещё не завершена",
@@ -115,6 +134,7 @@ func (s *ReviewService) SubmitReview(ctx context.Context, requestID string, req 
 	// Create review
 	reviewID, err := s.reviewRepo.CreateReview(ctx, requestID, req.MentorReview, req.PlatformReview, req.Improvements)
 	if err != nil {
+		metrics.ReviewSubmissions.WithLabelValues("db_error").Inc()
 		logger.Error("Failed to create review",
 			zap.String("request_id", requestID),
 			zap.Error(err))
@@ -127,10 +147,13 @@ func (s *ReviewService) SubmitReview(ctx context.Context, requestID string, req 
 	// Trigger Azure Function notification (non-blocking)
 	trigger.CallAsync(s.config.EventTriggers.ReviewCreatedTriggerURL, reviewID, s.httpClient)
 
-	metrics.ContactFormSubmissions.WithLabelValues("review_success").Inc()
+	duration := metrics.MeasureDuration(start)
+	metrics.ReviewDuration.Observe(duration)
+	metrics.ReviewSubmissions.WithLabelValues("success").Inc()
 	logger.Info("Review submitted successfully",
 		zap.String("request_id", requestID),
-		zap.String("review_id", reviewID))
+		zap.String("review_id", reviewID),
+		zap.Duration("duration", time.Since(start)))
 
 	return &models.SubmitReviewResponse{
 		Success:  true,

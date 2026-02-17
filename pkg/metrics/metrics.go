@@ -47,6 +47,11 @@ var (
 	MentorRequestsStatusUpdates *prometheus.CounterVec
 	MentorRequestsDeclines      *prometheus.CounterVec
 
+	// Review Metrics
+	ReviewSubmissions *prometheus.CounterVec
+	ReviewChecks      *prometheus.CounterVec
+	ReviewDuration    prometheus.Histogram
+
 	// MCP Metrics
 	MCPRequestTotal    *prometheus.CounterVec
 	MCPRequestDuration *prometheus.HistogramVec
@@ -267,6 +272,31 @@ func Init(serviceName string) {
 			Help: "Total mentor request declines",
 		},
 		[]string{"reason"},
+	)
+
+	// Review Metrics
+	ReviewSubmissions = factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "getmentor_review_submissions_total",
+			Help: "Total review submissions",
+		},
+		[]string{"status"},
+	)
+
+	ReviewChecks = factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "getmentor_review_checks_total",
+			Help: "Total review eligibility checks",
+		},
+		[]string{"result"},
+	)
+
+	ReviewDuration = factory.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "getmentor_review_submission_duration_seconds",
+			Help:    "Review submission duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
 	)
 
 	// MCP Metrics
