@@ -199,8 +199,11 @@ func (s *StorageClient) UploadImageAllSizes(ctx context.Context, imageData, slug
 // This is non-blocking and returns immediately. Errors are logged but not returned.
 // Use this when you don't need to wait for upload completion (e.g., during registration)
 func (s *StorageClient) UploadImageAllSizesAsync(ctx context.Context, imageData, slug, contentType, mentorID string) {
+	// Detach from the HTTP request context so the upload isn't cancelled
+	// when the handler returns the response to the client.
+	bgCtx := context.WithoutCancel(ctx)
 	go func() {
-		fullImageURL, err := s.UploadImageAllSizes(ctx, imageData, slug, contentType)
+		fullImageURL, err := s.UploadImageAllSizes(bgCtx, imageData, slug, contentType)
 		if err != nil {
 			logger.Error("Failed to upload profile picture asynchronously",
 				zap.Error(err),
