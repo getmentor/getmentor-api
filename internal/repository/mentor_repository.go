@@ -367,7 +367,11 @@ func (r *MentorRepository) GetByLoginToken(ctx context.Context, token string) (*
 	var tagsStr *string
 	var airtableID *string
 	var telegramChatID *int64
-	var expiresAt time.Time
+	var job, workplace, about, description, competencies *string
+	var experience, price *string
+	var calendarURL *string
+	var sortOrder *int
+	var expiresAt *time.Time
 
 	err := row.Scan(
 		&mentor.MentorID,
@@ -375,18 +379,18 @@ func (r *MentorRepository) GetByLoginToken(ctx context.Context, token string) (*
 		&mentor.LegacyID,
 		&mentor.Slug,
 		&mentor.Name,
-		&mentor.Job,
-		&mentor.Workplace,
-		&mentor.About,
-		&mentor.Description,
-		&mentor.Competencies,
-		&mentor.Experience,
-		&mentor.Price,
+		&job,
+		&workplace,
+		&about,
+		&description,
+		&competencies,
+		&experience,
+		&price,
 		&mentor.Status,
 		&tagsStr,
 		&telegramChatID,
-		&mentor.CalendarURL,
-		&mentor.SortOrder,
+		&calendarURL,
+		&sortOrder,
 		&mentor.CreatedAt,
 		&mentor.MenteeCount,
 		&expiresAt,
@@ -397,9 +401,39 @@ func (r *MentorRepository) GetByLoginToken(ctx context.Context, token string) (*
 
 	mentor.AirtableID = airtableID
 	mentor.TelegramChatID = telegramChatID
+	if job != nil {
+		mentor.Job = *job
+	}
+	if workplace != nil {
+		mentor.Workplace = *workplace
+	}
+	if about != nil {
+		mentor.About = *about
+	}
+	if description != nil {
+		mentor.Description = *description
+	}
+	if competencies != nil {
+		mentor.Competencies = *competencies
+	}
+	if experience != nil {
+		mentor.Experience = *experience
+	}
+	if price != nil {
+		mentor.Price = *price
+	}
+	if calendarURL != nil {
+		mentor.CalendarURL = *calendarURL
+	}
+	if sortOrder != nil {
+		mentor.SortOrder = *sortOrder
+	}
+	if expiresAt == nil {
+		return nil, time.Time{}, fmt.Errorf("login token has no expiry")
+	}
 
 	// Return the token that was used to find this mentor (already validated by SQL query)
-	return &mentor, expiresAt, nil
+	return &mentor, *expiresAt, nil
 }
 
 // SetLoginToken sets the login token for a mentor
