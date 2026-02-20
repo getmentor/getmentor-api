@@ -100,7 +100,7 @@ func registerMentorAdminRoutes(
 	mentor.POST("/profile/picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), mentorProfileHandler.UploadPicture)
 }
 
-func main() {
+func main() { //nolint:gocyclo
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {

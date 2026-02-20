@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/getmentor/getmentor-api/internal/models"
@@ -23,17 +24,18 @@ func NewReviewHandler(service services.ReviewServiceInterface) *ReviewHandler {
 func (h *ReviewHandler) CheckReview(c *gin.Context) {
 	requestID := c.Param("requestId")
 	if requestID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing request ID"})
+		respondError(c, http.StatusBadRequest, "Missing request ID", fmt.Errorf("missing route param: requestId"))
 		return
 	}
 
 	resp, err := h.service.CheckReview(c.Request.Context(), requestID)
 	if err != nil {
 		if errors.Is(err, services.ErrReviewRequestNotFound) {
+			attachError(c, err)
 			c.JSON(http.StatusNotFound, resp)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check review eligibility"})
+		respondError(c, http.StatusInternalServerError, "Failed to check review eligibility", err)
 		return
 	}
 
@@ -44,23 +46,21 @@ func (h *ReviewHandler) CheckReview(c *gin.Context) {
 func (h *ReviewHandler) SubmitReview(c *gin.Context) {
 	requestID := c.Param("requestId")
 	if requestID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing request ID"})
+		respondError(c, http.StatusBadRequest, "Missing request ID", fmt.Errorf("missing route param: requestId"))
 		return
 	}
 
 	var req models.SubmitReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		validationErrors := ParseValidationErrors(err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Validation failed",
-			"details": validationErrors,
-		})
+		respondErrorWithDetails(c, http.StatusBadRequest, "Validation failed", validationErrors, err)
 		return
 	}
 
 	resp, err := h.service.SubmitReview(c.Request.Context(), requestID, &req)
 	if err != nil {
 		if resp != nil && resp.Error != "" {
+			attachError(c, err)
 			if errors.Is(err, services.ErrReviewRequestNotFound) {
 				c.JSON(http.StatusNotFound, resp)
 				return
@@ -69,14 +69,10 @@ func (h *ReviewHandler) SubmitReview(c *gin.Context) {
 				c.JSON(http.StatusConflict, resp)
 				return
 			}
-			if errors.Is(err, services.ErrReviewCaptchaFailed) {
-				c.JSON(http.StatusBadRequest, resp)
-				return
-			}
 			c.JSON(http.StatusBadRequest, resp)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		respondError(c, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 

@@ -23,23 +23,18 @@ func (h *RegistrationHandler) RegisterMentor(c *gin.Context) {
 	var req models.RegisterMentorRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		validationErrors := ParseValidationErrors(err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Validation failed",
-			"details": validationErrors,
-		})
+		respondErrorWithDetails(c, http.StatusBadRequest, "Validation failed", validationErrors, err)
 		return
 	}
 
 	resp, err := h.service.RegisterMentor(c.Request.Context(), &req)
 	if err != nil {
 		if resp != nil && resp.Error != "" {
+			attachError(c, err)
 			c.JSON(http.StatusBadRequest, resp)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"error":   "Internal server error",
-		})
+		respondError(c, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 

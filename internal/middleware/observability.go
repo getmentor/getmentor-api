@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/getmentor/getmentor-api/pkg/logger"
@@ -9,6 +10,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
+
+// sensitiveQueryParams are redacted from logs to avoid leaking secrets.
+var sensitiveQueryParams = map[string]bool{
+	"token": true, "password": true, "secret": true, "key": true,
+	"auth": true, "api_key": true, "apikey": true,
+}
 
 // ObservabilityMiddleware instruments HTTP requests with metrics and logging
 func ObservabilityMiddleware() gin.HandlerFunc {
@@ -49,9 +56,31 @@ func ObservabilityMiddleware() gin.HandlerFunc {
 			zap.Int("response_size", c.Writer.Size()),
 		}
 
-		// Add error if present
-		if len(c.Errors) > 0 {
-			fields = append(fields, zap.String("error", c.Errors.String()))
+		// For error responses, add route params and query params for traceability
+		if status >= 400 {
+			if len(c.Params) > 0 {
+				params := make(map[string]string, len(c.Params))
+				for _, p := range c.Params {
+					params[p.Key] = p.Value
+				}
+				fields = append(fields, zap.Any("route_params", params))
+			}
+
+			if query := c.Request.URL.Query(); len(query) > 0 {
+				sanitized := make(map[string]string, len(query))
+				for k, v := range query {
+					if !sensitiveQueryParams[strings.ToLower(k)] && len(v) > 0 {
+						sanitized[k] = v[0]
+					}
+				}
+				if len(sanitized) > 0 {
+					fields = append(fields, zap.Any("query_params", sanitized))
+				}
+			}
+
+			if len(c.Errors) > 0 {
+				fields = append(fields, zap.String("error", c.Errors.String()))
+			}
 		}
 
 		// Log with actual path for debugging purposes

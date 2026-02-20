@@ -2,14 +2,13 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/getmentor/getmentor-api/internal/middleware"
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/services"
-	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 // MentorAuthHandler handles mentor authentication endpoints
@@ -29,45 +28,23 @@ func NewMentorAuthHandler(service services.MentorAuthServiceInterface) *MentorAu
 func (h *MentorAuthHandler) RequestLogin(c *gin.Context) {
 	var req models.RequestLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Validation failed",
-			"details": []gin.H{
-				{"field": "email", "message": "Invalid email format"},
-			},
-		})
+		respondErrorWithDetails(c, http.StatusBadRequest, "Validation failed", []gin.H{
+			{"field": "email", "message": "Invalid email format"},
+		}, err)
 		return
 	}
 
 	resp, err := h.service.RequestLogin(c.Request.Context(), req.Email)
 	if err != nil {
 		if errors.Is(err, services.ErrMentorNotFound) {
-			logger.Warn("Login request failed: mentor not found",
-				zap.String("email", req.Email),
-				zap.String("reason", "not_found"))
-			c.JSON(http.StatusNotFound, gin.H{
-				"success": false,
-				"message": "Mentor not found",
-			})
+			respondError(c, http.StatusNotFound, "Mentor not found", fmt.Errorf("email %q not found", req.Email))
 			return
 		}
 		if errors.Is(err, services.ErrMentorNotEligible) {
-			logger.Warn("Login request failed: mentor not eligible",
-				zap.String("email", req.Email),
-				zap.String("reason", "not_eligible"))
-			c.JSON(http.StatusForbidden, gin.H{
-				"success": false,
-				"message": "Login not available for this account",
-			})
+			respondError(c, http.StatusForbidden, "Login not available for this account", fmt.Errorf("mentor with email %q is not eligible for login", req.Email))
 			return
 		}
-		logger.Error("Login request failed: internal error",
-			zap.String("email", req.Email),
-			zap.String("reason", "internal_error"),
-			zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "Error while sending auth link",
-		})
+		respondError(c, http.StatusInternalServerError, "Error while sending auth link", err)
 		return
 	}
 
@@ -79,40 +56,25 @@ func (h *MentorAuthHandler) RequestLogin(c *gin.Context) {
 func (h *MentorAuthHandler) VerifyLogin(c *gin.Context) {
 	var req models.VerifyLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"error":   "Invalid token format",
-		})
+		respondError(c, http.StatusBadRequest, "Invalid token format", err)
 		return
 	}
 
 	session, jwtToken, err := h.service.VerifyLogin(c.Request.Context(), req.Token)
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidLoginToken) {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"error":   "Invalid token",
-			})
+			respondError(c, http.StatusUnauthorized, "Invalid token", err)
 			return
 		}
 		if errors.Is(err, services.ErrMentorNotEligible) {
-			c.JSON(http.StatusForbidden, gin.H{
-				"success": false,
-				"error":   "Login not available for this account",
-			})
+			respondError(c, http.StatusForbidden, "Login not available for this account", err)
 			return
 		}
 		if errors.Is(err, services.ErrJWTSecretNotSet) {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"success": false,
-				"error":   "Service temporarily unavailable",
-			})
+			respondError(c, http.StatusInternalServerError, "Service temporarily unavailable", err)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"error":   "Error while verifying token",
-		})
+		respondError(c, http.StatusInternalServerError, "Error while verifying token", err)
 		return
 	}
 
@@ -150,9 +112,7 @@ func (h *MentorAuthHandler) Logout(c *gin.Context) {
 func (h *MentorAuthHandler) GetSession(c *gin.Context) {
 	session, err := middleware.GetMentorSession(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Not authenticated",
-		})
+		respondError(c, http.StatusUnauthorized, "Not authenticated", err)
 		return
 	}
 

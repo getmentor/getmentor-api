@@ -34,17 +34,13 @@ func NewMentorProfileHandler(
 func (h *MentorProfileHandler) GetProfile(c *gin.Context) {
 	session, err := middleware.GetMentorSession(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		respondError(c, http.StatusUnauthorized, "Unauthorized", err)
 		return
 	}
 
-	// Fetch mentor with secure fields (showHidden: true)
 	mentor, err := h.mentorService.GetMentorByMentorId(c.Request.Context(), session.MentorID, models.FilterOptions{ShowHidden: true})
 	if err != nil {
-		logger.Warn("Failed to fetch mentor profile",
-			zap.String("mentor_id", session.MentorID),
-			zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{"error": "Profile not found"})
+		respondError(c, http.StatusNotFound, "Profile not found", err)
 		return
 	}
 
@@ -56,28 +52,19 @@ func (h *MentorProfileHandler) GetProfile(c *gin.Context) {
 func (h *MentorProfileHandler) UpdateProfile(c *gin.Context) {
 	session, err := middleware.GetMentorSession(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		respondError(c, http.StatusUnauthorized, "Unauthorized", err)
 		return
 	}
 
 	var req models.SaveProfileRequest
 	if bindErr := c.ShouldBindJSON(&req); bindErr != nil {
-		logger.Warn("Invalid profile update request",
-			zap.String("mentor_id", session.MentorID),
-			zap.Error(bindErr))
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request body",
-			"details": gin.H{"message": bindErr.Error()},
-		})
+		respondErrorWithDetails(c, http.StatusBadRequest, "Invalid request body", gin.H{"message": bindErr.Error()}, bindErr)
 		return
 	}
 
 	err = h.profileService.SaveProfileByMentorId(c.Request.Context(), session.MentorID, &req)
 	if err != nil {
-		logger.Error("Failed to update profile",
-			zap.String("mentor_id", session.MentorID),
-			zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
+		respondError(c, http.StatusInternalServerError, "Failed to update profile", err)
 		return
 	}
 
@@ -93,29 +80,19 @@ func (h *MentorProfileHandler) UpdateProfile(c *gin.Context) {
 func (h *MentorProfileHandler) UploadPicture(c *gin.Context) {
 	session, err := middleware.GetMentorSession(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		respondError(c, http.StatusUnauthorized, "Unauthorized", err)
 		return
 	}
 
 	var req models.UploadProfilePictureRequest
 	if bindErr := c.ShouldBindJSON(&req); bindErr != nil {
-		logger.Warn("Invalid picture upload request",
-			zap.String("mentor_id", session.MentorID),
-			zap.Error(bindErr))
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request body",
-			"details": gin.H{"message": bindErr.Error()},
-		})
+		respondErrorWithDetails(c, http.StatusBadRequest, "Invalid request body", gin.H{"message": bindErr.Error()}, bindErr)
 		return
 	}
 
-	// Get mentor to fetch slug for storage path
 	mentor, err := h.mentorService.GetMentorByMentorId(c.Request.Context(), session.MentorID, models.FilterOptions{ShowHidden: true})
 	if err != nil {
-		logger.Error("Failed to fetch mentor for picture upload",
-			zap.String("mentor_id", session.MentorID),
-			zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch mentor"})
+		respondError(c, http.StatusInternalServerError, "Failed to fetch mentor", err)
 		return
 	}
 
@@ -126,10 +103,7 @@ func (h *MentorProfileHandler) UploadPicture(c *gin.Context) {
 		&req,
 	)
 	if err != nil {
-		logger.Error("Failed to upload profile picture",
-			zap.String("mentor_id", session.MentorID),
-			zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload picture"})
+		respondError(c, http.StatusInternalServerError, "Failed to upload picture", err)
 		return
 	}
 

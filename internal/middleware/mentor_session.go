@@ -2,13 +2,12 @@ package middleware
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/pkg/jwt"
-	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 const (
@@ -30,9 +29,7 @@ func MentorSessionMiddleware(tokenManager *jwt.TokenManager, cookieDomain string
 		// Get session cookie
 		cookie, err := c.Cookie(MentorSessionCookieName)
 		if err != nil {
-			logger.Debug("Missing mentor session cookie",
-				zap.String("path", c.Request.URL.Path),
-				zap.String("client_ip", c.ClientIP()))
+			_ = c.Error(fmt.Errorf("missing session cookie")) //nolint:errcheck
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 			c.Abort()
 			return
@@ -41,10 +38,7 @@ func MentorSessionMiddleware(tokenManager *jwt.TokenManager, cookieDomain string
 		// Validate token
 		claims, err := tokenManager.ValidateToken(cookie)
 		if err != nil {
-			logger.Warn("Invalid mentor session token",
-				zap.String("path", c.Request.URL.Path),
-				zap.String("client_ip", c.ClientIP()),
-				zap.Error(err))
+			_ = c.Error(fmt.Errorf("invalid session token: %w", err)) //nolint:errcheck
 
 			// Clear invalid cookie
 			clearSessionCookie(c, cookieDomain, cookieSecure)

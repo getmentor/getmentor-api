@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -28,11 +29,10 @@ func (h *MentorHandler) GetPublicMentors(c *gin.Context) {
 		OnlyVisible: true,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch mentors"})
+		respondError(c, http.StatusInternalServerError, "Failed to fetch mentors", err)
 		return
 	}
 
-	// Convert to public format
 	publicMentors := make([]models.PublicMentorResponse, 0, len(mentors))
 	for _, mentor := range mentors {
 		publicMentors = append(publicMentors, mentor.ToPublicResponse(h.baseURL))
@@ -45,13 +45,13 @@ func (h *MentorHandler) GetPublicMentorByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		respondError(c, http.StatusBadRequest, "Invalid ID", fmt.Errorf("invalid mentor id %q: %w", idStr, err))
 		return
 	}
 
 	mentor, err := h.service.GetMentorByID(c.Request.Context(), id, models.FilterOptions{OnlyVisible: true})
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Mentor not found"})
+		respondError(c, http.StatusNotFound, "Mentor not found", fmt.Errorf("mentor id=%d not found: %w", id, err))
 		return
 	}
 
@@ -60,13 +60,11 @@ func (h *MentorHandler) GetPublicMentorByID(c *gin.Context) {
 }
 
 func (h *MentorHandler) GetInternalMentors(c *gin.Context) {
-	// Parse query params
 	forceRefresh := c.Query("force_reset_cache") == "true"
 	id := c.Query("id")
 	slug := c.Query("slug")
 	rec := c.Query("rec")
 
-	// Parse body params
 	var body struct {
 		OnlyVisible    bool `json:"only_visible"`
 		ShowHidden     bool `json:"show_hidden"`
@@ -81,16 +79,15 @@ func (h *MentorHandler) GetInternalMentors(c *gin.Context) {
 		ForceRefresh:   forceRefresh,
 	}
 
-	// Single mentor lookup
 	if id != "" {
 		mentorID, err := strconv.Atoi(id)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+			respondError(c, http.StatusBadRequest, "Invalid ID", fmt.Errorf("invalid mentor id %q: %w", id, err))
 			return
 		}
 		mentor, err := h.service.GetMentorByID(c.Request.Context(), mentorID, opts)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Mentor not found"})
+			respondError(c, http.StatusNotFound, "Mentor not found", fmt.Errorf("mentor id=%d not found: %w", mentorID, err))
 			return
 		}
 		c.JSON(http.StatusOK, mentor)
@@ -100,7 +97,7 @@ func (h *MentorHandler) GetInternalMentors(c *gin.Context) {
 	if slug != "" {
 		mentor, err := h.service.GetMentorBySlug(c.Request.Context(), slug, opts)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Mentor not found"})
+			respondError(c, http.StatusNotFound, "Mentor not found", fmt.Errorf("mentor slug=%q not found: %w", slug, err))
 			return
 		}
 		c.JSON(http.StatusOK, mentor)
@@ -110,21 +107,20 @@ func (h *MentorHandler) GetInternalMentors(c *gin.Context) {
 	if rec != "" {
 		mentor, err := h.service.GetMentorByMentorId(c.Request.Context(), rec, opts)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Mentor not found"})
+			respondError(c, http.StatusNotFound, "Mentor not found", fmt.Errorf("mentor rec=%q not found: %w", rec, err))
 			return
 		}
 		c.JSON(http.StatusOK, mentor)
 		return
 	}
 
-	// Return all mentors
 	mentors, err := h.service.GetAllMentors(c.Request.Context(), opts)
 	if err != nil {
 		logger.Error("Failed to fetch mentors in GetInternalMentors",
 			zap.Error(err),
 			zap.Bool("only_visible", opts.OnlyVisible),
 			zap.Bool("force_refresh", opts.ForceRefresh))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch mentors"})
+		respondError(c, http.StatusInternalServerError, "Failed to fetch mentors", err)
 		return
 	}
 

@@ -196,13 +196,24 @@ func LogHTTPRequest(ctx context.Context, method, path string, statusCode int, du
 
 	baseFields = append(baseFields, fields...)
 
-	switch {
-	case statusCode >= 500:
-		Error("HTTP request failed", baseFields...)
-	case statusCode >= 400:
-		Warn("HTTP request client error", baseFields...)
+	switch statusCode {
+	case 401:
+		Info("HTTP request unauthorized", baseFields...)
+	case 403:
+		Info("HTTP request forbidden", baseFields...)
+	case 404:
+		Info("HTTP request not found", baseFields...)
+	case 429:
+		Warn("HTTP request rate limited", baseFields...)
 	default:
-		Info("HTTP request", baseFields...)
+		switch {
+		case statusCode >= 500:
+			Error("HTTP request failed", baseFields...)
+		case statusCode >= 400:
+			Warn("HTTP request client error", baseFields...)
+		default:
+			Info("HTTP request", baseFields...)
+		}
 	}
 }
 
