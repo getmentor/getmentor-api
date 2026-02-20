@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
@@ -48,38 +49,34 @@ func (s *ContactService) SubmitContactForm(ctx context.Context, req *models.Cont
 		return &models.ContactMentorResponse{
 			Success: false,
 			Error:   "Captcha verification failed",
-		}, nil
+		}, fmt.Errorf("captcha verification failed: %w", err)
 	}
 
-	// Create client request in Airtable (skip in development)
-	if !s.config.IsDevelopment() {
-		clientReq := &models.ClientRequest{
-			Email:       req.Email,
-			Name:        req.Name,
-			Level:       req.Experience,
-			MentorID:    req.MentorAirtableID,
-			Description: req.Intro,
-			Telegram:    req.TelegramUsername,
-		}
-
-		recordID, err := s.clientRequestRepo.Create(ctx, clientReq)
-		if err != nil {
-			metrics.ContactFormSubmissions.WithLabelValues("error").Inc()
-			logger.Error("Failed to create client request", zap.Error(err))
-			return &models.ContactMentorResponse{
-				Success: false,
-				Error:   "Failed to save contact request",
-			}, nil
-		}
-
-		// Trigger contact created webhook (non-blocking)
-		trigger.CallAsync(s.config.EventTriggers.MentorRequestCreatedTriggerURL, recordID, s.httpClient)
-	} else {
-		metrics.ContactFormSubmissions.WithLabelValues("success_dev").Inc()
+	// Create client request in PostgreSQL
+	clientReq := &models.ClientRequest{
+		Email:       req.Email,
+		Name:        req.Name,
+		Level:       req.Experience,
+		MentorID:    req.MentorID,
+		Description: req.Intro,
+		Telegram:    req.TelegramUsername,
 	}
+
+	requestID, err := s.clientRequestRepo.Create(ctx, clientReq)
+	if err != nil {
+		metrics.ContactFormSubmissions.WithLabelValues("error").Inc()
+		logger.Error("Failed to create client request", zap.Error(err))
+		return &models.ContactMentorResponse{
+			Success: false,
+			Error:   "Failed to save contact request",
+		}, fmt.Errorf("failed to create client request: %w", err)
+	}
+
+	// Trigger contact created webhook (non-blocking)
+	trigger.CallAsync(s.config.EventTriggers.MentorRequestCreatedTriggerURL, requestID, s.httpClient)
 
 	// Get mentor to retrieve calendar URL
-	mentor, err := s.mentorRepo.GetByRecordID(ctx, req.MentorAirtableID, models.FilterOptions{ShowHidden: true})
+	mentor, err := s.mentorRepo.GetByMentorId(ctx, req.MentorID, models.FilterOptions{ShowHidden: true})
 	if err != nil {
 		logger.Error("Failed to get mentor for calendar URL", zap.Error(err))
 		// Still return success as the request was saved

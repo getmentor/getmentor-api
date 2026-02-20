@@ -145,10 +145,8 @@ Add all required environment variables from `.env.example`:
 **Required Variables:**
 
 ```bash
-# Airtable
-AIRTABLE_API_KEY=your_key
-AIRTABLE_BASE_ID=your_base_id
-AIRTABLE_WORK_OFFLINE=0
+# Database
+DATABASE_URL=postgresql://user:password@host:5432/dbname
 
 # Azure Storage
 AZURE_STORAGE_CONNECTION_STRING=your_connection_string
@@ -232,8 +230,7 @@ curl -H "x-internal-mentors-api-auth-token: YOUR_TOKEN" \
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `AIRTABLE_API_KEY` | Airtable API key | `pat...` |
-| `AIRTABLE_BASE_ID` | Airtable base ID | `app...` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@host:5432/dbname` |
 | `INTERNAL_MENTORS_API` | Internal API token | UUID |
 | `AZURE_STORAGE_CONNECTION_STRING` | Azure connection string | `DefaultEndpoints...` |
 | `GCLOUD_RW_API_KEY` | Grafana Cloud API key | `glc_...` |
@@ -242,7 +239,6 @@ curl -H "x-internal-mentors-api-auth-token: YOUR_TOKEN" \
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `AIRTABLE_WORK_OFFLINE` | Use offline mode (testing) | `0` |
 | `LOG_LEVEL` | Logging level | `info` |
 | `PORT` | Server port | `8080` |
 | `GIN_MODE` | Gin framework mode | `release` |
@@ -257,7 +253,7 @@ The application automatically sends metrics and logs to Grafana Cloud when prope
 
 **Metrics Endpoint:** `/api/metrics`
 - HTTP request metrics (duration, count, active requests)
-- Airtable API metrics
+- Database query metrics
 - Cache metrics (hits, misses, size)
 - Azure Storage metrics
 - Business metrics (profile views, contact forms)
@@ -310,7 +306,7 @@ docker logs <container-name>
 
 **Common issues:**
 1. Missing required environment variables
-2. Invalid Airtable credentials
+2. Invalid database connection string
 3. Invalid Azure Storage connection string
 4. Port already in use (local only)
 
@@ -342,10 +338,10 @@ docker logs <container-name>
 ### Slow API Responses
 
 **Check:**
-1. Airtable API latency (in metrics)
+1. Database query latency (in metrics)
 2. Cache hit rate (should be >80%)
-3. Network latency to Airtable
-4. Database connection pool settings
+3. Database connection pool settings
+4. Network latency to database
 
 **Solutions:**
 1. Increase cache TTL if data changes infrequently
@@ -398,7 +394,7 @@ To handle more traffic, increase instance count in DigitalOcean:
 
 **Considerations:**
 - Cache is in-memory (per instance)
-- Airtable rate limits apply
+- Database connection pool limits apply
 - Monitor costs
 
 ### Vertical Scaling

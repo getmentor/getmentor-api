@@ -49,8 +49,3 @@ func InvalidInputError(field, reason string) error {
 func InternalError(msg string) error {
 	return fmt.Errorf("%s: %w", msg, ErrInternal)
 }
-
-// Is checks if an error matches a target error (works with wrapped errors)
-func Is(err, target error) bool {
-	return errors.Is(err, target)
-}

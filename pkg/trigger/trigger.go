@@ -11,7 +11,7 @@ import (
 )
 
 // CallAsync calls a trigger URL asynchronously with a record_id query parameter.
-// This is used to trigger Azure Functions after Airtable operations.
+// This is used to trigger Azure Functions after database operations.
 // Failures are logged but don't block the operation.
 func CallAsync(triggerURL, recordID string, httpClient httpclient.Client) {
 	if triggerURL == "" {

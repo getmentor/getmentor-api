@@ -2,12 +2,12 @@ package models
 
 // MentorSession represents an authenticated mentor session
 type MentorSession struct {
-	MentorID   int    `json:"mentor_id"`
-	AirtableID string `json:"airtable_id"`
-	Email      string `json:"email"`
-	Name       string `json:"name"`
-	ExpiresAt  int64  `json:"exp"`
-	IssuedAt   int64  `json:"iat"`
+	LegacyID  int    `json:"legacy_id"` // Old integer ID for backwards compatibility
+	MentorID  string `json:"mentor_id"` // UUID primary key
+	Email     string `json:"email"`
+	Name      string `json:"name"`
+	ExpiresAt int64  `json:"exp"`
+	IssuedAt  int64  `json:"iat"`
 }
 
 // RequestLoginRequest is the payload for requesting a login token
@@ -40,8 +40,8 @@ type LogoutResponse struct {
 
 // MentorLoginData contains mentor data used during login
 type MentorLoginData struct {
-	AirtableID string
-	MentorID   int
-	Email      string
-	Name       string
+	MentorID string // UUID primary key
+	LegacyID int    // Old integer ID for backwards compatibility
+	Email    string
+	Name     string
 }

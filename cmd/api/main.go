@@ -17,15 +17,16 @@ import (
 	"github.com/getmentor/getmentor-api/internal/cache"
 	"github.com/getmentor/getmentor-api/internal/handlers"
 	"github.com/getmentor/getmentor-api/internal/middleware"
+	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
 	"github.com/getmentor/getmentor-api/internal/services"
-	"github.com/getmentor/getmentor-api/pkg/airtable"
-	"github.com/getmentor/getmentor-api/pkg/azure"
+	"github.com/getmentor/getmentor-api/pkg/db"
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/jwt"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
 	"github.com/getmentor/getmentor-api/pkg/tracing"
+	"github.com/getmentor/getmentor-api/pkg/yandex"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/zap"
 )
@@ -34,13 +35,12 @@ import (
 func registerAPIRoutes(
 	group *gin.RouterGroup,
 	cfg *config.Config,
-	generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter, registrationRateLimiter *middleware.RateLimiter,
+	generalRateLimiter, contactRateLimiter, registrationRateLimiter *middleware.RateLimiter,
 	mentorHandler *handlers.MentorHandler,
 	contactHandler *handlers.ContactHandler,
-	profileHandler *handlers.ProfileHandler,
 	logsHandler *handlers.LogsHandler,
-	webhookHandler *handlers.WebhookHandler,
 	registrationHandler *handlers.RegistrationHandler,
+	reviewHandler *handlers.ReviewHandler,
 ) {
 
 	publicTokens := []string{
@@ -52,11 +52,12 @@ func registerAPIRoutes(
 	group.GET("/mentor/:id", generalRateLimiter.Middleware(), middleware.TokenAuthMiddleware(cfg.Auth.MentorsAPIToken, cfg.Auth.MentorsAPITokenInno), mentorHandler.GetPublicMentorByID)
 	group.POST("/internal/mentors", generalRateLimiter.Middleware(), middleware.InternalAPIAuthMiddleware(cfg.Auth.InternalMentorsAPI), mentorHandler.GetInternalMentors)
 	group.POST("/contact-mentor", contactRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(100*1024), contactHandler.ContactMentor)
-	group.POST("/save-profile", profileRateLimiter.Middleware(), profileHandler.SaveProfile)
-	group.POST("/upload-profile-picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), profileHandler.UploadProfilePicture)
 	group.POST("/register-mentor", registrationRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), registrationHandler.RegisterMentor)
 	group.POST("/logs", generalRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(1*1024*1024), logsHandler.ReceiveFrontendLogs)
-	group.POST("/webhooks/airtable", webhookRateLimiter.Middleware(), middleware.WebhookAuthMiddleware(cfg.Auth.WebhookSecret), webhookHandler.HandleAirtableWebhook)
+
+	// Review routes (public - uses captcha for protection)
+	group.GET("/reviews/:requestId/check", generalRateLimiter.Middleware(), reviewHandler.CheckReview)
+	group.POST("/reviews/:requestId", contactRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(100*1024), reviewHandler.SubmitReview)
 }
 
 // registerMentorAdminRoutes registers mentor admin routes for authentication, request management, and profile
@@ -99,7 +100,7 @@ func registerMentorAdminRoutes(
 	mentor.POST("/profile/picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), mentorProfileHandler.UploadPicture)
 }
 
-func main() {
+func main() { //nolint:gocyclo
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
@@ -151,37 +152,74 @@ func main() {
 	// Start infrastructure metrics collection
 	metrics.RecordInfrastructureMetrics()
 
-	// Initialize Airtable client
-	airtableClient, err := airtable.NewClient(
-		cfg.Airtable.APIKey,
-		cfg.Airtable.BaseID,
-		cfg.Airtable.WorkOffline,
-	)
+	// Initialize PostgreSQL connection pool
+	pool, err := db.NewPool(context.Background(), cfg.Database)
 	if err != nil {
-		logger.Fatal("Failed to initialize Airtable client", zap.Error(err))
+		logger.Fatal("Failed to initialize database connection pool", zap.Error(err))
 	}
+	defer pool.Close()
 
-	// Initialize Azure Storage client
-	var azureClient *azure.StorageClient
-	if cfg.Azure.ConnectionString != "" {
-		azureClient, err = azure.NewStorageClient(
-			cfg.Azure.ConnectionString,
-			cfg.Azure.ContainerName,
-			cfg.Azure.StorageDomain,
+	// NOTE: Database migrations are now run separately via the migrate command
+	// Run migrations before starting the app: ./migrate or docker-compose run migrate
+
+	// Initialize Yandex Object Storage client
+	var yandexClient *yandex.StorageClient
+	if cfg.YandexStorage.AccessKeyID != "" && cfg.YandexStorage.SecretAccessKey != "" {
+		yandexClient, err = yandex.NewStorageClient(
+			cfg.YandexStorage.AccessKeyID,
+			cfg.YandexStorage.SecretAccessKey,
+			cfg.YandexStorage.BucketName,
+			cfg.YandexStorage.Endpoint,
+			cfg.YandexStorage.Region,
 		)
 		if err != nil {
-			logger.Fatal("Failed to initialize Azure Storage client", zap.Error(err))
+			logger.Fatal("Failed to initialize Yandex Storage client", zap.Error(err))
 		}
 	}
 
-	// Initialize caches
-	mentorCache := cache.NewMentorCache(airtableClient, cfg.Cache.MentorTTLSeconds)
-	tagsCache := cache.NewTagsCache(airtableClient)
+	// Initialize repositories (needed for cache fetchers)
+	// First create caches with dummy fetchers, then update with real fetchers
+	mentorCache := cache.NewMentorCache(
+		func(ctx context.Context) ([]*models.Mentor, error) {
+			// This fetcher will be replaced after repository is fully initialized
+			return []*models.Mentor{}, nil
+		},
+		func(ctx context.Context, slug string) (*models.Mentor, error) {
+			// This fetcher will be replaced after repository is fully initialized
+			return &models.Mentor{}, nil
+		},
+		cfg.Cache.MentorTTLSeconds,
+	)
+	tagsCache := cache.NewTagsCache(
+		func(ctx context.Context) (map[string]string, error) {
+			// This fetcher will be replaced after repository is fully initialized
+			return make(map[string]string), nil
+		},
+	)
+
+	// Initialize repositories with pool and caches
+	mentorRepo := repository.NewMentorRepository(pool, mentorCache, tagsCache, cfg.Cache.DisableMentorsCache)
+	clientRequestRepo := repository.NewClientRequestRepository(pool)
+
+	// Now update cache with actual fetcher functions from repository
+	mentorCache = cache.NewMentorCache(
+		mentorRepo.FetchAllMentorsFromDB,
+		mentorRepo.FetchSingleMentorFromDB,
+		cfg.Cache.MentorTTLSeconds,
+	)
+	tagsCache = cache.NewTagsCache(mentorRepo.FetchAllTagsFromDB)
+
+	// Re-initialize repository with updated caches
+	mentorRepo = repository.NewMentorRepository(pool, mentorCache, tagsCache, cfg.Cache.DisableMentorsCache)
 
 	// Initialize mentor cache synchronously before accepting requests
 	// This ensures the cache is populated before the container is marked as healthy
-	if err := mentorCache.Initialize(); err != nil {
-		logger.Fatal("Failed to initialize mentor cache", zap.Error(err))
+	if cfg.Cache.DisableMentorsCache {
+		logger.Warn("Mentor cache is DISABLED - reading from database on every request (experimental feature)")
+	} else {
+		if err := mentorCache.Initialize(); err != nil {
+			logger.Fatal("Failed to initialize mentor cache", zap.Error(err))
+		}
 	}
 
 	// Initialize tags cache synchronously
@@ -189,31 +227,34 @@ func main() {
 		logger.Fatal("Failed to initialize tags cache", zap.Error(err))
 	}
 
-	// Initialize repositories
-	mentorRepo := repository.NewMentorRepository(airtableClient, mentorCache, tagsCache)
-	clientRequestRepo := repository.NewClientRequestRepository(airtableClient)
-
 	// Initialize HTTP client for external API calls
 	httpClient := httpclient.NewStandardClient()
+
+	// Initialize repositories for reviews
+	reviewRepo := repository.NewReviewRepository(pool)
 
 	// Initialize services
 	mentorService := services.NewMentorService(mentorRepo, cfg)
 	contactService := services.NewContactService(clientRequestRepo, mentorRepo, cfg, httpClient)
-	profileService := services.NewProfileService(mentorRepo, azureClient, cfg, httpClient)
-	registrationService := services.NewRegistrationService(mentorRepo, azureClient, cfg, httpClient)
-	webhookService := services.NewWebhookService(mentorRepo, cfg)
+	profileService := services.NewProfileService(mentorRepo, yandexClient, cfg, httpClient)
+	registrationService := services.NewRegistrationService(mentorRepo, yandexClient, cfg, httpClient)
 	mcpService := services.NewMCPService(mentorRepo, cfg.Server.BaseURL)
 	mentorAuthService := services.NewMentorAuthService(mentorRepo, cfg, httpClient)
 	mentorRequestsService := services.NewMentorRequestsService(clientRequestRepo, cfg, httpClient)
+	reviewService := services.NewReviewService(reviewRepo, cfg, httpClient)
 
 	// Initialize handlers
 	mentorHandler := handlers.NewMentorHandler(mentorService, cfg.Server.BaseURL)
 	contactHandler := handlers.NewContactHandler(contactService)
-	profileHandler := handlers.NewProfileHandler(profileService)
 	registrationHandler := handlers.NewRegistrationHandler(registrationService)
-	webhookHandler := handlers.NewWebhookHandler(webhookService)
+	reviewHandler := handlers.NewReviewHandler(reviewService)
 	mcpHandler := handlers.NewMCPHandler(mcpService)
-	healthHandler := handlers.NewHealthHandler(mentorCache.IsReady)
+	// Health check: If cache is disabled, always return true for cache readiness
+	cacheReadyFunc := mentorCache.IsReady
+	if cfg.Cache.DisableMentorsCache {
+		cacheReadyFunc = func() bool { return true }
+	}
+	healthHandler := handlers.NewHealthHandler(pool, cacheReadyFunc)
 	logsHandler := handlers.NewLogsHandler(cfg.Logging.Dir)
 	mentorAuthHandler := handlers.NewMentorAuthHandler(mentorAuthService)
 	mentorRequestsHandler := handlers.NewMentorRequestsHandler(mentorRequestsService)
@@ -232,7 +273,7 @@ func main() {
 	// CORS configuration - SECURITY: Only allow specific origins
 	allowedOrigins := cfg.Server.AllowedOrigins
 	// Allow localhost in development
-	if cfg.Server.AppEnv == "development" {
+	if cfg.IsDevelopment() {
 		allowedOrigins = append(allowedOrigins, "http://localhost:3000", "http://127.0.0.1:3000")
 	}
 
@@ -250,7 +291,6 @@ func main() {
 	generalRateLimiter := middleware.NewRateLimiter(100, 200)        // 100 req/sec, burst of 200
 	contactRateLimiter := middleware.NewRateLimiter(5, 10)           // 5 req/sec, burst of 10 (prevent spam)
 	profileRateLimiter := middleware.NewRateLimiter(10, 20)          // 10 req/sec, burst of 20
-	webhookRateLimiter := middleware.NewRateLimiter(10, 20)          // 10 req/sec, burst of 20
 	registrationRateLimiter := middleware.NewRateLimiter(0.00667, 3) // 2 req/5min (0.00667 req/sec), burst of 3
 	mcpRateLimiter := middleware.NewRateLimiter(20, 40)              // 20 req/sec, burst of 40 (for AI tool usage)
 	mentorAuthRateLimiter := middleware.NewRateLimiter(0.00667, 2)   // 2 req/5min (0.00667 req/sec), burst of 2 (login abuse prevention)
@@ -266,8 +306,8 @@ func main() {
 	// API v1 routes
 	// SECURITY: Apply body size limits to prevent DoS attacks
 	v1 := router.Group("/api/v1")
-	registerAPIRoutes(v1, cfg, generalRateLimiter, contactRateLimiter, profileRateLimiter, webhookRateLimiter, registrationRateLimiter,
-		mentorHandler, contactHandler, profileHandler, logsHandler, webhookHandler, registrationHandler)
+	registerAPIRoutes(v1, cfg, generalRateLimiter, contactRateLimiter, registrationRateLimiter,
+		mentorHandler, contactHandler, logsHandler, registrationHandler, reviewHandler)
 
 	// Mentor admin routes (authentication, request management, and profile)
 	registerMentorAdminRoutes(router, cfg, mentorAuthRateLimiter, profileRateLimiter, mentorAuthHandler, mentorRequestsHandler, mentorProfileHandler, mentorAuthService.GetTokenManager())

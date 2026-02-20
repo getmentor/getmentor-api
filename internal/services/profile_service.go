@@ -2,182 +2,51 @@ package services
 
 import (
 	"context"
-	"crypto/subtle"
 	"fmt"
 
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
-	"github.com/getmentor/getmentor-api/pkg/azure"
 	apperrors "github.com/getmentor/getmentor-api/pkg/errors"
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
-	"github.com/getmentor/getmentor-api/pkg/trigger"
+	"github.com/getmentor/getmentor-api/pkg/yandex"
 	"go.uber.org/zap"
 )
 
 type ProfileService struct {
-	mentorRepo  *repository.MentorRepository
-	azureClient *azure.StorageClient
-	config      *config.Config
-	httpClient  httpclient.Client
+	mentorRepo   *repository.MentorRepository
+	yandexClient *yandex.StorageClient
+	config       *config.Config
+	httpClient   httpclient.Client
 }
 
 func NewProfileService(
 	mentorRepo *repository.MentorRepository,
-	azureClient *azure.StorageClient,
+	yandexClient *yandex.StorageClient,
 	cfg *config.Config,
 	httpClient httpclient.Client,
 ) *ProfileService {
 
 	return &ProfileService{
-		mentorRepo:  mentorRepo,
-		azureClient: azureClient,
-		config:      cfg,
-		httpClient:  httpClient,
+		mentorRepo:   mentorRepo,
+		yandexClient: yandexClient,
+		config:       cfg,
+		httpClient:   httpClient,
 	}
 }
 
-func (s *ProfileService) SaveProfile(ctx context.Context, id int, token string, req *models.SaveProfileRequest) error {
-	// Get mentor and verify auth token
-	mentor, err := s.mentorRepo.GetByID(ctx, id, models.FilterOptions{ShowHidden: true})
-	if err != nil {
-		return apperrors.NotFoundError("mentor")
-	}
-
-	// SECURITY: Use timing-safe comparison to prevent timing attacks
-	if subtle.ConstantTimeCompare([]byte(mentor.AuthToken), []byte(token)) != 1 {
-		logger.Warn("Access denied - invalid token", zap.Int("mentor_id", id))
-		return apperrors.ErrAccessDenied
-	}
-
-	// Get sponsor tags to preserve them
-	sponsorTags := s.getSponsorTags()
-	preservedSponsors := []string{}
-	for _, tag := range mentor.Tags {
-		if sponsorTags[tag] {
-			preservedSponsors = append(preservedSponsors, tag)
-		}
-	}
-
-	// Filter out sponsor tags from user input (they shouldn't be able to modify these)
-	userTags := []string{}
-	for _, tag := range req.Tags {
-		if !sponsorTags[tag] {
-			userTags = append(userTags, tag)
-		}
-	}
-
-	// Merge user tags with preserved sponsor tags
-	userTags = append(userTags, preservedSponsors...)
-
-	// Get tag IDs
-	tagIDs := []string{}
-	for _, tagName := range userTags {
-		tagID, err := s.mentorRepo.GetTagIDByName(ctx, tagName)
-		if err == nil && tagID != "" {
-			tagIDs = append(tagIDs, tagID)
-		}
-	}
-
-	// Prepare updates
-	updates := map[string]interface{}{
-		"Name":         req.Name,
-		"JobTitle":     req.Job,
-		"Workplace":    req.Workplace,
-		"Experience":   req.Experience,
-		"Price":        req.Price,
-		"Tags Links":   tagIDs,
-		"Details":      req.Description,
-		"About":        req.About,
-		"Competencies": req.Competencies,
-	}
-
-	if req.CalendarURL != "" {
-		updates["Calendly Url"] = req.CalendarURL
-	}
-
-	// Update in Airtable
-	if err := s.mentorRepo.Update(ctx, mentor.AirtableID, updates); err != nil {
-		metrics.ProfileUpdates.WithLabelValues("error").Inc()
-		logger.Error("Failed to update mentor profile", zap.Error(err), zap.Int("mentor_id", id))
-		return fmt.Errorf("failed to update profile")
-	}
-
-	metrics.ProfileUpdates.WithLabelValues("success").Inc()
-	logger.Info("Mentor profile updated", zap.Int("mentor_id", id))
-
-	return nil
-}
-
-func (s *ProfileService) UploadProfilePicture(ctx context.Context, id int, token string, req *models.UploadProfilePictureRequest) (string, error) {
-	// Get mentor and verify auth token
-	mentor, err := s.mentorRepo.GetByID(ctx, id, models.FilterOptions{ShowHidden: true})
-	if err != nil {
-		return "", apperrors.NotFoundError("mentor")
-	}
-
-	// SECURITY: Use timing-safe comparison to prevent timing attacks
-	if subtle.ConstantTimeCompare([]byte(mentor.AuthToken), []byte(token)) != 1 {
-		logger.Warn("Access denied - invalid token", zap.Int("mentor_id", id))
-		return "", apperrors.ErrAccessDenied
-	}
-
-	// Validate file type
-	if typeErr := s.azureClient.ValidateImageType(req.ContentType); typeErr != nil {
-		return "", typeErr
-	}
-
-	// Validate file size
-	if sizeErr := s.azureClient.ValidateImageSize(req.Image); sizeErr != nil {
-		return "", sizeErr
-	}
-
-	// Generate filename
-	fileName := s.azureClient.GenerateFileName(id, req.FileName)
-
-	// Upload to Azure
-	imageURL, err := s.azureClient.UploadImage(ctx, req.Image, fileName, req.ContentType)
-	if err != nil {
-		metrics.ProfilePictureUploads.WithLabelValues("error").Inc()
-		logger.Error("Failed to upload profile picture", zap.Error(err), zap.Int("mentor_id", id))
-		return "", fmt.Errorf("failed to upload image")
-	}
-
-	// Update Airtable asynchronously
-	go func() {
-		if err := s.mentorRepo.UpdateImage(context.Background(), mentor.AirtableID, imageURL); err != nil {
-			logger.Error("Failed to update mentor image in Airtable", zap.Error(err), zap.Int("mentor_id", id))
-		} else {
-			// Trigger mentor updated webhook after successful Airtable update
-			trigger.CallAsync(s.config.EventTriggers.MentorUpdatedTriggerURL, mentor.AirtableID, s.httpClient)
-		}
-	}()
-
-	metrics.ProfilePictureUploads.WithLabelValues("success").Inc()
-	logger.Info("Profile picture uploaded", zap.Int("mentor_id", id), zap.String("url", imageURL))
-
-	return imageURL, nil
-}
-
-func (s *ProfileService) getSponsorTags() map[string]bool {
-	return map[string]bool{
-		"Сообщество Онтико": true,
-		"Эксперт Авито":     true,
-	}
-}
-
-// SaveProfileByAirtableID updates a mentor's profile using Airtable ID (for session-based auth)
-func (s *ProfileService) SaveProfileByAirtableID(ctx context.Context, airtableID string, req *models.SaveProfileRequest) error {
+// SaveProfileByMentorId updates a mentor's profile using Mentor ID (UUID) for session-based auth
+func (s *ProfileService) SaveProfileByMentorId(ctx context.Context, mentorID string, req *models.SaveProfileRequest) error {
 	// Get mentor to get current tags (for sponsor preservation)
-	mentor, err := s.mentorRepo.GetByRecordID(ctx, airtableID, models.FilterOptions{ShowHidden: true})
+	mentor, err := s.mentorRepo.GetByMentorId(ctx, mentorID, models.FilterOptions{ShowHidden: true})
 	if err != nil {
 		return apperrors.NotFoundError("mentor")
 	}
 
 	// Get sponsor tags to preserve them
-	sponsorTags := s.getSponsorTags()
+	sponsorTags := models.SponsorTags
 	preservedSponsors := []string{}
 	for _, tag := range mentor.Tags {
 		if sponsorTags[tag] {
@@ -205,80 +74,73 @@ func (s *ProfileService) SaveProfileByAirtableID(ctx context.Context, airtableID
 		}
 	}
 
-	// Prepare updates
+	// Prepare updates with PostgreSQL column names
 	updates := map[string]interface{}{
-		"Name":         req.Name,
-		"JobTitle":     req.Job,
-		"Workplace":    req.Workplace,
-		"Experience":   req.Experience,
-		"Price":        req.Price,
-		"Tags Links":   tagIDs,
-		"Details":      req.Description,
-		"About":        req.About,
-		"Competencies": req.Competencies,
+		"name":         req.Name,
+		"job_title":    req.Job,
+		"workplace":    req.Workplace,
+		"experience":   req.Experience,
+		"price":        req.Price,
+		"details":      req.Description,
+		"about":        req.About,
+		"competencies": req.Competencies,
 	}
 
 	if req.CalendarURL != "" {
-		updates["Calendly Url"] = req.CalendarURL
+		updates["calendar_url"] = req.CalendarURL
 	}
 
-	// Update in Airtable
-	if err := s.mentorRepo.Update(ctx, airtableID, updates); err != nil {
+	// Update in database
+	if err := s.mentorRepo.Update(ctx, mentorID, updates); err != nil {
 		metrics.ProfileUpdates.WithLabelValues("error").Inc()
 		logger.Error("Failed to update mentor profile",
 			zap.Error(err),
-			zap.String("airtable_id", airtableID))
+			zap.String("mentor_id", mentorID))
 		return fmt.Errorf("failed to update profile")
+	}
+
+	// Update tags in mentor_tags table
+	if err := s.mentorRepo.UpdateMentorTags(ctx, mentorID, tagIDs); err != nil {
+		logger.Error("Failed to update mentor tags",
+			zap.Error(err),
+			zap.String("mentor_id", mentorID))
+		// Don't fail the whole update if tags fail - log and continue
 	}
 
 	metrics.ProfileUpdates.WithLabelValues("success").Inc()
 	logger.Info("Mentor profile updated via session",
-		zap.String("airtable_id", airtableID))
+		zap.String("mentor_id", mentorID))
 
 	return nil
 }
 
-// UploadPictureByAirtableID uploads a profile picture using Airtable ID (for session-based auth)
-func (s *ProfileService) UploadPictureByAirtableID(ctx context.Context, airtableID string, mentorSlug string, req *models.UploadProfilePictureRequest) (string, error) {
-	// Validate file type
-	if typeErr := s.azureClient.ValidateImageType(req.ContentType); typeErr != nil {
-		return "", typeErr
-	}
-
-	// Validate file size
-	if sizeErr := s.azureClient.ValidateImageSize(req.Image); sizeErr != nil {
-		return "", sizeErr
-	}
-
-	// Generate filename using slug
-	fileName := fmt.Sprintf("%s/%s", mentorSlug, req.FileName)
-
-	// Upload to Azure
-	imageURL, err := s.azureClient.UploadImage(ctx, req.Image, fileName, req.ContentType)
+// UploadPictureByMentorId uploads a profile picture using Mentor ID (UUID) for session-based auth
+func (s *ProfileService) UploadPictureByMentorId(ctx context.Context, mentorID string, mentorSlug string, req *models.UploadProfilePictureRequest) (string, error) {
+	// Upload to Yandex Object Storage in 3 sizes: full, large, small (synchronous)
+	// Validation (type and size) is handled automatically by UploadImageAllSizes
+	fullImageURL, err := s.yandexClient.UploadImageAllSizes(ctx, req.Image, mentorSlug, req.ContentType)
 	if err != nil {
 		metrics.ProfilePictureUploads.WithLabelValues("error").Inc()
-		logger.Error("Failed to upload profile picture",
+		logger.Error("Failed to upload profile picture to Yandex",
 			zap.Error(err),
-			zap.String("airtable_id", airtableID))
+			zap.String("mentor_id", mentorID))
 		return "", fmt.Errorf("failed to upload image")
 	}
 
-	// Update Airtable asynchronously
-	go func() {
-		if updateErr := s.mentorRepo.UpdateImage(context.Background(), airtableID, imageURL); updateErr != nil {
-			logger.Error("Failed to update mentor image in Airtable",
-				zap.Error(updateErr),
-				zap.String("airtable_id", airtableID))
-		} else {
-			// Trigger mentor updated webhook after successful Airtable update
-			trigger.CallAsync(s.config.EventTriggers.MentorUpdatedTriggerURL, airtableID, s.httpClient)
-		}
-	}()
+	// TODO: Re-enable webhook trigger for thumbnail generation or remove this dead goroutine
+	// Update database asynchronously
+	// go func() {
+	//	 // This webhook will trigger Azure Function to generate thumbnails
+	//	 // trigger.CallAsync(s.config.EventTriggers.MentorUpdatedTriggerURL, mentorID, s.httpClient)
+	//	 _ = s.config.EventTriggers.MentorUpdatedTriggerURL // Keep for future use
+	//	 _ = s.httpClient                                   // Keep for future use
+	//	 _ = trigger.CallAsync                              // Keep for future use
+	// }()
 
 	metrics.ProfilePictureUploads.WithLabelValues("success").Inc()
 	logger.Info("Profile picture uploaded via session",
-		zap.String("airtable_id", airtableID),
-		zap.String("url", imageURL))
+		zap.String("mentor_id", mentorID),
+		zap.String("url", fullImageURL))
 
-	return imageURL, nil
+	return fullImageURL, nil
 }

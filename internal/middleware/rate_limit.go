@@ -29,6 +29,7 @@ func NewRateLimiter(r rate.Limit, b int) *RateLimiter {
 	}
 
 	// Clean up old entries every minute
+	// TODO: Add stop channel/context to cleanupVisitors goroutine to prevent leak on shutdown
 	go rl.cleanupVisitors()
 
 	return rl

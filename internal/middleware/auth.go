@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 
+	"github.com/getmentor/getmentor-api/pkg/jwt"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -25,7 +26,7 @@ func TokenAuthMiddleware(validTokens ...string) gin.HandlerFunc {
 
 		valid := false
 		for _, validToken := range validTokens {
-			if token == validToken {
+			if jwt.TimingSafeCompare(token, validToken) {
 				valid = true
 				break
 			}
@@ -59,7 +60,7 @@ func MCPServerAuthMiddleware(validToken string, allowAll bool) gin.HandlerFunc {
 
 		token := c.GetHeader("x-mcp-auth-token")
 
-		if token == "" || token != validToken {
+		if token == "" || !jwt.TimingSafeCompare(token, validToken) {
 			logger.Warn("Invalid MCP server token",
 				zap.String("path", c.Request.URL.Path),
 				zap.String("client_ip", c.ClientIP()),
@@ -78,31 +79,12 @@ func InternalAPIAuthMiddleware(validToken string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := c.GetHeader("x-internal-mentors-api-auth-token")
 
-		if token == "" || token != validToken {
+		if token == "" || !jwt.TimingSafeCompare(token, validToken) {
 			logger.Warn("Invalid internal API token",
 				zap.String("path", c.Request.URL.Path),
 				zap.String("client_ip", c.ClientIP()),
 			)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or missing internal API token"})
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
-}
-
-// WebhookAuthMiddleware validates webhook secret
-func WebhookAuthMiddleware(validSecret string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		secret := c.GetHeader("X-Webhook-Secret")
-
-		if secret == "" || secret != validSecret {
-			logger.Warn("Invalid webhook secret",
-				zap.String("path", c.Request.URL.Path),
-				zap.String("client_ip", c.ClientIP()),
-			)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid webhook secret"})
 			c.Abort()
 			return
 		}

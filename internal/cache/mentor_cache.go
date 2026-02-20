@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/getmentor/getmentor-api/internal/models"
-	"github.com/getmentor/getmentor-api/pkg/airtable"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
 	gocache "github.com/patrickmn/go-cache"
@@ -23,6 +22,12 @@ const (
 	initialRetryWait = 2 * time.Second
 )
 
+// MentorFetcher is a function that fetches all mentors from the data source
+type MentorFetcher func(ctx context.Context) ([]*models.Mentor, error)
+
+// SingleMentorFetcher is a function that fetches a single mentor by slug
+type SingleMentorFetcher func(ctx context.Context, slug string) (*models.Mentor, error)
+
 // CacheMetadata stores cache-wide information
 type CacheMetadata struct {
 	LastRefreshTime time.Time
@@ -32,26 +37,28 @@ type CacheMetadata struct {
 
 // MentorCache manages the in-memory cache for mentors using slug-based storage
 type MentorCache struct {
-	cache          *gocache.Cache
-	airtableClient *airtable.Client
-	mu             sync.RWMutex
-	refreshing     bool
-	ready          bool
-	ttl            time.Duration
-	lastRefresh    time.Time
+	cache         *gocache.Cache
+	fetcher       MentorFetcher
+	singleFetcher SingleMentorFetcher
+	mu            sync.RWMutex
+	refreshing    bool
+	ready         bool
+	ttl           time.Duration
+	lastRefresh   time.Time
 }
 
 // NewMentorCache creates a new mentor cache with slug-based storage
-func NewMentorCache(airtableClient *airtable.Client, ttlSeconds int) *MentorCache {
+func NewMentorCache(fetcher MentorFetcher, singleFetcher SingleMentorFetcher, ttlSeconds int) *MentorCache {
 	ttl := time.Duration(ttlSeconds) * time.Second
 	cache := gocache.New(gocache.NoExpiration, cacheCheckPeriod)
 
 	mc := &MentorCache{
-		cache:          cache,
-		airtableClient: airtableClient,
-		refreshing:     false,
-		ready:          false,
-		ttl:            ttl,
+		cache:         cache,
+		fetcher:       fetcher,
+		singleFetcher: singleFetcher,
+		refreshing:    false,
+		ready:         false,
+		ttl:           ttl,
 	}
 
 	return mc
@@ -92,7 +99,7 @@ func (mc *MentorCache) IsReady() bool {
 }
 
 // GetBySlug retrieves a single mentor by slug with O(1) complexity
-// Returns immediately without blocking, never triggers Airtable fetch
+// Returns immediately without blocking, never triggers database fetch
 func (mc *MentorCache) GetBySlug(slug string) (*models.Mentor, error) {
 	if !mc.IsReady() {
 		return nil, fmt.Errorf("cache not initialized")
@@ -122,7 +129,7 @@ func (mc *MentorCache) GetBySlug(slug string) (*models.Mentor, error) {
 }
 
 // Get retrieves all mentors from cache
-// Returns immediately without blocking, never triggers Airtable fetch
+// Returns immediately without blocking, never triggers database fetch
 func (mc *MentorCache) Get() ([]*models.Mentor, error) {
 	if !mc.IsReady() {
 		return nil, fmt.Errorf("cache not initialized")
@@ -170,10 +177,10 @@ func (mc *MentorCache) UpdateSingleMentor(slug string) error {
 
 	logger.Info("Updating single mentor in cache", zap.String("slug", slug))
 
-	// Fetch fresh data from Airtable
-	mentor, err := mc.airtableClient.GetMentorBySlug(context.Background(), slug)
+	// Fetch fresh data using the single mentor fetcher
+	mentor, err := mc.singleFetcher(context.Background(), slug)
 	if err != nil {
-		logger.Error("Failed to fetch mentor from Airtable",
+		logger.Error("Failed to fetch mentor",
 			zap.String("slug", slug),
 			zap.Error(err))
 		return err
@@ -293,7 +300,7 @@ func (mc *MentorCache) refreshInBackground() error {
 	startTime := time.Now()
 
 	// Fetch all mentors
-	mentors, err := mc.airtableClient.GetAllMentors(context.Background())
+	mentors, err := mc.fetcher(context.Background())
 	if err != nil {
 		logger.Error("Failed to fetch mentors in background refresh", zap.Error(err))
 		return err
@@ -330,7 +337,7 @@ func (mc *MentorCache) refreshWithRetry() error {
 		}
 
 		// Fetch all mentors
-		mentors, fetchErr := mc.airtableClient.GetAllMentors(context.Background())
+		mentors, fetchErr := mc.fetcher(context.Background())
 		if fetchErr != nil {
 			err = fetchErr
 			logger.Error("Cache refresh attempt failed",

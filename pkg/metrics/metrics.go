@@ -17,18 +17,18 @@ var (
 	HTTPRequestTotal    *prometheus.CounterVec
 	ActiveRequests      *prometheus.GaugeVec
 
-	// Database Client Metrics (Airtable)
-	AirtableRequestDuration *prometheus.HistogramVec
-	AirtableRequestTotal    *prometheus.CounterVec
+	// Database Client Metrics (PostgreSQL)
+	DBRequestDuration *prometheus.HistogramVec
+	DBRequestTotal    *prometheus.CounterVec
 
 	// Cache Metrics
 	CacheHits   *prometheus.CounterVec
 	CacheMisses *prometheus.CounterVec
 	CacheSize   *prometheus.GaugeVec
 
-	// Storage Client Metrics (Azure)
-	AzureStorageRequestDuration *prometheus.HistogramVec
-	AzureStorageRequestTotal    *prometheus.CounterVec
+	// Storage Client Metrics (Yandex Object Storage)
+	YandexStorageRequestDuration *prometheus.HistogramVec
+	YandexStorageRequestTotal    *prometheus.CounterVec
 
 	// Business Metrics
 	MentorProfileViews     *prometheus.CounterVec
@@ -46,6 +46,11 @@ var (
 	MentorRequestsListDuration  prometheus.Histogram
 	MentorRequestsStatusUpdates *prometheus.CounterVec
 	MentorRequestsDeclines      *prometheus.CounterVec
+
+	// Review Metrics
+	ReviewSubmissions *prometheus.CounterVec
+	ReviewChecks      *prometheus.CounterVec
+	ReviewDuration    prometheus.Histogram
 
 	// MCP Metrics
 	MCPRequestTotal    *prometheus.CounterVec
@@ -102,8 +107,8 @@ func Init(serviceName string) {
 		[]string{"http_request_method"},
 	)
 
-	// Database Client Metrics (Airtable)
-	AirtableRequestDuration = factory.NewHistogramVec(
+	// Database Client Metrics (PostgreSQL)
+	DBRequestDuration = factory.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "db_client_operation_duration_seconds",
 			Help:    "Database client operation duration in seconds",
@@ -112,7 +117,7 @@ func Init(serviceName string) {
 		[]string{"operation", "status"},
 	)
 
-	AirtableRequestTotal = factory.NewCounterVec(
+	DBRequestTotal = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "db_client_operation_total",
 			Help: "Total number of database client operations",
@@ -145,20 +150,20 @@ func Init(serviceName string) {
 		[]string{"cache_name"},
 	)
 
-	// Storage Client Metrics (Azure)
-	AzureStorageRequestDuration = factory.NewHistogramVec(
+	// Storage Client Metrics (Yandex Object Storage)
+	YandexStorageRequestDuration = factory.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "storage_client_operation_duration_seconds",
-			Help:    "Storage client operation duration in seconds",
+			Name:    "yandex_storage_operation_duration_seconds",
+			Help:    "Yandex Object Storage operation duration in seconds",
 			Buckets: prometheus.DefBuckets,
 		},
 		[]string{"operation", "status"},
 	)
 
-	AzureStorageRequestTotal = factory.NewCounterVec(
+	YandexStorageRequestTotal = factory.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "storage_client_operation_total",
-			Help: "Total number of storage client operations",
+			Name: "yandex_storage_operation_total",
+			Help: "Total number of Yandex Object Storage operations",
 		},
 		[]string{"operation", "status"},
 	)
@@ -269,6 +274,31 @@ func Init(serviceName string) {
 		[]string{"reason"},
 	)
 
+	// Review Metrics
+	ReviewSubmissions = factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "getmentor_review_submissions_total",
+			Help: "Total review submissions",
+		},
+		[]string{"status"},
+	)
+
+	ReviewChecks = factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "getmentor_review_checks_total",
+			Help: "Total review eligibility checks",
+		},
+		[]string{"result"},
+	)
+
+	ReviewDuration = factory.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "getmentor_review_submission_duration_seconds",
+			Help:    "Review submission duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+	)
+
 	// MCP Metrics
 	MCPRequestTotal = factory.NewCounterVec(
 		prometheus.CounterOpts{
@@ -331,6 +361,7 @@ func Init(serviceName string) {
 // RecordInfrastructureMetrics collects infrastructure metrics periodically
 func RecordInfrastructureMetrics() {
 	ticker := time.NewTicker(15 * time.Second)
+	// TODO: Add stop channel/context to metrics goroutine to prevent leak on shutdown
 	go func() {
 		for range ticker.C {
 			var m runtime.MemStats

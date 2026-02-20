@@ -41,7 +41,7 @@ func NewMentorRequestsService(requestRepo *repository.ClientRequestRepository, c
 }
 
 // GetRequests retrieves requests for a mentor filtered by group
-func (s *MentorRequestsService) GetRequests(ctx context.Context, mentorAirtableID string, group string) (*models.ClientRequestsResponse, error) {
+func (s *MentorRequestsService) GetRequests(ctx context.Context, mentorId string, group string) (*models.ClientRequestsResponse, error) {
 	start := time.Now()
 
 	// Validate group
@@ -52,10 +52,10 @@ func (s *MentorRequestsService) GetRequests(ctx context.Context, mentorAirtableI
 	}
 
 	// Fetch requests from repository
-	requests, err := s.requestRepo.GetByMentor(ctx, mentorAirtableID, statuses)
+	requests, err := s.requestRepo.GetByMentor(ctx, mentorId, statuses)
 	if err != nil {
 		logger.Error("Failed to fetch requests",
-			zap.String("mentor_id", mentorAirtableID),
+			zap.String("mentor_id", mentorId),
 			zap.String("group", group),
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to fetch requests: %w", err)
@@ -72,7 +72,7 @@ func (s *MentorRequestsService) GetRequests(ctx context.Context, mentorAirtableI
 	metrics.MentorRequestsListTotal.WithLabelValues(group).Inc()
 
 	logger.Info("Fetched mentor requests",
-		zap.String("mentor_id", mentorAirtableID),
+		zap.String("mentor_id", mentorId),
 		zap.String("group", group),
 		zap.Int("count", len(responseRequests)),
 		zap.Duration("duration", time.Since(start)))
@@ -84,7 +84,7 @@ func (s *MentorRequestsService) GetRequests(ctx context.Context, mentorAirtableI
 }
 
 // GetRequestByID retrieves a single request and verifies ownership
-func (s *MentorRequestsService) GetRequestByID(ctx context.Context, mentorAirtableID string, requestID string) (*models.MentorClientRequest, error) {
+func (s *MentorRequestsService) GetRequestByID(ctx context.Context, mentorId string, requestID string) (*models.MentorClientRequest, error) {
 	// Fetch request
 	request, err := s.requestRepo.GetByID(ctx, requestID)
 	if err != nil {
@@ -95,11 +95,11 @@ func (s *MentorRequestsService) GetRequestByID(ctx context.Context, mentorAirtab
 	}
 
 	// Verify ownership
-	if request.MentorID != mentorAirtableID {
+	if request.MentorID != mentorId {
 		logger.Warn("Access denied to request",
 			zap.String("request_id", requestID),
 			zap.String("request_mentor", request.MentorID),
-			zap.String("requesting_mentor", mentorAirtableID))
+			zap.String("requesting_mentor", mentorId))
 		return nil, ErrAccessDenied
 	}
 
@@ -107,9 +107,9 @@ func (s *MentorRequestsService) GetRequestByID(ctx context.Context, mentorAirtab
 }
 
 // UpdateStatus updates the status of a request with workflow validation
-func (s *MentorRequestsService) UpdateStatus(ctx context.Context, mentorAirtableID string, requestID string, newStatus models.RequestStatus) (*models.MentorClientRequest, error) {
+func (s *MentorRequestsService) UpdateStatus(ctx context.Context, mentorId string, requestID string, newStatus models.RequestStatus) (*models.MentorClientRequest, error) {
 	// Fetch and verify ownership
-	request, err := s.GetRequestByID(ctx, mentorAirtableID, requestID)
+	request, err := s.GetRequestByID(ctx, mentorId, requestID)
 	if err != nil {
 		return nil, err
 	}
@@ -151,9 +151,9 @@ func (s *MentorRequestsService) UpdateStatus(ctx context.Context, mentorAirtable
 }
 
 // DeclineRequest declines a request with reason
-func (s *MentorRequestsService) DeclineRequest(ctx context.Context, mentorAirtableID string, requestID string, payload *models.DeclineRequestPayload) (*models.MentorClientRequest, error) {
+func (s *MentorRequestsService) DeclineRequest(ctx context.Context, mentorId string, requestID string, payload *models.DeclineRequestPayload) (*models.MentorClientRequest, error) {
 	// Fetch and verify ownership
-	request, err := s.GetRequestByID(ctx, mentorAirtableID, requestID)
+	request, err := s.GetRequestByID(ctx, mentorId, requestID)
 	if err != nil {
 		return nil, err
 	}

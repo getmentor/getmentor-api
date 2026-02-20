@@ -2,14 +2,16 @@ package models
 
 import (
 	"strings"
+	"time"
 
-	"github.com/mehanizm/airtable"
+	"github.com/jackc/pgx/v5"
 )
 
 // Mentor represents a mentor in the system
 type Mentor struct {
-	ID           int      `json:"id"`
-	AirtableID   string   `json:"airtableId"`
+	MentorID     string   `json:"mentorId"` // UUID primary key
+	LegacyID     int      `json:"id"`       // Old integer ID (maps to legacy_id column)
+	AirtableID   *string  `json:"-"`        // Internal only - not exposed in API
 	Slug         string   `json:"slug"`
 	Name         string   `json:"name"`
 	Job          string   `json:"job"`
@@ -22,17 +24,20 @@ type Mentor struct {
 	MenteeCount  int      `json:"menteeCount"`
 	Tags         []string `json:"tags"`
 	SortOrder    int      `json:"sortOrder"`
-	IsVisible    bool     `json:"isVisible"`
+	IsVisible    bool     `json:"isVisible"` // Computed: status = 'active' AND telegram_chat_id IS NOT NULL
 	Sponsors     string   `json:"sponsors"`
 	CalendarType string   `json:"calendarType"`
-	IsNew        bool     `json:"isNew"`
+	IsNew        bool     `json:"isNew"` // Computed: created_at > NOW() - 14 days
 
 	// Status field for login eligibility checks
 	Status string `json:"status"`
 
 	// Secure fields (cleared by repository unless ShowHidden is true)
-	AuthToken   string `json:"authToken"`
 	CalendarURL string `json:"calendarUrl"`
+
+	// Internal fields (not exposed in JSON)
+	TelegramChatID *int64    `json:"-"` // Used for IsVisible computation
+	CreatedAt      time.Time `json:"-"` // Used for IsNew computation
 }
 
 // PublicMentorResponse represents the public API response format
@@ -54,7 +59,7 @@ type PublicMentorResponse struct {
 // ToPublicResponse converts a Mentor to PublicMentorResponse
 func (m *Mentor) ToPublicResponse(baseURL string) PublicMentorResponse {
 	return PublicMentorResponse{
-		ID:           m.ID,
+		ID:           m.LegacyID, // Use LegacyID for backwards compatibility
 		Name:         m.Name,
 		Title:        m.Job,
 		Workplace:    m.Workplace,
@@ -77,77 +82,111 @@ type FilterOptions struct {
 	ForceRefresh   bool
 }
 
-// AirtableRecord represents the raw Airtable mentor record
-type AirtableRecord struct {
-	ID     string
-	Fields struct {
-		Id                int    `json:"Id"`
-		Alias             string `json:"Alias"`
-		Name              string `json:"Name"`
-		Description       string `json:"Description"`
-		JobTitle          string `json:"JobTitle"`
-		Workplace         string `json:"Workplace"`
-		Details           string `json:"Details"`
-		About             string `json:"About"`
-		Competencies      string `json:"Competencies"`
-		Experience        string `json:"Experience"`
-		Price             string `json:"Price"`
-		DoneSessionsCount int    `json:"Done Sessions Count"`
-		Tags              string `json:"Tags"`
-		SortOrder         int    `json:"SortOrder"`
-		OnSite            int    `json:"OnSite"`
-		Status            string `json:"Status"`
-		AuthToken         string `json:"AuthToken"`
-		CalendlyURL       string `json:"Calendly Url"`
-		IsNew             int    `json:"Is New"`
-	}
-}
+// ScanMentor scans a single PostgreSQL row into a Mentor struct
+func ScanMentor(row pgx.Row) (*Mentor, error) {
+	var m Mentor
+	var tagsStr *string
+	var airtableID *string
+	var telegramChatID *int64
+	var calendarURL *string
+	var job *string
+	var workplace *string
+	var about *string
+	var description *string
+	var competencies *string
 
-// ToMentor converts an AirtableRecord to a Mentor
-func (ar *AirtableRecord) ToMentor() *Mentor {
-	// Parse tags
-	tags := []string{}
-	if ar.Fields.Tags != "" {
-		for _, tag := range strings.Split(ar.Fields.Tags, ",") {
+	err := row.Scan(
+		&m.MentorID,
+		&airtableID,
+		&m.LegacyID,
+		&m.Slug,
+		&m.Name,
+		&job,
+		&workplace,
+		&about,
+		&description,
+		&competencies,
+		&m.Experience,
+		&m.Price,
+		&m.Status,
+		&tagsStr,
+		&telegramChatID,
+		&calendarURL,
+		&m.SortOrder,
+		&m.CreatedAt,
+		&m.MenteeCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set nullable fields
+	m.AirtableID = airtableID
+	m.TelegramChatID = telegramChatID
+	if calendarURL != nil {
+		m.CalendarURL = *calendarURL
+	}
+	if job != nil {
+		m.Job = *job
+	}
+	if workplace != nil {
+		m.Workplace = *workplace
+	}
+	if about != nil {
+		m.About = *about
+	}
+	if description != nil {
+		m.Description = *description
+	}
+	if competencies != nil {
+		m.Competencies = *competencies
+	}
+
+	// Parse tags from comma-separated string
+	m.Tags = []string{}
+	if tagsStr != nil && *tagsStr != "" {
+		for _, tag := range strings.Split(*tagsStr, ",") {
 			tag = strings.TrimSpace(tag)
 			if tag != "" {
-				tags = append(tags, tag)
+				m.Tags = append(m.Tags, tag)
 			}
 		}
 	}
 
-	// Determine visibility
-	isVisible := ar.Fields.OnSite == 1 && ar.Fields.Status == "active"
+	// Compute IsVisible: status = 'active' AND telegram_chat_id IS NOT NULL
+	m.IsVisible = m.Status == "active" && telegramChatID != nil
+
+	// Compute IsNew: created_at > NOW() - 14 days
+	fourteenDaysAgo := time.Now().AddDate(0, 0, -14)
+	m.IsNew = m.CreatedAt.After(fourteenDaysAgo)
 
 	// Determine calendar type
-	calendarType := GetCalendarType(ar.Fields.CalendlyURL)
+	m.CalendarType = GetCalendarType(m.CalendarURL)
 
-	// Get sponsor
-	sponsor := GetMentorSponsor(tags)
+	// Get sponsor from tags
+	m.Sponsors = GetMentorSponsor(m.Tags)
 
-	return &Mentor{
-		ID:           ar.Fields.Id,
-		AirtableID:   ar.ID,
-		Slug:         ar.Fields.Alias,
-		Name:         ar.Fields.Name,
-		Job:          ar.Fields.JobTitle,
-		Workplace:    ar.Fields.Workplace,
-		Description:  ar.Fields.Details,
-		About:        ar.Fields.About,
-		Competencies: ar.Fields.Competencies,
-		Experience:   ar.Fields.Experience,
-		Price:        ar.Fields.Price,
-		MenteeCount:  ar.Fields.DoneSessionsCount,
-		Tags:         tags,
-		SortOrder:    ar.Fields.SortOrder,
-		IsVisible:    isVisible,
-		Sponsors:     sponsor,
-		CalendarType: calendarType,
-		IsNew:        ar.Fields.IsNew == 1,
-		Status:       ar.Fields.Status,
-		AuthToken:    ar.Fields.AuthToken,
-		CalendarURL:  ar.Fields.CalendlyURL,
+	return &m, nil
+}
+
+// ScanMentors scans multiple PostgreSQL rows into a slice of Mentor structs
+func ScanMentors(rows pgx.Rows) ([]*Mentor, error) {
+	defer rows.Close()
+
+	mentors := []*Mentor{}
+	for rows.Next() {
+		mentor, err := ScanMentor(rows)
+		if err != nil {
+			return nil, err
+		}
+		mentors = append(mentors, mentor)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return mentors, nil
 }
 
 // GetCalendarType determines the calendar service type from URL
@@ -170,12 +209,16 @@ func GetCalendarType(url string) string {
 	}
 }
 
+// SponsorTags defines the set of tags that represent sponsors.
+// These tags are preserved during profile updates and cannot be modified by mentors.
+var SponsorTags = map[string]bool{
+	"Сообщество Онтико": true,
+	"Эксперт Авито":     true,
+}
+
 // GetMentorSponsor extracts sponsor information from tags
 func GetMentorSponsor(tags []string) string {
-	sponsorTags := map[string]bool{
-		"Сообщество Онтико": true,
-		"Эксперт Авито":     true,
-	}
+	sponsorTags := SponsorTags
 
 	sponsors := []string{}
 	for _, tag := range tags {
@@ -189,77 +232,4 @@ func GetMentorSponsor(tags []string) string {
 	}
 
 	return strings.Join(sponsors, "|")
-}
-
-// AirtableRecordToMentor converts a mehanizm/airtable Record to a Mentor
-func AirtableRecordToMentor(record *airtable.Record) *Mentor {
-	// Helper function to safely get field values
-	getString := func(field string) string {
-		if v, ok := record.Fields[field].(string); ok {
-			return v
-		}
-		return ""
-	}
-
-	getInt := func(field string) int {
-		// Airtable may return numbers as float64
-		if v, ok := record.Fields[field].(float64); ok {
-			return int(v)
-		}
-		if v, ok := record.Fields[field].(int); ok {
-			return v
-		}
-		return 0
-	}
-
-	// Parse tags
-	tags := []string{}
-	tagsStr := getString("Tags")
-	if tagsStr != "" {
-		for _, tag := range strings.Split(tagsStr, ",") {
-			tag = strings.TrimSpace(tag)
-			if tag != "" {
-				tags = append(tags, tag)
-			}
-		}
-	}
-
-	// Determine visibility
-	onSite := getInt("OnSite")
-	status := getString("Status")
-	isVisible := onSite == 1 && status == "active"
-
-	// Calendar URL
-	calendlyURL := getString("Calendly Url")
-	calendarType := GetCalendarType(calendlyURL)
-
-	// Get sponsor
-	sponsor := GetMentorSponsor(tags)
-
-	// Is New field
-	isNew := getInt("Is New") == 1
-
-	return &Mentor{
-		ID:           getInt("Id"),
-		AirtableID:   record.ID,
-		Slug:         getString("Alias"),
-		Name:         getString("Name"),
-		Job:          getString("JobTitle"),
-		Workplace:    getString("Workplace"),
-		Description:  getString("Details"),
-		About:        getString("About"),
-		Competencies: getString("Competencies"),
-		Experience:   getString("Experience"),
-		Price:        getString("Price"),
-		MenteeCount:  getInt("Done Sessions Count"),
-		Tags:         tags,
-		SortOrder:    getInt("SortOrder"),
-		IsVisible:    isVisible,
-		Sponsors:     sponsor,
-		CalendarType: calendarType,
-		IsNew:        isNew,
-		Status:       status,
-		AuthToken:    getString("AuthToken"),
-		CalendarURL:  calendlyURL,
-	}
 }

@@ -12,8 +12,8 @@ import (
 //nolint:govet // Field alignment optimization would reduce readability
 type Config struct {
 	Server        ServerConfig
-	Airtable      AirtableConfig
-	Azure         AzureConfig
+	Database      DatabaseConfig
+	YandexStorage YandexStorageConfig
 	Auth          AuthConfig
 	ReCAPTCHA     ReCAPTCHAConfig
 	EventTriggers EventTriggerFunctionsConfig
@@ -33,16 +33,19 @@ type ServerConfig struct {
 	AllowedOrigins []string
 }
 
-type AirtableConfig struct {
-	APIKey      string
-	BaseID      string
+type DatabaseConfig struct {
+	URL         string
+	MaxConns    int32
+	MinConns    int32
 	WorkOffline bool
 }
 
-type AzureConfig struct {
-	ConnectionString string
-	ContainerName    string
-	StorageDomain    string
+type YandexStorageConfig struct {
+	AccessKeyID     string
+	SecretAccessKey string
+	BucketName      string
+	Endpoint        string
+	Region          string
 }
 
 type AuthConfig struct {
@@ -53,7 +56,7 @@ type AuthConfig struct {
 	MCPAuthToken        string
 	MCPAllowAll         bool
 	RevalidateSecret    string
-	WebhookSecret       string
+	WebhookSecret       string // Optional: Kept for backwards compatibility, no longer required
 }
 
 type ReCAPTCHAConfig struct {
@@ -67,6 +70,7 @@ type EventTriggerFunctionsConfig struct {
 	MentorRequestCreatedTriggerURL   string
 	MentorLoginEmailTriggerURL       string
 	RequestProcessFinishedTriggerURL string
+	ReviewCreatedTriggerURL          string
 }
 
 type NextJSConfig struct {
@@ -96,7 +100,8 @@ type ObservabilityConfig struct {
 }
 
 type CacheConfig struct {
-	MentorTTLSeconds int // Mentor cache TTL in seconds
+	MentorTTLSeconds    int  // Mentor cache TTL in seconds
+	DisableMentorsCache bool // Experimental: disable cache and read from DB on every request
 }
 
 type MentorSessionConfig struct {
@@ -120,13 +125,13 @@ func Load() (*Config, error) {
 	v.SetDefault("ALLOWED_CORS_ORIGINS", "https://getmentor.dev,https://www.getmentor.dev")
 	v.SetDefault("LOG_LEVEL", "info")
 	v.SetDefault("LOG_DIR", "/app/logs")
-	v.SetDefault("AIRTABLE_WORK_OFFLINE", false)
 	v.SetDefault("NEXTJS_BASE_URL", "http://localhost:3000")
 	v.SetDefault("O11Y_EXPORTER_ENDPOINT", "alloy:4318") // OTLP over HTTP
 	v.SetDefault("O11Y_BE_SERVICE_NAME", "getmentor-api")
 	v.SetDefault("O11Y_SERVICE_NAMESPACE", "getmentor-dev")
 	v.SetDefault("O11Y_BE_SERVICE_VERSION", "1.0.0")
-	v.SetDefault("MENTOR_CACHE_TTL", 600) // 10 minutes in seconds
+	v.SetDefault("MENTOR_CACHE_TTL", 600)        // 10 minutes in seconds
+	v.SetDefault("DISABLE_MENTORS_CACHE", false) // Experimental: disable cache
 	v.SetDefault("MCP_ALLOW_ALL", false)
 
 	// Mentor session defaults
@@ -167,15 +172,18 @@ func Load() (*Config, error) {
 			BaseURL:        v.GetString("BASE_URL"),
 			AllowedOrigins: allowedOrigins,
 		},
-		Airtable: AirtableConfig{
-			APIKey:      v.GetString("AIRTABLE_API_KEY"),
-			BaseID:      v.GetString("AIRTABLE_BASE_ID"),
-			WorkOffline: v.GetBool("AIRTABLE_WORK_OFFLINE"),
+		Database: DatabaseConfig{
+			URL:         v.GetString("DATABASE_URL"),
+			MaxConns:    20,
+			MinConns:    2,
+			WorkOffline: v.GetBool("DB_WORK_OFFLINE"),
 		},
-		Azure: AzureConfig{
-			ConnectionString: v.GetString("AZURE_STORAGE_CONNECTION_STRING"),
-			ContainerName:    v.GetString("AZURE_STORAGE_CONTAINER_NAME"),
-			StorageDomain:    v.GetString("AZURE_STORAGE_DOMAIN"),
+		YandexStorage: YandexStorageConfig{
+			AccessKeyID:     v.GetString("YANDEX_STORAGE_ACCESS_KEY_ID"),
+			SecretAccessKey: v.GetString("YANDEX_STORAGE_SECRET_ACCESS_KEY"),
+			BucketName:      v.GetString("YANDEX_STORAGE_BUCKET_NAME"),
+			Endpoint:        v.GetString("YANDEX_STORAGE_ENDPOINT"),
+			Region:          v.GetString("YANDEX_STORAGE_REGION"),
 		},
 		Auth: AuthConfig{
 			MentorsAPIToken:     v.GetString("MENTORS_API_LIST_AUTH_TOKEN"),
@@ -197,6 +205,7 @@ func Load() (*Config, error) {
 			MentorRequestCreatedTriggerURL:   v.GetString("MENTOR_REQUEST_CREATED_TRIGGER_URL"),
 			MentorLoginEmailTriggerURL:       v.GetString("MENTOR_LOGIN_EMAIL_TRIGGER_URL"),
 			RequestProcessFinishedTriggerURL: v.GetString("REQUEST_PROCESS_FINISHED_TRIGGER_URL"),
+			ReviewCreatedTriggerURL:          v.GetString("REVIEW_CREATED_TRIGGER_URL"),
 		},
 		NextJS: NextJSConfig{
 			BaseURL:          v.GetString("NEXTJS_BASE_URL"),
@@ -214,7 +223,8 @@ func Load() (*Config, error) {
 			ServiceInstanceID: v.GetString("SERVICE_INSTANCE_ID"),
 		},
 		Cache: CacheConfig{
-			MentorTTLSeconds: v.GetInt("MENTOR_CACHE_TTL"),
+			MentorTTLSeconds:    v.GetInt("MENTOR_CACHE_TTL"),
+			DisableMentorsCache: v.GetBool("DISABLE_MENTORS_CACHE"),
 		},
 		MentorSession: MentorSessionConfig{
 			JWTSecret:            v.GetString("JWT_SECRET"),
@@ -236,14 +246,9 @@ func Load() (*Config, error) {
 
 // Validate checks if required configuration values are set
 func (c *Config) Validate() error {
-	// Airtable configuration
-	if !c.Airtable.WorkOffline {
-		if c.Airtable.APIKey == "" {
-			return fmt.Errorf("AIRTABLE_API_KEY is required")
-		}
-		if c.Airtable.BaseID == "" {
-			return fmt.Errorf("AIRTABLE_BASE_ID is required")
-		}
+	// Database configuration
+	if !c.Database.WorkOffline && c.Database.URL == "" {
+		return fmt.Errorf("DATABASE_URL is required when not in offline mode")
 	}
 
 	// Authentication tokens
@@ -252,9 +257,6 @@ func (c *Config) Validate() error {
 	}
 	if c.Auth.MentorsAPIToken == "" {
 		return fmt.Errorf("MENTORS_API_LIST_AUTH_TOKEN is required")
-	}
-	if c.Auth.WebhookSecret == "" {
-		return fmt.Errorf("WEBHOOK_SECRET is required")
 	}
 
 	if c.Auth.MCPAuthToken == "" && !c.Auth.MCPAllowAll {

@@ -17,20 +17,13 @@ type MentorServiceInterface interface {
 	GetAllMentors(ctx context.Context, opts models.FilterOptions) ([]*models.Mentor, error)
 	GetMentorByID(ctx context.Context, id int, opts models.FilterOptions) (*models.Mentor, error)
 	GetMentorBySlug(ctx context.Context, slug string, opts models.FilterOptions) (*models.Mentor, error)
-	GetMentorByRecordID(ctx context.Context, recordID string, opts models.FilterOptions) (*models.Mentor, error)
+	GetMentorByMentorId(ctx context.Context, mentorId string, opts models.FilterOptions) (*models.Mentor, error)
 }
 
 // ProfileServiceInterface defines the interface for profile service operations
 type ProfileServiceInterface interface {
-	SaveProfile(ctx context.Context, id int, token string, req *models.SaveProfileRequest) error
-	UploadProfilePicture(ctx context.Context, id int, token string, req *models.UploadProfilePictureRequest) (string, error)
-	SaveProfileByAirtableID(ctx context.Context, airtableID string, req *models.SaveProfileRequest) error
-	UploadPictureByAirtableID(ctx context.Context, airtableID string, mentorSlug string, req *models.UploadProfilePictureRequest) (string, error)
-}
-
-// WebhookServiceInterface defines the interface for webhook service operations
-type WebhookServiceInterface interface {
-	HandleAirtableWebhook(ctx context.Context, payload *models.WebhookPayload) error
+	SaveProfileByMentorId(ctx context.Context, mentorId string, req *models.SaveProfileRequest) error
+	UploadPictureByMentorId(ctx context.Context, mentorId string, mentorSlug string, req *models.UploadProfilePictureRequest) (string, error)
 }
 
 // RegistrationServiceInterface defines the interface for registration service operations
@@ -50,17 +43,23 @@ type MentorAuthServiceInterface interface {
 
 // MentorRequestsServiceInterface defines the interface for mentor request management
 type MentorRequestsServiceInterface interface {
-	GetRequests(ctx context.Context, mentorAirtableID string, group string) (*models.ClientRequestsResponse, error)
-	GetRequestByID(ctx context.Context, mentorAirtableID string, requestID string) (*models.MentorClientRequest, error)
-	UpdateStatus(ctx context.Context, mentorAirtableID string, requestID string, newStatus models.RequestStatus) (*models.MentorClientRequest, error)
-	DeclineRequest(ctx context.Context, mentorAirtableID string, requestID string, payload *models.DeclineRequestPayload) (*models.MentorClientRequest, error)
+	GetRequests(ctx context.Context, mentorId string, group string) (*models.ClientRequestsResponse, error)
+	GetRequestByID(ctx context.Context, mentorId string, requestID string) (*models.MentorClientRequest, error)
+	UpdateStatus(ctx context.Context, mentorId string, requestID string, newStatus models.RequestStatus) (*models.MentorClientRequest, error)
+	DeclineRequest(ctx context.Context, mentorId string, requestID string, payload *models.DeclineRequestPayload) (*models.MentorClientRequest, error)
+}
+
+// ReviewServiceInterface defines the interface for review service operations
+type ReviewServiceInterface interface {
+	CheckReview(ctx context.Context, requestID string) (*models.ReviewCheckResponse, error)
+	SubmitReview(ctx context.Context, requestID string, req *models.SubmitReviewRequest) (*models.SubmitReviewResponse, error)
 }
 
 // Ensure services implement their interfaces
 var _ ContactServiceInterface = (*ContactService)(nil)
 var _ MentorServiceInterface = (*MentorService)(nil)
 var _ ProfileServiceInterface = (*ProfileService)(nil)
-var _ WebhookServiceInterface = (*WebhookService)(nil)
 var _ RegistrationServiceInterface = (*RegistrationService)(nil)
 var _ MentorAuthServiceInterface = (*MentorAuthService)(nil)
 var _ MentorRequestsServiceInterface = (*MentorRequestsService)(nil)
+var _ ReviewServiceInterface = (*ReviewService)(nil)

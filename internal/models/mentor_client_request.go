@@ -1,9 +1,10 @@
 package models
 
 import (
+	"fmt"
 	"time"
 
-	"github.com/mehanizm/airtable"
+	"github.com/jackc/pgx/v5"
 )
 
 // RequestStatus represents the status of a client request
@@ -69,7 +70,7 @@ type MentorClientRequest struct {
 	Level           string        `json:"level"`
 	CreatedAt       time.Time     `json:"createdAt"`
 	ModifiedAt      time.Time     `json:"modifiedAt"`
-	StatusChangedAt time.Time     `json:"statusChangedAt"`
+	StatusChangedAt *time.Time    `json:"statusChangedAt"` // Nullable - may be NULL for old records
 	ScheduledAt     *time.Time    `json:"scheduledAt"`
 	Review          *string       `json:"review"`
 	ReviewURL       *string       `json:"reviewUrl"`
@@ -116,81 +117,79 @@ func (g RequestGroup) GetStatuses() []RequestStatus {
 	}
 }
 
-// AirtableRecordToMentorClientRequest converts an Airtable record to MentorClientRequest
-func AirtableRecordToMentorClientRequest(record *airtable.Record) *MentorClientRequest {
-	getString := func(field string) string {
-		if v, ok := record.Fields[field].(string); ok {
-			return v
+// ScanClientRequest scans a single PostgreSQL row into a MentorClientRequest struct
+// Expected columns: id, mentor_id, email, name, telegram, description, level, status,
+// created_at, updated_at, status_changed_at, scheduled_at, decline_reason, decline_comment,
+// mentor_review (from LEFT JOIN reviews)
+func ScanClientRequest(row pgx.Row) (*MentorClientRequest, error) {
+	var r MentorClientRequest
+	var scheduledAt *time.Time
+	var statusChangedAt *time.Time // Allow NULL from database
+	var review *string
+	var declineComment *string
+	var level *string         // Allow NULL from database
+	var declineReason *string // Allow NULL from database
+
+	err := row.Scan(
+		&r.ID,
+		&r.MentorID,
+		&r.Email,
+		&r.Name,
+		&r.Telegram,
+		&r.Details,
+		&level, // Scan into nullable variable
+		&r.Status,
+		&r.CreatedAt,
+		&r.ModifiedAt,
+		&statusChangedAt, // Scan into nullable variable
+		&scheduledAt,
+		&declineReason, // Scan into nullable variable
+		&declineComment,
+		&review, // from LEFT JOIN reviews
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set nullable fields
+	if level != nil {
+		r.Level = *level
+	} else {
+		r.Level = "" // Default to empty string for NULL values
+	}
+	if declineReason != nil {
+		r.DeclineReason = *declineReason
+	} else {
+		r.DeclineReason = "" // Default to empty string for NULL values
+	}
+	r.StatusChangedAt = statusChangedAt
+	r.ScheduledAt = scheduledAt
+	r.DeclineComment = declineComment
+	r.Review = review
+
+	// Compute ReviewURL from constant base URL + request ID
+	reviewURL := fmt.Sprintf("https://getmentor.dev/reviews/new?request_id=%s", r.ID)
+	r.ReviewURL = &reviewURL
+
+	return &r, nil
+}
+
+// ScanClientRequests scans multiple PostgreSQL rows into a slice of MentorClientRequest structs
+func ScanClientRequests(rows pgx.Rows) ([]*MentorClientRequest, error) {
+	defer rows.Close()
+
+	requests := []*MentorClientRequest{}
+	for rows.Next() {
+		request, err := ScanClientRequest(rows)
+		if err != nil {
+			return nil, err
 		}
-		return ""
+		requests = append(requests, request)
 	}
 
-	getStringPtr := func(field string) *string {
-		if v, ok := record.Fields[field].(string); ok && v != "" {
-			return &v
-		}
-		return nil
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
-	getLookupStringPtr := func(field string) *string {
-		if arr, ok := record.Fields[field].([]interface{}); ok && len(arr) > 0 {
-			if v, ok := arr[0].(string); ok && v != "" {
-				return &v
-			}
-		}
-		return nil
-	}
-
-	getTime := func(field string) time.Time {
-		if v, ok := record.Fields[field].(string); ok && v != "" {
-			t, err := time.Parse(time.RFC3339, v)
-			if err == nil {
-				return t
-			}
-		}
-		return time.Time{}
-	}
-
-	getTimePtr := func(field string) *time.Time {
-		if v, ok := record.Fields[field].(string); ok && v != "" {
-			t, err := time.Parse(time.RFC3339, v)
-			if err == nil {
-				return &t
-			}
-		}
-		return nil
-	}
-
-	getMentorID := func() string {
-		if mentors, ok := record.Fields["Mentor"].([]interface{}); ok && len(mentors) > 0 {
-			if mentorID, ok := mentors[0].(string); ok {
-				return mentorID
-			}
-		}
-		return ""
-	}
-
-	review := getStringPtr("Review")
-	if review == nil {
-		review = getLookupStringPtr("Review2")
-	}
-
-	return &MentorClientRequest{
-		ID:              record.ID,
-		Email:           getString("Email"),
-		Name:            getString("Name"),
-		Telegram:        getString("Telegram"),
-		Details:         getString("Description"),
-		Level:           getString("Level"),
-		CreatedAt:       getTime("Created Time"),
-		ModifiedAt:      getTime("Last Modified Time"),
-		StatusChangedAt: getTime("Last Status Change"),
-		ScheduledAt:     getTimePtr("Scheduled At"),
-		Review:          review,
-		ReviewURL:       getStringPtr("ReviewFormUrl"),
-		Status:          RequestStatus(getString("Status")),
-		MentorID:        getMentorID(),
-		DeclineReason:   getString("DeclineReason"),
-		DeclineComment:  getStringPtr("DeclineComment"),
-	}
+	return requests, nil
 }

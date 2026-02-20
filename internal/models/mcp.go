@@ -118,7 +118,7 @@ type SearchMentorsResult struct {
 // ToMCPBasic converts a Mentor to MCPMentorBasic format
 func (m *Mentor) ToMCPBasic(baseURL string) MCPMentorBasic {
 	return MCPMentorBasic{
-		ID:           m.ID,
+		ID:           m.LegacyID,
 		Slug:         m.Slug,
 		Name:         m.Name,
 		JobTitle:     m.Job,
@@ -135,7 +135,7 @@ func (m *Mentor) ToMCPBasic(baseURL string) MCPMentorBasic {
 // ToMCPExtended converts a Mentor to MCPMentorExtended format
 func (m *Mentor) ToMCPExtended(baseURL string) MCPMentorExtended {
 	return MCPMentorExtended{
-		ID:           m.ID,
+		ID:           m.LegacyID,
 		Slug:         m.Slug,
 		Name:         m.Name,
 		JobTitle:     m.Job,
