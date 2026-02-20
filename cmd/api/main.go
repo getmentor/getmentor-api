@@ -25,6 +25,7 @@ import (
 	"github.com/getmentor/getmentor-api/pkg/jwt"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
+	"github.com/getmentor/getmentor-api/pkg/profiling"
 	"github.com/getmentor/getmentor-api/pkg/tracing"
 	"github.com/getmentor/getmentor-api/pkg/yandex"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
@@ -145,6 +146,20 @@ func main() { //nolint:gocyclo
 			logger.Error("Failed to shutdown tracer", zap.Error(shutdownErr))
 		}
 	}()
+
+	// Initialize continuous profiling
+	profilerStop, err := profiling.InitProfiler(
+		cfg.Profiling,
+		cfg.Observability.ServiceName,
+		cfg.Observability.ServiceNamespace,
+		cfg.Observability.ServiceVersion,
+		cfg.Observability.ServiceInstanceID,
+		cfg.Server.AppEnv,
+	)
+	if err != nil {
+		logger.Fatal("Failed to initialize profiler", zap.Error(err))
+	}
+	defer profilerStop()
 
 	// Initialize metrics with service name from config
 	metrics.Init(cfg.Observability.ServiceName)
