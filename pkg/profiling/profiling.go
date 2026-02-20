@@ -124,11 +124,11 @@ func buildApplicationName(baseAppName, serviceName, namespace, environment, vers
 	}
 
 	labels := []string{
-		fmt.Sprintf("service_name=%q", serviceName),
-		fmt.Sprintf("namespace=%q", namespace),
-		fmt.Sprintf("environment=%q", environment),
-		fmt.Sprintf("service_version=%q", version),
-		fmt.Sprintf("instance=%q", instanceID),
+		fmt.Sprintf("service_name=%s", serviceName),
+		fmt.Sprintf("namespace=%s", namespace),
+		fmt.Sprintf("environment=%s", environment),
+		fmt.Sprintf("service_version=%s", version),
+		fmt.Sprintf("instance=%s", instanceID),
 	}
 
 	return fmt.Sprintf("%s{%s}", baseAppName, strings.Join(labels, ","))

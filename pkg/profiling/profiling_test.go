@@ -33,6 +33,6 @@ func TestParseProfileTypes_Invalid(t *testing.T) {
 }
 
 func TestBuildApplicationName(t *testing.T) {
-	got := buildApplicationName("getmentor-api", "getmentor-api", "getmentor-dev", "production", "1.2.0", "inst-1")
-	assert.Equal(t, `getmentor-api{service_name="getmentor-api",namespace="getmentor-dev",environment="production",service_version="1.2.0",instance="inst-1"}`, got)
+	got := buildApplicationName("getmentor-api", "getmentor-api", "getmentor-dev", "production", "2.0.0", "inst-1")
+	assert.Equal(t, "getmentor-api{service_name=getmentor-api,namespace=getmentor-dev,environment=production,service_version=2.0.0,instance=inst-1}", got)
 }
