@@ -116,14 +116,39 @@ golangci-lint run
 - `GET /api/mentors` - Get all visible mentors (requires `mentors_api_auth_token` header)
 - `GET /api/mentor/:id` - Get single mentor by ID (requires auth token)
 - `POST /api/contact-mentor` - Submit contact form (with ReCAPTCHA)
+- `POST /api/register-mentor` - Register a new mentor
+
+### Authentication (Mentor Portal)
+
+- `POST /api/v1/auth/mentor/request-login` - Send magic login link to mentor email
+- `POST /api/v1/auth/mentor/verify` - Verify login token and create session (sets HttpOnly cookie)
+- `GET /api/v1/auth/mentor/session` - Check current session validity
+- `POST /api/v1/auth/mentor/logout` - Clear session cookie
+
+Login tokens are single-use, expire in `LOGIN_TOKEN_TTL_MINUTES` (default: 15 min), and are sent via email + Telegram. Rate limited to 2 req/5 min per IP.
+
+### Mentor Portal (session-authenticated)
+
+- `GET /api/v1/mentor/profile` - Get own profile (with hidden fields)
+- `POST /api/v1/mentor/profile` - Update own profile
+- `POST /api/v1/mentor/profile/picture` - Upload profile picture
+- `GET /api/v1/mentor/requests?group=active|past` - List requests
+- `GET /api/v1/mentor/requests/:id` - Get single request
+- `POST /api/v1/mentor/requests/:id/status` - Update request status
+- `POST /api/v1/mentor/requests/:id/decline` - Decline request with reason
+
+### Reviews
+
+- `GET /api/v1/reviews/:requestId/check` - Check review eligibility
+- `POST /api/v1/reviews/:requestId` - Submit mentee review
 
 ### Internal Endpoints
 
 - `POST /api/internal/mentors` - Main cached mentor API (requires `x-internal-mentors-api-auth-token`)
-  - Query params: `id`, `slug`, `force_reset_cache`
+  - Query params: `id`, `slug`, `rec`, `force_reset_cache`
   - Body params: `only_visible`, `show_hidden`, `drop_long_fields`
 
-### Profile Management
+### Profile Management (legacy token-based)
 
 - `POST /api/save-profile?id=X&token=Y` - Update mentor profile
 - `POST /api/upload-profile-picture?id=X&token=Y` - Upload profile picture
@@ -208,13 +233,23 @@ Key configurations:
 - TTL: 24 hours
 - Auto-populated on startup
 
+## Error Logging
+
+HTTP errors are logged with rich context by the observability middleware:
+- **4xx responses**: logged at `info` level (expected client errors: 401 unauthorized, 403 forbidden, 404 not found); `warn` for 429 rate limit and other unexpected 4xx
+- **5xx responses**: logged at `error` level
+- All error responses include: `error` reason (from handler via `c.Error()`), `route_params` (e.g. `{id: "abc"}`), sanitized `query_params` (sensitive params like `token`, `secret`, `key` are redacted)
+
+Handlers use `respondError(c, status, message, err)` / `respondErrorWithDetails(...)` helpers which attach the internal error to gin context for the middleware to pick up.
+
 ## Security
 
 - All public endpoints require authentication tokens
 - Profile endpoints verify mentor-specific auth tokens
+- Session-authenticated endpoints use JWT stored in HttpOnly cookie (`mentor_session`)
 - Webhook endpoints require secret validation
 - ReCAPTCHA verification for contact forms
-- No sensitive data in logs
+- Sensitive query params (`token`, `secret`, `key`, `password`, `auth`) are redacted from logs
 - Secure fields (auth tokens, calendar URLs) not serialized by default
 
 ## Performance
