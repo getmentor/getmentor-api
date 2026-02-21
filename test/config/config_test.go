@@ -185,6 +185,58 @@ func TestConfig_Validate(t *testing.T) {
 			expectError: true,
 			errorMsg:    "MCP_AUTH_TOKEN is required",
 		},
+		{
+			name: "profiling enabled without endpoint",
+			cfg: &config.Config{
+				Server: config.ServerConfig{
+					Port:           "8081",
+					BaseURL:        "https://example.com",
+					AllowedOrigins: []string{"https://example.com"},
+				},
+				Database: config.DatabaseConfig{
+					WorkOffline: true,
+				},
+				Auth: config.AuthConfig{
+					InternalMentorsAPI: "test-token",
+					MCPAuthToken:       "test-mcp-token",
+					MentorsAPIToken:    "public-token",
+				},
+				ReCAPTCHA: config.ReCAPTCHAConfig{
+					SecretKey: "recaptcha-secret",
+				},
+				Profiling: config.ProfilingConfig{
+					Enabled: true,
+				},
+			},
+			expectError: true,
+			errorMsg:    "O11Y_PROFILING_ENDPOINT is required",
+		},
+		{
+			name: "profiling enabled with endpoint",
+			cfg: &config.Config{
+				Server: config.ServerConfig{
+					Port:           "8081",
+					BaseURL:        "https://example.com",
+					AllowedOrigins: []string{"https://example.com"},
+				},
+				Database: config.DatabaseConfig{
+					WorkOffline: true,
+				},
+				Auth: config.AuthConfig{
+					InternalMentorsAPI: "test-token",
+					MCPAuthToken:       "test-mcp-token",
+					MentorsAPIToken:    "public-token",
+				},
+				ReCAPTCHA: config.ReCAPTCHAConfig{
+					SecretKey: "recaptcha-secret",
+				},
+				Profiling: config.ProfilingConfig{
+					Enabled:  true,
+					Endpoint: "http://alloy:4040",
+				},
+			},
+			expectError: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -225,6 +277,10 @@ func TestLoad_WithDefaults(t *testing.T) {
 	assert.Equal(t, "info", cfg.Logging.Level)
 	assert.Equal(t, "/app/logs", cfg.Logging.Dir)
 	assert.Equal(t, "http://localhost:3000", cfg.NextJS.BaseURL)
+	assert.False(t, cfg.Profiling.Enabled)
+	assert.Equal(t, "getmentor-api", cfg.Profiling.AppName)
+	assert.Equal(t, "cpu,alloc_space,alloc_objects,goroutines,mutex,block", cfg.Profiling.SampleTypes)
+	assert.Equal(t, 15, cfg.Profiling.UploadIntervalSeconds)
 }
 
 func TestLoad_WithEnvironmentVariables(t *testing.T) {
@@ -247,6 +303,11 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	os.Setenv("WEBHOOK_SECRET", "webhook-secret")
 	os.Setenv("RECAPTCHA_V2_SECRET_KEY", "recaptcha-secret")
 	os.Setenv("NEXTJS_BASE_URL", "https://example.com")
+	os.Setenv("O11Y_PROFILING_ENABLED", "true")
+	os.Setenv("O11Y_PROFILING_ENDPOINT", "http://alloy:4040")
+	os.Setenv("O11Y_PROFILING_APP_NAME", "getmentor-api")
+	os.Setenv("O11Y_PROFILING_SAMPLE_TYPES", "cpu,goroutines")
+	os.Setenv("O11Y_PROFILING_UPLOAD_INTERVAL_SECONDS", "20")
 
 	cfg, err := config.Load()
 
@@ -265,6 +326,11 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	assert.Equal(t, "token3", cfg.Auth.MentorsAPITokenAIKB)
 	assert.Equal(t, "recaptcha-secret", cfg.ReCAPTCHA.SecretKey)
 	assert.Equal(t, "https://example.com", cfg.NextJS.BaseURL)
+	assert.True(t, cfg.Profiling.Enabled)
+	assert.Equal(t, "http://alloy:4040", cfg.Profiling.Endpoint)
+	assert.Equal(t, "getmentor-api", cfg.Profiling.AppName)
+	assert.Equal(t, "cpu,goroutines", cfg.Profiling.SampleTypes)
+	assert.Equal(t, 20, cfg.Profiling.UploadIntervalSeconds)
 }
 
 func TestLoad_ValidationFailure(t *testing.T) {

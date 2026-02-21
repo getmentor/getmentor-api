@@ -21,6 +21,7 @@ type Config struct {
 	Grafana       GrafanaConfig
 	Logging       LoggingConfig
 	Observability ObservabilityConfig
+	Profiling     ProfilingConfig
 	Cache         CacheConfig
 	MentorSession MentorSessionConfig
 }
@@ -99,6 +100,14 @@ type ObservabilityConfig struct {
 	ServiceInstanceID string
 }
 
+type ProfilingConfig struct {
+	Enabled               bool
+	Endpoint              string
+	AppName               string
+	SampleTypes           string
+	UploadIntervalSeconds int
+}
+
 type CacheConfig struct {
 	MentorTTLSeconds    int  // Mentor cache TTL in seconds
 	DisableMentorsCache bool // Experimental: disable cache and read from DB on every request
@@ -130,6 +139,10 @@ func Load() (*Config, error) {
 	v.SetDefault("O11Y_BE_SERVICE_NAME", "getmentor-api")
 	v.SetDefault("O11Y_SERVICE_NAMESPACE", "getmentor-dev")
 	v.SetDefault("O11Y_BE_SERVICE_VERSION", "1.0.0")
+	v.SetDefault("O11Y_PROFILING_ENABLED", false)
+	v.SetDefault("O11Y_PROFILING_APP_NAME", "getmentor-api")
+	v.SetDefault("O11Y_PROFILING_SAMPLE_TYPES", "cpu,alloc_space,alloc_objects,goroutines,mutex,block")
+	v.SetDefault("O11Y_PROFILING_UPLOAD_INTERVAL_SECONDS", 15)
 	v.SetDefault("MENTOR_CACHE_TTL", 600)        // 10 minutes in seconds
 	v.SetDefault("DISABLE_MENTORS_CACHE", false) // Experimental: disable cache
 	v.SetDefault("MCP_ALLOW_ALL", false)
@@ -222,6 +235,13 @@ func Load() (*Config, error) {
 			ServiceVersion:    v.GetString("O11Y_BE_SERVICE_VERSION"),
 			ServiceInstanceID: v.GetString("SERVICE_INSTANCE_ID"),
 		},
+		Profiling: ProfilingConfig{
+			Enabled:               v.GetBool("O11Y_PROFILING_ENABLED"),
+			Endpoint:              v.GetString("O11Y_PROFILING_ENDPOINT"),
+			AppName:               v.GetString("O11Y_PROFILING_APP_NAME"),
+			SampleTypes:           v.GetString("O11Y_PROFILING_SAMPLE_TYPES"),
+			UploadIntervalSeconds: v.GetInt("O11Y_PROFILING_UPLOAD_INTERVAL_SECONDS"),
+		},
 		Cache: CacheConfig{
 			MentorTTLSeconds:    v.GetInt("MENTOR_CACHE_TTL"),
 			DisableMentorsCache: v.GetBool("DISABLE_MENTORS_CACHE"),
@@ -277,6 +297,10 @@ func (c *Config) Validate() error {
 	}
 	if len(c.Server.AllowedOrigins) == 0 {
 		return fmt.Errorf("ALLOWED_CORS_ORIGINS is required")
+	}
+
+	if c.Profiling.Enabled && c.Profiling.Endpoint == "" {
+		return fmt.Errorf("O11Y_PROFILING_ENDPOINT is required when profiling is enabled")
 	}
 
 	return nil
