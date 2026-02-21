@@ -70,6 +70,8 @@ type EventTriggerFunctionsConfig struct {
 	MentorUpdatedTriggerURL          string
 	MentorRequestCreatedTriggerURL   string
 	MentorLoginEmailTriggerURL       string
+	ModeratorLoginEmailTriggerURL    string
+	MentorModerationTriggerURL       string
 	RequestProcessFinishedTriggerURL string
 	ReviewCreatedTriggerURL          string
 }
@@ -217,6 +219,8 @@ func Load() (*Config, error) {
 			MentorUpdatedTriggerURL:          v.GetString("MENTOR_UPDATED_TRIGGER_URL"),
 			MentorRequestCreatedTriggerURL:   v.GetString("MENTOR_REQUEST_CREATED_TRIGGER_URL"),
 			MentorLoginEmailTriggerURL:       v.GetString("MENTOR_LOGIN_EMAIL_TRIGGER_URL"),
+			ModeratorLoginEmailTriggerURL:    v.GetString("MODERATOR_LOGIN_EMAIL_TRIGGER_URL"),
+			MentorModerationTriggerURL:       v.GetString("MENTOR_MODERATION_TRIGGER_URL"),
 			RequestProcessFinishedTriggerURL: v.GetString("REQUEST_PROCESS_FINISHED_TRIGGER_URL"),
 			ReviewCreatedTriggerURL:          v.GetString("REVIEW_CREATED_TRIGGER_URL"),
 		},
