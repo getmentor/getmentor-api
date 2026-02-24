@@ -41,6 +41,16 @@ type MentorAuthServiceInterface interface {
 	GetTokenManager() *jwt.TokenManager
 }
 
+// AdminAuthServiceInterface defines one-time login flow for moderators/admins.
+type AdminAuthServiceInterface interface {
+	RequestLogin(ctx context.Context, email string) (*models.AdminRequestLoginResponse, error)
+	VerifyLogin(ctx context.Context, token string) (*models.AdminSession, string, error)
+	GetSessionTTL() int
+	GetCookieDomain() string
+	GetCookieSecure() bool
+	GetTokenManager() *jwt.TokenManager
+}
+
 // MentorRequestsServiceInterface defines the interface for mentor request management
 type MentorRequestsServiceInterface interface {
 	GetRequests(ctx context.Context, mentorId string, group string) (*models.ClientRequestsResponse, error)
@@ -55,11 +65,23 @@ type ReviewServiceInterface interface {
 	SubmitReview(ctx context.Context, requestID string, req *models.SubmitReviewRequest) (*models.SubmitReviewResponse, error)
 }
 
+type AdminMentorsServiceInterface interface {
+	ListMentors(ctx context.Context, session *models.AdminSession, filter models.MentorModerationFilter) ([]models.AdminMentorListItem, error)
+	GetMentor(ctx context.Context, session *models.AdminSession, mentorID string) (*models.AdminMentorDetails, error)
+	UpdateMentorProfile(ctx context.Context, session *models.AdminSession, mentorID string, req *models.AdminMentorProfileUpdateRequest) (*models.AdminMentorDetails, error)
+	ApproveMentor(ctx context.Context, session *models.AdminSession, mentorID string) (*models.AdminMentorDetails, error)
+	DeclineMentor(ctx context.Context, session *models.AdminSession, mentorID string) (*models.AdminMentorDetails, error)
+	UpdateMentorStatus(ctx context.Context, session *models.AdminSession, mentorID string, status string) (*models.AdminMentorDetails, error)
+	UploadMentorPicture(ctx context.Context, session *models.AdminSession, mentorID string, req *models.UploadProfilePictureRequest) (string, error)
+}
+
 // Ensure services implement their interfaces
 var _ ContactServiceInterface = (*ContactService)(nil)
 var _ MentorServiceInterface = (*MentorService)(nil)
 var _ ProfileServiceInterface = (*ProfileService)(nil)
 var _ RegistrationServiceInterface = (*RegistrationService)(nil)
 var _ MentorAuthServiceInterface = (*MentorAuthService)(nil)
+var _ AdminAuthServiceInterface = (*AdminAuthService)(nil)
 var _ MentorRequestsServiceInterface = (*MentorRequestsService)(nil)
 var _ ReviewServiceInterface = (*ReviewService)(nil)
+var _ AdminMentorsServiceInterface = (*AdminMentorsService)(nil)

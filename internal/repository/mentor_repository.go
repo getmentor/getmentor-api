@@ -169,18 +169,21 @@ func (r *MentorRepository) fetchMentorByUUIDFromDB(ctx context.Context, mentorId
 
 // allowedUpdateColumns defines the columns that can be updated via the Update method
 var allowedUpdateColumns = map[string]bool{
-	"name":         true,
-	"job_title":    true,
-	"workplace":    true,
-	"about":        true,
-	"details":      true,
-	"competencies": true,
-	"experience":   true,
-	"price":        true,
-	"telegram":     true,
-	"calendar_url": true,
-	"status":       true,
-	"updated_at":   true,
+	"name":             true,
+	"email":            true,
+	"job_title":        true,
+	"workplace":        true,
+	"about":            true,
+	"details":          true,
+	"competencies":     true,
+	"experience":       true,
+	"price":            true,
+	"telegram":         true,
+	"telegram_chat_id": true,
+	"calendar_url":     true,
+	"slug":             true,
+	"status":           true,
+	"updated_at":       true,
 }
 
 // Update updates a mentor in PostgreSQL
@@ -537,6 +540,136 @@ func (r *MentorRepository) FetchAllTagsFromDB(ctx context.Context) (map[string]s
 	}
 
 	return tags, nil
+}
+
+// ListForModeration retrieves mentors for moderation tabs, sorted by created_at DESC.
+func (r *MentorRepository) ListForModeration(ctx context.Context, statuses []string) ([]models.AdminMentorListItem, error) {
+	query := `
+		SELECT
+			m.id,
+			m.legacy_id,
+			m.name,
+			COALESCE(m.email::text, ''),
+			COALESCE(m.telegram, ''),
+			COALESCE(m.job_title, ''),
+			COALESCE(m.workplace, ''),
+			COALESCE(m.price, ''),
+			m.status,
+			m.created_at
+		FROM mentors m
+		WHERE m.status = ANY($1)
+		ORDER BY m.created_at DESC
+	`
+
+	rows, err := r.pool.Query(ctx, query, statuses)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list mentors for moderation: %w", err)
+	}
+	defer rows.Close()
+
+	result := make([]models.AdminMentorListItem, 0)
+	for rows.Next() {
+		var item models.AdminMentorListItem
+		if err := rows.Scan(
+			&item.MentorID,
+			&item.LegacyID,
+			&item.Name,
+			&item.Email,
+			&item.Telegram,
+			&item.Job,
+			&item.Workplace,
+			&item.Price,
+			&item.Status,
+			&item.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan moderation mentor row: %w", err)
+		}
+		result = append(result, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating moderation mentors: %w", err)
+	}
+
+	return result, nil
+}
+
+// GetForModerationByID retrieves extended mentor information for admin moderation UI.
+func (r *MentorRepository) GetForModerationByID(ctx context.Context, mentorID string) (*models.AdminMentorDetails, error) {
+	query := `
+		SELECT
+			m.id,
+			m.legacy_id,
+			m.slug,
+			m.name,
+			COALESCE(m.email::text, ''),
+			COALESCE(m.telegram, ''),
+			COALESCE(m.job_title, ''),
+			COALESCE(m.workplace, ''),
+			COALESCE(m.experience, ''),
+			COALESCE(m.price, ''),
+			COALESCE(array_remove(array_agg(DISTINCT t.name), NULL), '{}'::text[]) AS tags,
+			COALESCE(m.about, ''),
+			COALESCE(m.details, ''),
+			COALESCE(m.competencies, ''),
+			COALESCE(m.calendar_url, ''),
+			m.status,
+			COALESCE(m.sort_order, 0),
+			m.telegram_chat_id,
+			m.created_at,
+			m.updated_at
+		FROM mentors m
+		LEFT JOIN mentor_tags mt ON mt.mentor_id = m.id
+		LEFT JOIN tags t ON t.id = mt.tag_id
+		WHERE m.id = $1
+		GROUP BY m.id
+	`
+
+	var mentor models.AdminMentorDetails
+	var tags []string
+	if err := r.pool.QueryRow(ctx, query, mentorID).Scan(
+		&mentor.MentorID,
+		&mentor.LegacyID,
+		&mentor.Slug,
+		&mentor.Name,
+		&mentor.Email,
+		&mentor.Telegram,
+		&mentor.Job,
+		&mentor.Workplace,
+		&mentor.Experience,
+		&mentor.Price,
+		&tags,
+		&mentor.About,
+		&mentor.Description,
+		&mentor.Competencies,
+		&mentor.CalendarURL,
+		&mentor.Status,
+		&mentor.SortOrder,
+		&mentor.TelegramChatID,
+		&mentor.CreatedAt,
+		&mentor.UpdatedAt,
+	); err != nil {
+		return nil, fmt.Errorf("failed to fetch mentor for moderation: %w", err)
+	}
+
+	mentor.Tags = tags
+	return &mentor, nil
+}
+
+func (r *MentorRepository) SetMentorStatus(ctx context.Context, mentorID, status string) error {
+	query := `
+		UPDATE mentors
+		SET status = $1, updated_at = NOW()
+		WHERE id = $2
+	`
+	commandTag, err := r.pool.Exec(ctx, query, status, mentorID)
+	if err != nil {
+		return fmt.Errorf("failed to update mentor status: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("mentor with ID %s not found", mentorID)
+	}
+	return nil
 }
 
 // applyFilters applies filtering options to a mentor list

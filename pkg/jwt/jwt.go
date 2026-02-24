@@ -21,6 +21,7 @@ type MentorClaims struct {
 	LegacyID   int    `json:"legacy_id"`   // For backwards compatibility
 	Email      string `json:"email"`
 	Name       string `json:"name"`
+	Role       string `json:"role,omitempty"` // Used by moderator/admin sessions
 	jwt.RegisteredClaims
 }
 
@@ -42,20 +43,30 @@ func NewTokenManager(secret string, issuer string, ttlHours int) *TokenManager {
 
 // GenerateToken creates a new JWT token for a mentor
 func (tm *TokenManager) GenerateToken(mentorUUID string, legacyID int, email, name string) (string, error) {
+	return tm.generateToken(mentorUUID, legacyID, email, name, "")
+}
+
+// GenerateTokenWithRole creates a JWT token with an explicit role claim.
+func (tm *TokenManager) GenerateTokenWithRole(subjectID string, legacyID int, email, name, role string) (string, error) {
+	return tm.generateToken(subjectID, legacyID, email, name, role)
+}
+
+func (tm *TokenManager) generateToken(subjectID string, legacyID int, email, name, role string) (string, error) {
 	now := time.Now()
 	expiresAt := now.Add(tm.ttl)
 
 	claims := MentorClaims{
-		MentorUUID: mentorUUID,
+		MentorUUID: subjectID,
 		LegacyID:   legacyID,
 		Email:      email,
 		Name:       name,
+		Role:       role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
 			Issuer:    tm.issuer,
-			Subject:   mentorUUID, // UUID as subject
+			Subject:   subjectID, // UUID as subject
 		},
 	}
 

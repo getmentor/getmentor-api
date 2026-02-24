@@ -101,6 +101,38 @@ func registerMentorAdminRoutes(
 	mentor.POST("/profile/picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), mentorProfileHandler.UploadPicture)
 }
 
+// registerAdminModerationRoutes registers moderator/admin web routes.
+func registerAdminModerationRoutes(
+	router *gin.Engine,
+	cfg *config.Config,
+	authRateLimiter *middleware.RateLimiter,
+	profileRateLimiter *middleware.RateLimiter,
+	adminAuthHandler *handlers.AdminAuthHandler,
+	adminMentorsHandler *handlers.AdminMentorsHandler,
+	tokenManager *jwt.TokenManager,
+) {
+	if tokenManager == nil {
+		logger.Warn("Admin moderation routes disabled: JWT_SECRET not configured")
+		return
+	}
+
+	auth := router.Group("/api/v1/auth/admin")
+	auth.POST("/request-login", authRateLimiter.Middleware(), adminAuthHandler.RequestLogin)
+	auth.POST("/verify", adminAuthHandler.VerifyLogin)
+	auth.POST("/logout", adminAuthHandler.Logout)
+	auth.GET("/session", middleware.AdminSessionMiddleware(tokenManager, cfg.MentorSession.CookieDomain, cfg.MentorSession.CookieSecure), adminAuthHandler.GetSession)
+
+	admin := router.Group("/api/v1/admin")
+	admin.Use(middleware.AdminSessionMiddleware(tokenManager, cfg.MentorSession.CookieDomain, cfg.MentorSession.CookieSecure))
+	admin.GET("/mentors", adminMentorsHandler.ListMentors)
+	admin.GET("/mentors/:id", adminMentorsHandler.GetMentor)
+	admin.POST("/mentors/:id", profileRateLimiter.Middleware(), adminMentorsHandler.UpdateMentor)
+	admin.POST("/mentors/:id/approve", adminMentorsHandler.ApproveMentor)
+	admin.POST("/mentors/:id/decline", adminMentorsHandler.DeclineMentor)
+	admin.POST("/mentors/:id/status", adminMentorsHandler.UpdateMentorStatus)
+	admin.POST("/mentors/:id/picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), adminMentorsHandler.UploadMentorPicture)
+}
+
 func main() { //nolint:gocyclo
 	// Load configuration
 	cfg, err := config.Load()
@@ -214,6 +246,7 @@ func main() { //nolint:gocyclo
 
 	// Initialize repositories with pool and caches
 	mentorRepo := repository.NewMentorRepository(pool, mentorCache, tagsCache, cfg.Cache.DisableMentorsCache)
+	moderatorRepo := repository.NewModeratorRepository(pool)
 	clientRequestRepo := repository.NewClientRequestRepository(pool)
 
 	// Now update cache with actual fetcher functions from repository
@@ -255,8 +288,10 @@ func main() { //nolint:gocyclo
 	registrationService := services.NewRegistrationService(mentorRepo, yandexClient, cfg, httpClient)
 	mcpService := services.NewMCPService(mentorRepo, cfg.Server.BaseURL)
 	mentorAuthService := services.NewMentorAuthService(mentorRepo, cfg, httpClient)
+	adminAuthService := services.NewAdminAuthService(moderatorRepo, cfg, httpClient)
 	mentorRequestsService := services.NewMentorRequestsService(clientRequestRepo, cfg, httpClient)
 	reviewService := services.NewReviewService(reviewRepo, cfg, httpClient)
+	adminMentorsService := services.NewAdminMentorsService(mentorRepo, profileService, cfg, httpClient)
 
 	// Initialize handlers
 	mentorHandler := handlers.NewMentorHandler(mentorService, cfg.Server.BaseURL)
@@ -272,8 +307,10 @@ func main() { //nolint:gocyclo
 	healthHandler := handlers.NewHealthHandler(pool, cacheReadyFunc)
 	logsHandler := handlers.NewLogsHandler(cfg.Logging.Dir)
 	mentorAuthHandler := handlers.NewMentorAuthHandler(mentorAuthService)
+	adminAuthHandler := handlers.NewAdminAuthHandler(adminAuthService)
 	mentorRequestsHandler := handlers.NewMentorRequestsHandler(mentorRequestsService)
 	mentorProfileHandler := handlers.NewMentorProfileHandler(mentorService, profileService)
+	adminMentorsHandler := handlers.NewAdminMentorsHandler(adminMentorsService)
 
 	// Set up Gin router
 	gin.SetMode(cfg.Server.GinMode)
@@ -309,6 +346,7 @@ func main() { //nolint:gocyclo
 	registrationRateLimiter := middleware.NewRateLimiter(0.00667, 3) // 2 req/5min (0.00667 req/sec), burst of 3
 	mcpRateLimiter := middleware.NewRateLimiter(20, 40)              // 20 req/sec, burst of 40 (for AI tool usage)
 	mentorAuthRateLimiter := middleware.NewRateLimiter(0.00667, 2)   // 2 req/5min (0.00667 req/sec), burst of 2 (login abuse prevention)
+	adminAuthRateLimiter := middleware.NewRateLimiter(0.00667, 2)    // 2 req/5min (0.00667 req/sec), burst of 2 (login abuse prevention)
 
 	// API routes
 	api := router.Group("/api")
@@ -326,6 +364,9 @@ func main() { //nolint:gocyclo
 
 	// Mentor admin routes (authentication, request management, and profile)
 	registerMentorAdminRoutes(router, cfg, mentorAuthRateLimiter, profileRateLimiter, mentorAuthHandler, mentorRequestsHandler, mentorProfileHandler, mentorAuthService.GetTokenManager())
+
+	// Moderator/Admin web moderation routes
+	registerAdminModerationRoutes(router, cfg, adminAuthRateLimiter, profileRateLimiter, adminAuthHandler, adminMentorsHandler, adminAuthService.GetTokenManager())
 
 	// Create HTTP server
 	// SECURITY: Bind to all interfaces for Docker Compose networking
