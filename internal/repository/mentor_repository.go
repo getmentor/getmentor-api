@@ -689,6 +689,12 @@ func (r *MentorRepository) applyFilters(mentors []*models.Mentor, opts models.Fi
 // applySingleMentorFilters applies filtering options to a single mentor
 // Returns nil if mentor should be filtered out
 func (r *MentorRepository) applySingleMentorFilters(mentor *models.Mentor, opts models.FilterOptions) *models.Mentor {
+	// Filter out mentors with unknown statuses — only 'active' and 'inactive' are
+	// valid on the public side of the app (pending/declined are admin-only)
+	if mentor.Status != "active" && mentor.Status != "inactive" {
+		return nil
+	}
+
 	// Filter by visibility
 	if opts.OnlyVisible && !mentor.IsVisible {
 		return nil
