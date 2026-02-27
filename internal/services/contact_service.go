@@ -3,10 +3,12 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
+	"github.com/getmentor/getmentor-api/pkg/analytics"
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
@@ -22,6 +24,7 @@ type ContactService struct {
 	config            *config.Config
 	httpClient        httpclient.Client
 	recaptchaVerifier *recaptcha.Verifier
+	tracker           analytics.Tracker
 }
 
 // NewContactService creates a new contact service instance
@@ -30,7 +33,11 @@ func NewContactService(
 	mentorRepo *repository.MentorRepository,
 	cfg *config.Config,
 	httpClient httpclient.Client,
+	tracker analytics.Tracker,
 ) *ContactService {
+	if tracker == nil {
+		tracker = analytics.NoopTracker{}
+	}
 
 	return &ContactService{
 		clientRequestRepo: clientRequestRepo,
@@ -38,13 +45,28 @@ func NewContactService(
 		config:            cfg,
 		httpClient:        httpClient,
 		recaptchaVerifier: recaptcha.NewVerifier(cfg.ReCAPTCHA.SecretKey, httpClient),
+		tracker:           tracker,
 	}
 }
 
 func (s *ContactService) SubmitContactForm(ctx context.Context, req *models.ContactMentorRequest) (*models.ContactMentorResponse, error) {
+	baseProperties := map[string]interface{}{
+		"mentor_id":              req.MentorID,
+		"experience":             req.Experience,
+		"has_telegram_username":  strings.TrimSpace(req.TelegramUsername) != "",
+		"calendar_url_requested": true,
+	}
+
 	// Verify ReCAPTCHA
 	if err := s.recaptchaVerifier.Verify(req.RecaptchaToken); err != nil {
 		metrics.ContactFormSubmissions.WithLabelValues("captcha_failed").Inc()
+		s.tracker.Track(ctx, analytics.EventMenteeContactSubmitted, analytics.MentorDistinctID(req.MentorID), map[string]interface{}{
+			"mentor_id":              req.MentorID,
+			"experience":             req.Experience,
+			"has_telegram_username":  strings.TrimSpace(req.TelegramUsername) != "",
+			"calendar_url_requested": true,
+			"outcome":                "captcha_failed",
+		})
 		logger.Warn("ReCAPTCHA verification failed", zap.Error(err))
 		return &models.ContactMentorResponse{
 			Success: false,
@@ -65,6 +87,13 @@ func (s *ContactService) SubmitContactForm(ctx context.Context, req *models.Cont
 	requestID, err := s.clientRequestRepo.Create(ctx, clientReq)
 	if err != nil {
 		metrics.ContactFormSubmissions.WithLabelValues("error").Inc()
+		s.tracker.Track(ctx, analytics.EventMenteeContactSubmitted, analytics.MentorDistinctID(req.MentorID), map[string]interface{}{
+			"mentor_id":              req.MentorID,
+			"experience":             req.Experience,
+			"has_telegram_username":  strings.TrimSpace(req.TelegramUsername) != "",
+			"calendar_url_requested": true,
+			"outcome":                "db_error",
+		})
 		logger.Error("Failed to create client request", zap.Error(err))
 		return &models.ContactMentorResponse{
 			Success: false,
@@ -81,14 +110,33 @@ func (s *ContactService) SubmitContactForm(ctx context.Context, req *models.Cont
 		logger.Error("Failed to get mentor for calendar URL", zap.Error(err))
 		// Still return success as the request was saved
 		metrics.ContactFormSubmissions.WithLabelValues("success").Inc()
+		s.tracker.Track(ctx, analytics.EventMenteeContactSubmitted, analytics.RequestDistinctID(requestID), map[string]interface{}{
+			"mentor_id":              req.MentorID,
+			"request_id":             requestID,
+			"experience":             req.Experience,
+			"has_telegram_username":  strings.TrimSpace(req.TelegramUsername) != "",
+			"calendar_url_requested": true,
+			"calendar_url_available": false,
+			"outcome":                "success",
+		})
 		return &models.ContactMentorResponse{
-			Success: true,
+			Success:   true,
+			RequestID: requestID,
 		}, nil
 	}
 
 	metrics.ContactFormSubmissions.WithLabelValues("success").Inc()
+	successProperties := make(map[string]interface{}, len(baseProperties)+4)
+	for key, value := range baseProperties {
+		successProperties[key] = value
+	}
+	successProperties["request_id"] = requestID
+	successProperties["calendar_url_available"] = strings.TrimSpace(mentor.CalendarURL) != ""
+	successProperties["outcome"] = "success"
+	s.tracker.Track(ctx, analytics.EventMenteeContactSubmitted, analytics.RequestDistinctID(requestID), successProperties)
 	return &models.ContactMentorResponse{
 		Success:     true,
+		RequestID:   requestID,
 		CalendarURL: mentor.CalendarURL,
 	}, nil
 }

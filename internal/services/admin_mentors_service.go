@@ -10,6 +10,7 @@ import (
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
+	"github.com/getmentor/getmentor-api/pkg/analytics"
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/trigger"
 )
@@ -23,6 +24,7 @@ type AdminMentorsService struct {
 	profileService ProfileServiceInterface
 	config         *config.Config
 	httpClient     httpclient.Client
+	tracker        analytics.Tracker
 }
 
 func NewAdminMentorsService(
@@ -30,12 +32,18 @@ func NewAdminMentorsService(
 	profileService ProfileServiceInterface,
 	cfg *config.Config,
 	httpClient httpclient.Client,
+	tracker analytics.Tracker,
 ) *AdminMentorsService {
+	if tracker == nil {
+		tracker = analytics.NoopTracker{}
+	}
+
 	return &AdminMentorsService{
 		mentorRepo:     mentorRepo,
 		profileService: profileService,
 		config:         cfg,
 		httpClient:     httpClient,
+		tracker:        tracker,
 	}
 }
 
@@ -80,13 +88,31 @@ func (s *AdminMentorsService) UpdateMentorProfile(
 ) (*models.AdminMentorDetails, error) {
 	mentor, err := s.GetMentor(ctx, session, mentorID)
 	if err != nil {
+		s.tracker.Track(ctx, analytics.EventAdminMentorProfileUpdated, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+			"moderator_id":     session.ModeratorID,
+			"moderator_role":   string(session.Role),
+			"target_mentor_id": mentorID,
+			"outcome":          "mentor_not_found_or_forbidden",
+		})
 		return nil, err
 	}
 
 	if session.Role == models.ModeratorRoleModerator && mentor.Status != "pending" {
+		s.tracker.Track(ctx, analytics.EventAdminMentorProfileUpdated, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+			"moderator_id":     session.ModeratorID,
+			"moderator_role":   string(session.Role),
+			"target_mentor_id": mentorID,
+			"outcome":          "forbidden",
+		})
 		return nil, ErrAdminForbiddenAction
 	}
 	if session.Role != models.ModeratorRoleAdmin && (req.Slug != nil || req.TelegramChatID != nil) {
+		s.tracker.Track(ctx, analytics.EventAdminMentorProfileUpdated, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+			"moderator_id":     session.ModeratorID,
+			"moderator_role":   string(session.Role),
+			"target_mentor_id": mentorID,
+			"outcome":          "forbidden",
+		})
 		return nil, ErrAdminForbiddenAction
 	}
 
@@ -103,6 +129,12 @@ func (s *AdminMentorsService) UpdateMentorProfile(
 		}
 	}
 	if len(tagIDs) == 0 {
+		s.tracker.Track(ctx, analytics.EventAdminMentorProfileUpdated, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+			"moderator_id":     session.ModeratorID,
+			"moderator_role":   string(session.Role),
+			"target_mentor_id": mentorID,
+			"outcome":          "invalid_tags",
+		})
 		return nil, fmt.Errorf("at least one valid tag is required")
 	}
 
@@ -142,12 +174,31 @@ func (s *AdminMentorsService) UpdateMentorProfile(
 	}
 
 	if err := s.mentorRepo.Update(ctx, mentorID, updates); err != nil {
+		s.tracker.Track(ctx, analytics.EventAdminMentorProfileUpdated, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+			"moderator_id":     session.ModeratorID,
+			"moderator_role":   string(session.Role),
+			"target_mentor_id": mentorID,
+			"outcome":          "update_failed",
+		})
 		return nil, err
 	}
 	if err := s.mentorRepo.UpdateMentorTags(ctx, mentorID, tagIDs); err != nil {
+		s.tracker.Track(ctx, analytics.EventAdminMentorProfileUpdated, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+			"moderator_id":     session.ModeratorID,
+			"moderator_role":   string(session.Role),
+			"target_mentor_id": mentorID,
+			"outcome":          "tags_update_failed",
+		})
 		return nil, err
 	}
 
+	s.tracker.Track(ctx, analytics.EventAdminMentorProfileUpdated, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+		"moderator_id":     session.ModeratorID,
+		"moderator_role":   string(session.Role),
+		"target_mentor_id": mentorID,
+		"tags_count":       len(tagIDs),
+		"outcome":          "success",
+	})
 	return s.mentorRepo.GetForModerationByID(ctx, mentorID)
 }
 
@@ -158,15 +209,19 @@ func (s *AdminMentorsService) ApproveMentor(
 ) (*models.AdminMentorDetails, error) {
 	mentor, err := s.GetMentor(ctx, session, mentorID)
 	if err != nil {
+		s.trackModerationAction(ctx, session, mentorID, "approve", "mentor_not_found_or_forbidden")
 		return nil, err
 	}
 	if session.Role == models.ModeratorRoleModerator && mentor.Status != "pending" {
+		s.trackModerationAction(ctx, session, mentorID, "approve", "forbidden")
 		return nil, ErrAdminForbiddenAction
 	}
 
 	if err := s.mentorRepo.SetMentorStatus(ctx, mentorID, "active"); err != nil {
+		s.trackModerationAction(ctx, session, mentorID, "approve", "update_failed")
 		return nil, err
 	}
+	s.trackModerationAction(ctx, session, mentorID, "approve", "success")
 	s.triggerModerationAction("approve", session, mentorID)
 
 	return s.mentorRepo.GetForModerationByID(ctx, mentorID)
@@ -179,15 +234,19 @@ func (s *AdminMentorsService) DeclineMentor(
 ) (*models.AdminMentorDetails, error) {
 	mentor, err := s.GetMentor(ctx, session, mentorID)
 	if err != nil {
+		s.trackModerationAction(ctx, session, mentorID, "decline", "mentor_not_found_or_forbidden")
 		return nil, err
 	}
 	if session.Role == models.ModeratorRoleModerator && mentor.Status != "pending" {
+		s.trackModerationAction(ctx, session, mentorID, "decline", "forbidden")
 		return nil, ErrAdminForbiddenAction
 	}
 
 	if err := s.mentorRepo.SetMentorStatus(ctx, mentorID, "declined"); err != nil {
+		s.trackModerationAction(ctx, session, mentorID, "decline", "update_failed")
 		return nil, err
 	}
+	s.trackModerationAction(ctx, session, mentorID, "decline", "success")
 	s.triggerModerationAction("decline", session, mentorID)
 
 	return s.mentorRepo.GetForModerationByID(ctx, mentorID)
@@ -200,23 +259,68 @@ func (s *AdminMentorsService) UpdateMentorStatus(
 	status string,
 ) (*models.AdminMentorDetails, error) {
 	if session.Role != models.ModeratorRoleAdmin {
+		s.tracker.Track(ctx, analytics.EventAdminMentorStatusUpdated, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+			"moderator_id":     session.ModeratorID,
+			"moderator_role":   string(session.Role),
+			"target_mentor_id": mentorID,
+			"requested_status": status,
+			"outcome":          "forbidden",
+		})
 		return nil, ErrAdminForbiddenAction
 	}
 	if status != "active" && status != "inactive" {
+		s.tracker.Track(ctx, analytics.EventAdminMentorStatusUpdated, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+			"moderator_id":     session.ModeratorID,
+			"moderator_role":   string(session.Role),
+			"target_mentor_id": mentorID,
+			"requested_status": status,
+			"outcome":          "unsupported_status",
+		})
 		return nil, fmt.Errorf("unsupported status: %s", status)
 	}
 
 	mentor, err := s.mentorRepo.GetForModerationByID(ctx, mentorID)
 	if err != nil {
+		s.tracker.Track(ctx, analytics.EventAdminMentorStatusUpdated, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+			"moderator_id":     session.ModeratorID,
+			"moderator_role":   string(session.Role),
+			"target_mentor_id": mentorID,
+			"requested_status": status,
+			"outcome":          "mentor_not_found",
+		})
 		return nil, err
 	}
 	if mentor.Status != "active" && mentor.Status != "inactive" {
+		s.tracker.Track(ctx, analytics.EventAdminMentorStatusUpdated, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+			"moderator_id":     session.ModeratorID,
+			"moderator_role":   string(session.Role),
+			"target_mentor_id": mentorID,
+			"from_status":      mentor.Status,
+			"requested_status": status,
+			"outcome":          "invalid_transition",
+		})
 		return nil, fmt.Errorf("status toggle is available only for approved mentors")
 	}
 
 	if err := s.mentorRepo.SetMentorStatus(ctx, mentorID, status); err != nil {
+		s.tracker.Track(ctx, analytics.EventAdminMentorStatusUpdated, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+			"moderator_id":     session.ModeratorID,
+			"moderator_role":   string(session.Role),
+			"target_mentor_id": mentorID,
+			"from_status":      mentor.Status,
+			"requested_status": status,
+			"outcome":          "update_failed",
+		})
 		return nil, err
 	}
+	s.tracker.Track(ctx, analytics.EventAdminMentorStatusUpdated, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+		"moderator_id":     session.ModeratorID,
+		"moderator_role":   string(session.Role),
+		"target_mentor_id": mentorID,
+		"from_status":      mentor.Status,
+		"requested_status": status,
+		"outcome":          "success",
+	})
 	return s.mentorRepo.GetForModerationByID(ctx, mentorID)
 }
 
@@ -227,15 +331,44 @@ func (s *AdminMentorsService) UploadMentorPicture(
 	req *models.UploadProfilePictureRequest,
 ) (string, error) {
 	if session.Role != models.ModeratorRoleAdmin {
+		s.tracker.Track(ctx, analytics.EventAdminMentorPictureUploaded, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+			"moderator_id":     session.ModeratorID,
+			"moderator_role":   string(session.Role),
+			"target_mentor_id": mentorID,
+			"outcome":          "forbidden",
+		})
 		return "", ErrAdminForbiddenAction
 	}
 
 	mentor, err := s.mentorRepo.GetForModerationByID(ctx, mentorID)
 	if err != nil {
+		s.tracker.Track(ctx, analytics.EventAdminMentorPictureUploaded, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+			"moderator_id":     session.ModeratorID,
+			"moderator_role":   string(session.Role),
+			"target_mentor_id": mentorID,
+			"outcome":          "mentor_not_found",
+		})
 		return "", err
 	}
+	uploadURL, err := s.profileService.UploadPictureByMentorId(ctx, mentorID, mentor.Slug, req)
+	if err != nil {
+		s.tracker.Track(ctx, analytics.EventAdminMentorPictureUploaded, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+			"moderator_id":     session.ModeratorID,
+			"moderator_role":   string(session.Role),
+			"target_mentor_id": mentorID,
+			"outcome":          "upload_failed",
+		})
+		return "", err
+	}
+	s.tracker.Track(ctx, analytics.EventAdminMentorPictureUploaded, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+		"moderator_id":     session.ModeratorID,
+		"moderator_role":   string(session.Role),
+		"target_mentor_id": mentorID,
+		"url_returned":     strings.TrimSpace(uploadURL) != "",
+		"outcome":          "success",
+	})
 
-	return s.profileService.UploadPictureByMentorId(ctx, mentorID, mentor.Slug, req)
+	return uploadURL, nil
 }
 
 func (s *AdminMentorsService) triggerModerationAction(action string, session *models.AdminSession, mentorID string) {
@@ -247,6 +380,22 @@ func (s *AdminMentorsService) triggerModerationAction(action string, session *mo
 		Role:        string(session.Role),
 	}
 	trigger.CallAsyncWithPayload(s.config.EventTriggers.MentorModerationTriggerURL, payload, s.httpClient)
+}
+
+func (s *AdminMentorsService) trackModerationAction(
+	ctx context.Context,
+	session *models.AdminSession,
+	mentorID string,
+	action string,
+	outcome string,
+) {
+	s.tracker.Track(ctx, analytics.EventAdminMentorModerationAction, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
+		"moderator_id":     session.ModeratorID,
+		"moderator_role":   string(session.Role),
+		"target_mentor_id": mentorID,
+		"action":           action,
+		"outcome":          outcome,
+	})
 }
 
 func resolveStatuses(filter models.MentorModerationFilter, role models.ModeratorRole) ([]string, error) {

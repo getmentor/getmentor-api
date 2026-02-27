@@ -9,6 +9,7 @@ import (
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
+	"github.com/getmentor/getmentor-api/pkg/analytics"
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
@@ -29,14 +30,25 @@ type MentorRequestsService struct {
 	requestRepo *repository.ClientRequestRepository
 	config      *config.Config
 	httpClient  httpclient.Client
+	tracker     analytics.Tracker
 }
 
 // NewMentorRequestsService creates a new MentorRequestsService
-func NewMentorRequestsService(requestRepo *repository.ClientRequestRepository, cfg *config.Config, httpClient httpclient.Client) *MentorRequestsService {
+func NewMentorRequestsService(
+	requestRepo *repository.ClientRequestRepository,
+	cfg *config.Config,
+	httpClient httpclient.Client,
+	tracker analytics.Tracker,
+) *MentorRequestsService {
+	if tracker == nil {
+		tracker = analytics.NoopTracker{}
+	}
+
 	return &MentorRequestsService{
 		requestRepo: requestRepo,
 		config:      cfg,
 		httpClient:  httpClient,
+		tracker:     tracker,
 	}
 }
 
@@ -116,6 +128,13 @@ func (s *MentorRequestsService) UpdateStatus(ctx context.Context, mentorId strin
 
 	// Validate status transition
 	if !request.Status.CanTransitionTo(newStatus) {
+		s.tracker.Track(ctx, analytics.EventMentorRequestStatusUpdated, analytics.RequestDistinctID(requestID), map[string]interface{}{
+			"request_id":  requestID,
+			"mentor_id":   mentorId,
+			"from_status": string(request.Status),
+			"to_status":   string(newStatus),
+			"outcome":     "invalid_transition",
+		})
 		logger.Warn("Invalid status transition",
 			zap.String("request_id", requestID),
 			zap.String("from_status", string(request.Status)),
@@ -127,6 +146,13 @@ func (s *MentorRequestsService) UpdateStatus(ctx context.Context, mentorId strin
 
 	// Update in repository
 	if err := s.requestRepo.UpdateStatus(ctx, requestID, newStatus); err != nil {
+		s.tracker.Track(ctx, analytics.EventMentorRequestStatusUpdated, analytics.RequestDistinctID(requestID), map[string]interface{}{
+			"request_id":  requestID,
+			"mentor_id":   mentorId,
+			"from_status": string(oldStatus),
+			"to_status":   string(newStatus),
+			"outcome":     "db_error",
+		})
 		logger.Error("Failed to update request status",
 			zap.String("request_id", requestID),
 			zap.Error(err))
@@ -140,6 +166,13 @@ func (s *MentorRequestsService) UpdateStatus(ctx context.Context, mentorId strin
 
 	// Record metrics
 	metrics.MentorRequestsStatusUpdates.WithLabelValues(string(oldStatus), string(newStatus)).Inc()
+	s.tracker.Track(ctx, analytics.EventMentorRequestStatusUpdated, analytics.RequestDistinctID(requestID), map[string]interface{}{
+		"request_id":  requestID,
+		"mentor_id":   mentorId,
+		"from_status": string(oldStatus),
+		"to_status":   string(newStatus),
+		"outcome":     "success",
+	})
 
 	logger.Info("Request status updated",
 		zap.String("request_id", requestID),
@@ -160,6 +193,12 @@ func (s *MentorRequestsService) DeclineRequest(ctx context.Context, mentorId str
 
 	// Check if request can be declined
 	if request.Status == models.StatusDone {
+		s.tracker.Track(ctx, analytics.EventMentorRequestDeclined, analytics.RequestDistinctID(requestID), map[string]interface{}{
+			"request_id": requestID,
+			"mentor_id":  mentorId,
+			"status":     string(request.Status),
+			"outcome":    "invalid_state",
+		})
 		logger.Warn("Cannot decline completed request",
 			zap.String("request_id", requestID),
 			zap.String("status", string(request.Status)))
@@ -167,6 +206,12 @@ func (s *MentorRequestsService) DeclineRequest(ctx context.Context, mentorId str
 	}
 
 	if request.Status.IsTerminalStatus() {
+		s.tracker.Track(ctx, analytics.EventMentorRequestDeclined, analytics.RequestDistinctID(requestID), map[string]interface{}{
+			"request_id": requestID,
+			"mentor_id":  mentorId,
+			"status":     string(request.Status),
+			"outcome":    "terminal_state",
+		})
 		logger.Warn("Cannot decline request with terminal status",
 			zap.String("request_id", requestID),
 			zap.String("status", string(request.Status)))
@@ -175,6 +220,12 @@ func (s *MentorRequestsService) DeclineRequest(ctx context.Context, mentorId str
 
 	// Update in repository
 	if err := s.requestRepo.UpdateDecline(ctx, requestID, payload.Reason, payload.Comment); err != nil {
+		s.tracker.Track(ctx, analytics.EventMentorRequestDeclined, analytics.RequestDistinctID(requestID), map[string]interface{}{
+			"request_id": requestID,
+			"mentor_id":  mentorId,
+			"reason":     string(payload.Reason),
+			"outcome":    "db_error",
+		})
 		logger.Error("Failed to decline request",
 			zap.String("request_id", requestID),
 			zap.Error(err))
@@ -188,6 +239,12 @@ func (s *MentorRequestsService) DeclineRequest(ctx context.Context, mentorId str
 
 	// Record metrics
 	metrics.MentorRequestsDeclines.WithLabelValues(string(payload.Reason)).Inc()
+	s.tracker.Track(ctx, analytics.EventMentorRequestDeclined, analytics.RequestDistinctID(requestID), map[string]interface{}{
+		"request_id": requestID,
+		"mentor_id":  mentorId,
+		"reason":     string(payload.Reason),
+		"outcome":    "success",
+	})
 
 	logger.Info("Request declined",
 		zap.String("request_id", requestID),
