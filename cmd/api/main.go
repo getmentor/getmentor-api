@@ -112,6 +112,7 @@ func registerAdminModerationRoutes(
 	adminMentorsHandler *handlers.AdminMentorsHandler,
 	tokenManager *jwt.TokenManager,
 ) {
+
 	if tokenManager == nil {
 		logger.Warn("Admin moderation routes disabled: JWT_SECRET not configured")
 		return
@@ -278,7 +279,7 @@ func main() { //nolint:gocyclo
 
 	// Initialize HTTP client for external API calls
 	httpClient := httpclient.NewStandardClient()
-	analyticsTracker := analytics.NewTracker(analytics.Config{
+	analyticsTracker := analytics.NewTracker(&analytics.Config{
 		Enabled:      cfg.Mixpanel.Enabled,
 		Token:        cfg.Mixpanel.Token,
 		Endpoint:     cfg.Mixpanel.Endpoint,

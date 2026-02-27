@@ -44,6 +44,7 @@ func NewMentorAuthService(
 	httpClient httpclient.Client,
 	tracker analytics.Tracker,
 ) *MentorAuthService {
+
 	if tracker == nil {
 		tracker = analytics.NoopTracker{}
 	}

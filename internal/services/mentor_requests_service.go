@@ -40,6 +40,7 @@ func NewMentorRequestsService(
 	httpClient httpclient.Client,
 	tracker analytics.Tracker,
 ) *MentorRequestsService {
+
 	if tracker == nil {
 		tracker = analytics.NoopTracker{}
 	}

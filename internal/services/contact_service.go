@@ -35,6 +35,7 @@ func NewContactService(
 	httpClient httpclient.Client,
 	tracker analytics.Tracker,
 ) *ContactService {
+
 	if tracker == nil {
 		tracker = analytics.NoopTracker{}
 	}

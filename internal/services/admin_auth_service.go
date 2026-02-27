@@ -42,6 +42,7 @@ func NewAdminAuthService(
 	httpClient httpclient.Client,
 	tracker analytics.Tracker,
 ) *AdminAuthService {
+
 	if tracker == nil {
 		tracker = analytics.NoopTracker{}
 	}
@@ -166,10 +167,10 @@ func (s *AdminAuthService) VerifyLogin(ctx context.Context, token string) (*mode
 		return nil, "", ErrModeratorNotEligible
 	}
 
-	if err := s.moderatorRepo.ClearLoginToken(ctx, moderator.ID); err != nil {
+	if clearErr := s.moderatorRepo.ClearLoginToken(ctx, moderator.ID); clearErr != nil {
 		logger.Error("Failed to clear admin login token",
 			zap.String("moderator_id", moderator.ID),
-			zap.Error(err))
+			zap.Error(clearErr))
 	}
 
 	jwtToken, err := s.tokenManager.GenerateTokenWithRole(

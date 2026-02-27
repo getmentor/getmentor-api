@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -45,25 +46,7 @@ func (h *AdminMentorsHandler) ListMentors(c *gin.Context) {
 }
 
 func (h *AdminMentorsHandler) GetMentor(c *gin.Context) {
-	session, err := middleware.GetAdminSession(c)
-	if err != nil {
-		respondError(c, http.StatusUnauthorized, "Unauthorized", err)
-		return
-	}
-
-	mentorID := c.Param("id")
-	if mentorID == "" {
-		respondError(c, http.StatusBadRequest, "Invalid mentor ID", errors.New("missing route param: id"))
-		return
-	}
-
-	mentor, err := h.service.GetMentor(c.Request.Context(), session, mentorID)
-	if err != nil {
-		h.respondServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, models.AdminMentorResponse{Mentor: mentor})
+	h.withAdminMentor(c, h.service.GetMentor)
 }
 
 func (h *AdminMentorsHandler) UpdateMentor(c *gin.Context) {
@@ -95,28 +78,18 @@ func (h *AdminMentorsHandler) UpdateMentor(c *gin.Context) {
 }
 
 func (h *AdminMentorsHandler) ApproveMentor(c *gin.Context) {
-	session, err := middleware.GetAdminSession(c)
-	if err != nil {
-		respondError(c, http.StatusUnauthorized, "Unauthorized", err)
-		return
-	}
-
-	mentorID := c.Param("id")
-	if mentorID == "" {
-		respondError(c, http.StatusBadRequest, "Invalid mentor ID", errors.New("missing route param: id"))
-		return
-	}
-
-	mentor, err := h.service.ApproveMentor(c.Request.Context(), session, mentorID)
-	if err != nil {
-		h.respondServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, models.AdminMentorResponse{Mentor: mentor})
+	h.withAdminMentor(c, h.service.ApproveMentor)
 }
 
 func (h *AdminMentorsHandler) DeclineMentor(c *gin.Context) {
+	h.withAdminMentor(c, h.service.DeclineMentor)
+}
+
+func (h *AdminMentorsHandler) withAdminMentor(
+	c *gin.Context,
+	action func(context.Context, *models.AdminSession, string) (*models.AdminMentorDetails, error),
+) {
+
 	session, err := middleware.GetAdminSession(c)
 	if err != nil {
 		respondError(c, http.StatusUnauthorized, "Unauthorized", err)
@@ -129,7 +102,7 @@ func (h *AdminMentorsHandler) DeclineMentor(c *gin.Context) {
 		return
 	}
 
-	mentor, err := h.service.DeclineMentor(c.Request.Context(), session, mentorID)
+	mentor, err := action(c.Request.Context(), session, mentorID)
 	if err != nil {
 		h.respondServiceError(c, err)
 		return

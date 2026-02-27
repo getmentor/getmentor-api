@@ -1,3 +1,4 @@
+//nolint:dupl // Admin and mentor auth handlers intentionally mirror each other with role-specific services and models.
 package handlers
 
 import (

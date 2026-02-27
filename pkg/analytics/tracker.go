@@ -55,7 +55,11 @@ type eventPayload struct {
 	Properties map[string]interface{} `json:"properties"`
 }
 
-func NewTracker(cfg Config) Tracker {
+func NewTracker(cfg *Config) Tracker {
+	if cfg == nil {
+		return NoopTracker{}
+	}
+
 	if !cfg.Enabled || strings.TrimSpace(cfg.Token) == "" {
 		return NoopTracker{}
 	}
@@ -154,7 +158,14 @@ func (t *MixpanelTracker) Track(ctx context.Context, event string, distinctID st
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= http.StatusMultipleChoices {
-		bodyPreview, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		bodyPreview, readErr := io.ReadAll(io.LimitReader(resp.Body, 512))
+		if readErr != nil {
+			logger.Warn("Mixpanel returned non-success status and response body could not be read",
+				zap.String("event", event),
+				zap.Int("status_code", resp.StatusCode),
+				zap.Error(readErr))
+			return
+		}
 		logger.Warn("Mixpanel returned non-success status",
 			zap.String("event", event),
 			zap.Int("status_code", resp.StatusCode),

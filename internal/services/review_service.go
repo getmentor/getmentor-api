@@ -42,6 +42,7 @@ func NewReviewService(
 	httpClient httpclient.Client,
 	tracker analytics.Tracker,
 ) *ReviewService {
+
 	if tracker == nil {
 		tracker = analytics.NoopTracker{}
 	}
@@ -122,25 +123,20 @@ func (s *ReviewService) CheckReview(ctx context.Context, requestID string) (*mod
 // SubmitReview creates a new review after verifying captcha and eligibility
 func (s *ReviewService) SubmitReview(ctx context.Context, requestID string, req *models.SubmitReviewRequest) (*models.SubmitReviewResponse, error) {
 	start := time.Now()
-	baseProperties := map[string]interface{}{
-		"request_id":           requestID,
-		"has_platform_review":  strings.TrimSpace(req.PlatformReview) != "",
-		"has_improvements":     strings.TrimSpace(req.Improvements) != "",
-		"has_mentor_review":    strings.TrimSpace(req.MentorReview) != "",
-		"review_payload_size":  len(req.MentorReview) + len(req.PlatformReview) + len(req.Improvements),
-		"captcha_token_length": len(req.RecaptchaToken),
+	baseProperties := reviewSubmissionProperties(requestID, req)
+	trackSubmissionOutcome := func(outcome string) {
+		properties := make(map[string]interface{}, len(baseProperties)+1)
+		for key, value := range baseProperties {
+			properties[key] = value
+		}
+		properties["outcome"] = outcome
+		s.tracker.Track(ctx, analytics.EventReviewSubmitted, analytics.RequestDistinctID(requestID), properties)
 	}
 
 	// Verify ReCAPTCHA
 	if err := s.recaptchaVerifier.Verify(req.RecaptchaToken); err != nil {
 		metrics.ReviewSubmissions.WithLabelValues("captcha_failed").Inc()
-		s.tracker.Track(ctx, analytics.EventReviewSubmitted, analytics.RequestDistinctID(requestID), map[string]interface{}{
-			"request_id":          requestID,
-			"has_platform_review": strings.TrimSpace(req.PlatformReview) != "",
-			"has_improvements":    strings.TrimSpace(req.Improvements) != "",
-			"has_mentor_review":   strings.TrimSpace(req.MentorReview) != "",
-			"outcome":             "captcha_failed",
-		})
+		trackSubmissionOutcome("captcha_failed")
 		logger.Warn("ReCAPTCHA verification failed for review",
 			zap.String("request_id", requestID),
 			zap.Error(err))
@@ -154,13 +150,7 @@ func (s *ReviewService) SubmitReview(ctx context.Context, requestID string, req 
 	checkResult, err := s.reviewRepo.CheckCanSubmitReview(ctx, requestID)
 	if err != nil {
 		metrics.ReviewSubmissions.WithLabelValues("error").Inc()
-		s.tracker.Track(ctx, analytics.EventReviewSubmitted, analytics.RequestDistinctID(requestID), map[string]interface{}{
-			"request_id":          requestID,
-			"has_platform_review": strings.TrimSpace(req.PlatformReview) != "",
-			"has_improvements":    strings.TrimSpace(req.Improvements) != "",
-			"has_mentor_review":   strings.TrimSpace(req.MentorReview) != "",
-			"outcome":             "validation_error",
-		})
+		trackSubmissionOutcome("validation_error")
 		logger.Error("Failed to check review eligibility",
 			zap.String("request_id", requestID),
 			zap.Error(err))
@@ -172,13 +162,7 @@ func (s *ReviewService) SubmitReview(ctx context.Context, requestID string, req 
 
 	if checkResult.MentorName == "" && !checkResult.CanSubmit {
 		metrics.ReviewSubmissions.WithLabelValues("not_found").Inc()
-		s.tracker.Track(ctx, analytics.EventReviewSubmitted, analytics.RequestDistinctID(requestID), map[string]interface{}{
-			"request_id":          requestID,
-			"has_platform_review": strings.TrimSpace(req.PlatformReview) != "",
-			"has_improvements":    strings.TrimSpace(req.Improvements) != "",
-			"has_mentor_review":   strings.TrimSpace(req.MentorReview) != "",
-			"outcome":             "not_found",
-		})
+		trackSubmissionOutcome("not_found")
 		return &models.SubmitReviewResponse{
 			Success: false,
 			Error:   "Заявка не найдена",
@@ -187,13 +171,7 @@ func (s *ReviewService) SubmitReview(ctx context.Context, requestID string, req 
 
 	if !checkResult.CanSubmit {
 		metrics.ReviewSubmissions.WithLabelValues("already_exists").Inc()
-		s.tracker.Track(ctx, analytics.EventReviewSubmitted, analytics.RequestDistinctID(requestID), map[string]interface{}{
-			"request_id":          requestID,
-			"has_platform_review": strings.TrimSpace(req.PlatformReview) != "",
-			"has_improvements":    strings.TrimSpace(req.Improvements) != "",
-			"has_mentor_review":   strings.TrimSpace(req.MentorReview) != "",
-			"outcome":             "already_exists",
-		})
+		trackSubmissionOutcome("already_exists")
 		return &models.SubmitReviewResponse{
 			Success: false,
 			Error:   "Отзыв уже оставлен или заявка ещё не завершена",
@@ -204,13 +182,7 @@ func (s *ReviewService) SubmitReview(ctx context.Context, requestID string, req 
 	reviewID, err := s.reviewRepo.CreateReview(ctx, requestID, req.MentorReview, req.PlatformReview, req.Improvements)
 	if err != nil {
 		metrics.ReviewSubmissions.WithLabelValues("db_error").Inc()
-		s.tracker.Track(ctx, analytics.EventReviewSubmitted, analytics.RequestDistinctID(requestID), map[string]interface{}{
-			"request_id":          requestID,
-			"has_platform_review": strings.TrimSpace(req.PlatformReview) != "",
-			"has_improvements":    strings.TrimSpace(req.Improvements) != "",
-			"has_mentor_review":   strings.TrimSpace(req.MentorReview) != "",
-			"outcome":             "db_error",
-		})
+		trackSubmissionOutcome("db_error")
 		logger.Error("Failed to create review",
 			zap.String("request_id", requestID),
 			zap.Error(err))
@@ -243,4 +215,15 @@ func (s *ReviewService) SubmitReview(ctx context.Context, requestID string, req 
 		Success:  true,
 		ReviewID: reviewID,
 	}, nil
+}
+
+func reviewSubmissionProperties(requestID string, req *models.SubmitReviewRequest) map[string]interface{} {
+	return map[string]interface{}{
+		"request_id":           requestID,
+		"has_platform_review":  strings.TrimSpace(req.PlatformReview) != "",
+		"has_improvements":     strings.TrimSpace(req.Improvements) != "",
+		"has_mentor_review":    strings.TrimSpace(req.MentorReview) != "",
+		"review_payload_size":  len(req.MentorReview) + len(req.PlatformReview) + len(req.Improvements),
+		"captcha_token_length": len(req.RecaptchaToken),
+	}
 }

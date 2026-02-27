@@ -18,6 +18,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	registrationStatusPending  = "pending"
+	registrationOutcomeSuccess = "success"
+)
+
 // RegistrationService handles mentor registration
 type RegistrationService struct {
 	mentorRepo        *repository.MentorRepository
@@ -36,6 +41,7 @@ func NewRegistrationService(
 	httpClient httpclient.Client,
 	tracker analytics.Tracker,
 ) *RegistrationService {
+
 	if tracker == nil {
 		tracker = analytics.NoopTracker{}
 	}
@@ -55,7 +61,7 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 	baseProperties := map[string]interface{}{
 		"tags_count":          len(req.Tags),
 		"has_calendar_url":    strings.TrimSpace(req.CalendarURL) != "",
-		"has_profile_picture": len(req.ProfilePicture.Image) > 0,
+		"has_profile_picture": req.ProfilePicture.Image != "",
 	}
 
 	// 1. Verify ReCAPTCHA
@@ -64,7 +70,7 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 		s.tracker.Track(ctx, analytics.EventMentorRegistrationSubmitted, analytics.SystemDistinctID("api"), map[string]interface{}{
 			"tags_count":          len(req.Tags),
 			"has_calendar_url":    strings.TrimSpace(req.CalendarURL) != "",
-			"has_profile_picture": len(req.ProfilePicture.Image) > 0,
+			"has_profile_picture": req.ProfilePicture.Image != "",
 			"outcome":             "captcha_failed",
 		})
 		logger.Warn("ReCAPTCHA verification failed", zap.Error(err))
@@ -103,7 +109,7 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 		"about":        req.About,
 		"details":      req.Description,
 		"competencies": req.Competencies,
-		"status":       "pending",
+		"status":       registrationStatusPending,
 	}
 
 	if req.CalendarURL != "" {
@@ -119,7 +125,7 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 		s.tracker.Track(ctx, analytics.EventMentorRegistrationSubmitted, analytics.SystemDistinctID("api"), map[string]interface{}{
 			"tags_count":          len(req.Tags),
 			"has_calendar_url":    strings.TrimSpace(req.CalendarURL) != "",
-			"has_profile_picture": len(req.ProfilePicture.Image) > 0,
+			"has_profile_picture": req.ProfilePicture.Image != "",
 			"outcome":             "db_error",
 		})
 		logger.Error("Failed to create mentor in database", zap.Error(err))
@@ -155,8 +161,8 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 	}
 	successProperties["mentor_id"] = mentorID
 	successProperties["legacy_mentor_id"] = legacyID
-	successProperties["status"] = "pending"
-	successProperties["outcome"] = "success"
+	successProperties["status"] = registrationStatusPending
+	successProperties["outcome"] = registrationOutcomeSuccess
 	s.tracker.Track(ctx, analytics.EventMentorRegistrationSubmitted, analytics.MentorDistinctID(mentorID), successProperties)
 
 	return &models.RegisterMentorResponse{

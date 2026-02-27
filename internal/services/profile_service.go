@@ -32,6 +32,7 @@ func NewProfileService(
 	httpClient httpclient.Client,
 	tracker analytics.Tracker,
 ) *ProfileService {
+
 	if tracker == nil {
 		tracker = analytics.NoopTracker{}
 	}

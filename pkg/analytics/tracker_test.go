@@ -45,7 +45,7 @@ func TestMixpanelTracker_Track_SanitizesAndAddsCommonProps(t *testing.T) {
 
 	transport := &captureTransport{}
 	client := &http.Client{Transport: transport}
-	tracker := NewTracker(Config{
+	tracker := NewTracker(&Config{
 		Enabled:      true,
 		Token:        "test-token",
 		Endpoint:     "https://mixpanel.invalid/track",
@@ -79,7 +79,7 @@ func TestMixpanelTracker_Track_SanitizesAndAddsCommonProps(t *testing.T) {
 func TestNewTracker_DisabledReturnsNoop(t *testing.T) {
 	t.Parallel()
 
-	tracker := NewTracker(Config{
+	tracker := NewTracker(&Config{
 		Enabled: false,
 		Token:   "",
 	})
