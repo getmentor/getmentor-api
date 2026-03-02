@@ -18,6 +18,7 @@ const (
 	DefaultEndpoint     = "https://api.mixpanel.com/track?verbose=1"
 	DefaultEventVersion = "v1"
 	defaultTimeout      = 3 * time.Second
+	defaultQueueSize    = 512
 	defaultSource       = "api"
 	defaultEnvironment  = "unknown"
 )
@@ -34,6 +35,7 @@ type Config struct {
 	Environment  string
 	EventVersion string
 	Timeout      time.Duration
+	QueueSize    int
 	HTTPClient   *http.Client
 }
 
@@ -48,6 +50,12 @@ type MixpanelTracker struct {
 	environment  string
 	eventVersion string
 	httpClient   *http.Client
+	queue        chan queuedEvent
+}
+
+type queuedEvent struct {
+	event string
+	body  []byte
 }
 
 type eventPayload struct {
@@ -89,22 +97,31 @@ func NewTracker(cfg *Config) Tracker {
 		timeout = defaultTimeout
 	}
 
+	queueSize := cfg.QueueSize
+	if queueSize <= 0 {
+		queueSize = defaultQueueSize
+	}
+
 	httpClient := cfg.HTTPClient
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: timeout}
 	}
 
-	return &MixpanelTracker{
+	tracker := &MixpanelTracker{
 		token:        strings.TrimSpace(cfg.Token),
 		endpoint:     endpoint,
 		sourceSystem: sourceSystem,
 		environment:  environment,
 		eventVersion: eventVersion,
 		httpClient:   httpClient,
+		queue:        make(chan queuedEvent, queueSize),
 	}
+	go tracker.runWorker()
+
+	return tracker
 }
 
-func (t *MixpanelTracker) Track(ctx context.Context, event string, distinctID string, properties map[string]interface{}) {
+func (t *MixpanelTracker) Track(_ context.Context, event string, distinctID string, properties map[string]interface{}) {
 	event = strings.TrimSpace(event)
 	if event == "" {
 		return
@@ -138,10 +155,26 @@ func (t *MixpanelTracker) Track(ctx context.Context, event string, distinctID st
 		return
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.endpoint, bytes.NewReader(body))
+	select {
+	case t.queue <- queuedEvent{event: event, body: body}:
+	default:
+		logger.Warn("Mixpanel queue is full; dropping event",
+			zap.String("event", event),
+			zap.Int("queue_capacity", cap(t.queue)))
+	}
+}
+
+func (t *MixpanelTracker) runWorker() {
+	for event := range t.queue {
+		t.sendEvent(event)
+	}
+}
+
+func (t *MixpanelTracker) sendEvent(event queuedEvent) {
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, t.endpoint, bytes.NewReader(event.body))
 	if err != nil {
 		logger.Warn("Failed to create Mixpanel request",
-			zap.String("event", event),
+			zap.String("event", event.event),
 			zap.Error(err))
 		return
 	}
@@ -151,7 +184,7 @@ func (t *MixpanelTracker) Track(ctx context.Context, event string, distinctID st
 	resp, err := t.httpClient.Do(req)
 	if err != nil {
 		logger.Warn("Failed to send Mixpanel event",
-			zap.String("event", event),
+			zap.String("event", event.event),
 			zap.Error(err))
 		return
 	}
@@ -161,13 +194,13 @@ func (t *MixpanelTracker) Track(ctx context.Context, event string, distinctID st
 		bodyPreview, readErr := io.ReadAll(io.LimitReader(resp.Body, 512))
 		if readErr != nil {
 			logger.Warn("Mixpanel returned non-success status and response body could not be read",
-				zap.String("event", event),
+				zap.String("event", event.event),
 				zap.Int("status_code", resp.StatusCode),
 				zap.Error(readErr))
 			return
 		}
 		logger.Warn("Mixpanel returned non-success status",
-			zap.String("event", event),
+			zap.String("event", event.event),
 			zap.Int("status_code", resp.StatusCode),
 			zap.String("response", string(bodyPreview)))
 	}
