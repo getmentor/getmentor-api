@@ -3,10 +3,12 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
+	"github.com/getmentor/getmentor-api/pkg/analytics"
 	apperrors "github.com/getmentor/getmentor-api/pkg/errors"
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/logger"
@@ -20,6 +22,7 @@ type ProfileService struct {
 	yandexClient *yandex.StorageClient
 	config       *config.Config
 	httpClient   httpclient.Client
+	tracker      analytics.Tracker
 }
 
 func NewProfileService(
@@ -27,13 +30,19 @@ func NewProfileService(
 	yandexClient *yandex.StorageClient,
 	cfg *config.Config,
 	httpClient httpclient.Client,
+	tracker analytics.Tracker,
 ) *ProfileService {
+
+	if tracker == nil {
+		tracker = analytics.NoopTracker{}
+	}
 
 	return &ProfileService{
 		mentorRepo:   mentorRepo,
 		yandexClient: yandexClient,
 		config:       cfg,
 		httpClient:   httpClient,
+		tracker:      tracker,
 	}
 }
 
@@ -42,6 +51,10 @@ func (s *ProfileService) SaveProfileByMentorId(ctx context.Context, mentorID str
 	// Get mentor to get current tags (for sponsor preservation)
 	mentor, err := s.mentorRepo.GetByMentorId(ctx, mentorID, models.FilterOptions{ShowHidden: true})
 	if err != nil {
+		s.tracker.Track(ctx, analytics.EventMentorProfileUpdated, analytics.MentorDistinctID(mentorID), map[string]interface{}{
+			"mentor_id": mentorID,
+			"outcome":   "mentor_not_found",
+		})
 		return apperrors.NotFoundError("mentor")
 	}
 
@@ -93,6 +106,11 @@ func (s *ProfileService) SaveProfileByMentorId(ctx context.Context, mentorID str
 	// Update in database
 	if err := s.mentorRepo.Update(ctx, mentorID, updates); err != nil {
 		metrics.ProfileUpdates.WithLabelValues("error").Inc()
+		s.tracker.Track(ctx, analytics.EventMentorProfileUpdated, analytics.MentorDistinctID(mentorID), map[string]interface{}{
+			"mentor_id":  mentorID,
+			"tags_count": len(tagIDs),
+			"outcome":    "update_failed",
+		})
 		logger.Error("Failed to update mentor profile",
 			zap.Error(err),
 			zap.String("mentor_id", mentorID))
@@ -108,6 +126,13 @@ func (s *ProfileService) SaveProfileByMentorId(ctx context.Context, mentorID str
 	}
 
 	metrics.ProfileUpdates.WithLabelValues("success").Inc()
+	s.tracker.Track(ctx, analytics.EventMentorProfileUpdated, analytics.MentorDistinctID(mentorID), map[string]interface{}{
+		"mentor_id":          mentorID,
+		"tags_count":         len(tagIDs),
+		"has_calendar_url":   strings.TrimSpace(req.CalendarURL) != "",
+		"preserved_sponsors": len(preservedSponsors),
+		"outcome":            "success",
+	})
 	logger.Info("Mentor profile updated via session",
 		zap.String("mentor_id", mentorID))
 
@@ -121,6 +146,11 @@ func (s *ProfileService) UploadPictureByMentorId(ctx context.Context, mentorID s
 	fullImageURL, err := s.yandexClient.UploadImageAllSizes(ctx, req.Image, mentorSlug, req.ContentType)
 	if err != nil {
 		metrics.ProfilePictureUploads.WithLabelValues("error").Inc()
+		s.tracker.Track(ctx, analytics.EventMentorProfilePictureUploaded, analytics.MentorDistinctID(mentorID), map[string]interface{}{
+			"mentor_id":    mentorID,
+			"content_type": req.ContentType,
+			"outcome":      "upload_failed",
+		})
 		logger.Error("Failed to upload profile picture to Yandex",
 			zap.Error(err),
 			zap.String("mentor_id", mentorID))
@@ -138,6 +168,12 @@ func (s *ProfileService) UploadPictureByMentorId(ctx context.Context, mentorID s
 	// }()
 
 	metrics.ProfilePictureUploads.WithLabelValues("success").Inc()
+	s.tracker.Track(ctx, analytics.EventMentorProfilePictureUploaded, analytics.MentorDistinctID(mentorID), map[string]interface{}{
+		"mentor_id":    mentorID,
+		"content_type": req.ContentType,
+		"url_returned": strings.TrimSpace(fullImageURL) != "",
+		"outcome":      "success",
+	})
 	logger.Info("Profile picture uploaded via session",
 		zap.String("mentor_id", mentorID),
 		zap.String("url", fullImageURL))

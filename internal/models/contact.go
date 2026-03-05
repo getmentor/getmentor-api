@@ -14,6 +14,7 @@ type ContactMentorRequest struct {
 // ContactMentorResponse represents the response after submitting a contact form
 type ContactMentorResponse struct {
 	Success     bool   `json:"success"`
+	RequestID   string `json:"requestId,omitempty"`
 	CalendarURL string `json:"calendar_url,omitempty"`
 	Error       string `json:"error,omitempty"`
 }

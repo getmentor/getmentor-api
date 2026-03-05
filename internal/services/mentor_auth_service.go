@@ -11,6 +11,7 @@ import (
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
+	"github.com/getmentor/getmentor-api/pkg/analytics"
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/jwt"
 	"github.com/getmentor/getmentor-api/pkg/logger"
@@ -33,10 +34,21 @@ type MentorAuthService struct {
 	config       *config.Config
 	tokenManager *jwt.TokenManager
 	httpClient   httpclient.Client
+	tracker      analytics.Tracker
 }
 
 // NewMentorAuthService creates a new MentorAuthService
-func NewMentorAuthService(mentorRepo *repository.MentorRepository, cfg *config.Config, httpClient httpclient.Client) *MentorAuthService {
+func NewMentorAuthService(
+	mentorRepo *repository.MentorRepository,
+	cfg *config.Config,
+	httpClient httpclient.Client,
+	tracker analytics.Tracker,
+) *MentorAuthService {
+
+	if tracker == nil {
+		tracker = analytics.NoopTracker{}
+	}
+
 	var tokenManager *jwt.TokenManager
 	if cfg.MentorSession.JWTSecret != "" {
 		tokenManager = jwt.NewTokenManager(
@@ -51,6 +63,7 @@ func NewMentorAuthService(mentorRepo *repository.MentorRepository, cfg *config.C
 		config:       cfg,
 		tokenManager: tokenManager,
 		httpClient:   httpClient,
+		tracker:      tracker,
 	}
 }
 
@@ -61,6 +74,9 @@ func (s *MentorAuthService) RequestLogin(ctx context.Context, email string) (*mo
 	// Find mentor by email
 	mentor, err := s.mentorRepo.GetByEmail(ctx, email)
 	if err != nil {
+		s.tracker.Track(ctx, analytics.EventMentorAuthLoginRequested, analytics.SystemDistinctID("api"), map[string]interface{}{
+			"outcome": "mentor_not_found",
+		})
 		logger.Warn("Login request for unknown email",
 			zap.String("email", email),
 			zap.Error(err))
@@ -70,6 +86,11 @@ func (s *MentorAuthService) RequestLogin(ctx context.Context, email string) (*mo
 
 	// Check if mentor is eligible for login (only active or inactive status allowed)
 	if mentor.Status != "active" && mentor.Status != "inactive" {
+		s.tracker.Track(ctx, analytics.EventMentorAuthLoginRequested, analytics.MentorDistinctID(mentor.MentorID), map[string]interface{}{
+			"mentor_id":     mentor.MentorID,
+			"mentor_status": mentor.Status,
+			"outcome":       "not_eligible",
+		})
 		logger.Warn("Login request for mentor with ineligible status",
 			zap.String("email", email),
 			zap.String("mentor_id", mentor.MentorID),
@@ -81,6 +102,10 @@ func (s *MentorAuthService) RequestLogin(ctx context.Context, email string) (*mo
 	// Generate login token
 	token, err := generateLoginToken()
 	if err != nil {
+		s.tracker.Track(ctx, analytics.EventMentorAuthLoginRequested, analytics.MentorDistinctID(mentor.MentorID), map[string]interface{}{
+			"mentor_id": mentor.MentorID,
+			"outcome":   "token_generation_failed",
+		})
 		logger.Error("Failed to generate login token", zap.Error(err))
 		metrics.MentorAuthLoginRequests.WithLabelValues("token_generation_failed").Inc()
 		return nil, ErrTokenGenerationFail
@@ -91,6 +116,10 @@ func (s *MentorAuthService) RequestLogin(ctx context.Context, email string) (*mo
 
 	// Store token in database
 	if err := s.mentorRepo.SetLoginToken(ctx, mentor.MentorID, token, expiration); err != nil {
+		s.tracker.Track(ctx, analytics.EventMentorAuthLoginRequested, analytics.MentorDistinctID(mentor.MentorID), map[string]interface{}{
+			"mentor_id": mentor.MentorID,
+			"outcome":   "storage_failed",
+		})
 		logger.Error("Failed to store login token",
 			zap.String("mentor_id", mentor.MentorID),
 			zap.Error(err))
@@ -120,6 +149,13 @@ func (s *MentorAuthService) RequestLogin(ctx context.Context, email string) (*mo
 	duration := metrics.MeasureDuration(start)
 	metrics.MentorAuthLoginDuration.Observe(duration)
 	metrics.MentorAuthLoginRequests.WithLabelValues("success").Inc()
+	s.tracker.Track(ctx, analytics.EventMentorAuthLoginRequested, analytics.MentorDistinctID(mentor.MentorID), map[string]interface{}{
+		"mentor_id":                mentor.MentorID,
+		"mentor_status":            mentor.Status,
+		"login_token_ttl_minutes":  s.config.MentorSession.LoginTokenTTLMinutes,
+		"request_duration_seconds": duration,
+		"outcome":                  "success",
+	})
 
 	logger.Info("Login token generated",
 		zap.String("mentor_id", mentor.MentorID),
@@ -136,6 +172,9 @@ func (s *MentorAuthService) VerifyLogin(ctx context.Context, token string) (*mod
 	start := time.Now()
 
 	if s.tokenManager == nil {
+		s.tracker.Track(ctx, analytics.EventMentorAuthLoginVerified, analytics.SystemDistinctID("api"), map[string]interface{}{
+			"outcome": "not_configured",
+		})
 		logger.Error("JWT secret not configured")
 		metrics.MentorAuthVerifyRequests.WithLabelValues("not_configured").Inc()
 		return nil, "", ErrJWTSecretNotSet
@@ -146,6 +185,9 @@ func (s *MentorAuthService) VerifyLogin(ctx context.Context, token string) (*mod
 	// If a mentor is returned, the token was valid in the database
 	mentor, tokenExp, err := s.mentorRepo.GetByLoginToken(ctx, token)
 	if err != nil {
+		s.tracker.Track(ctx, analytics.EventMentorAuthLoginVerified, analytics.SystemDistinctID("api"), map[string]interface{}{
+			"outcome": "invalid_token",
+		})
 		logger.Warn("Login verification with invalid token", zap.Error(err))
 		metrics.MentorAuthVerifyRequests.WithLabelValues("invalid_token").Inc()
 		return nil, "", ErrInvalidLoginToken
@@ -153,6 +195,10 @@ func (s *MentorAuthService) VerifyLogin(ctx context.Context, token string) (*mod
 
 	// Check expiration
 	if time.Now().After(tokenExp) {
+		s.tracker.Track(ctx, analytics.EventMentorAuthLoginVerified, analytics.MentorDistinctID(mentor.MentorID), map[string]interface{}{
+			"mentor_id": mentor.MentorID,
+			"outcome":   "expired",
+		})
 		logger.Warn("Login token expired",
 			zap.String("mentor_id", mentor.MentorID),
 			zap.Time("expired_at", tokenExp))
@@ -162,6 +208,11 @@ func (s *MentorAuthService) VerifyLogin(ctx context.Context, token string) (*mod
 
 	// Re-check mentor eligibility (status may have changed since token was issued)
 	if mentor.Status != "active" && mentor.Status != "inactive" {
+		s.tracker.Track(ctx, analytics.EventMentorAuthLoginVerified, analytics.MentorDistinctID(mentor.MentorID), map[string]interface{}{
+			"mentor_id":     mentor.MentorID,
+			"mentor_status": mentor.Status,
+			"outcome":       "not_eligible",
+		})
 		logger.Warn("Login verification for mentor with ineligible status",
 			zap.String("mentor_id", mentor.MentorID),
 			zap.String("status", mentor.Status))
@@ -180,6 +231,10 @@ func (s *MentorAuthService) VerifyLogin(ctx context.Context, token string) (*mod
 	// Generate JWT session token
 	jwtToken, err := s.tokenManager.GenerateToken(mentor.MentorID, mentor.LegacyID, "", mentor.Name)
 	if err != nil {
+		s.tracker.Track(ctx, analytics.EventMentorAuthLoginVerified, analytics.MentorDistinctID(mentor.MentorID), map[string]interface{}{
+			"mentor_id": mentor.MentorID,
+			"outcome":   "jwt_failed",
+		})
 		logger.Error("Failed to generate JWT",
 			zap.String("mentor_id", mentor.MentorID),
 			zap.Error(err))
@@ -200,6 +255,13 @@ func (s *MentorAuthService) VerifyLogin(ctx context.Context, token string) (*mod
 	duration := metrics.MeasureDuration(start)
 	metrics.MentorAuthVerifyDuration.Observe(duration)
 	metrics.MentorAuthVerifyRequests.WithLabelValues("success").Inc()
+	s.tracker.Track(ctx, analytics.EventMentorAuthLoginVerified, analytics.MentorDistinctID(mentor.MentorID), map[string]interface{}{
+		"mentor_id":               mentor.MentorID,
+		"mentor_status":           mentor.Status,
+		"session_ttl_hours":       s.config.MentorSession.SessionTTLHours,
+		"verify_duration_seconds": duration,
+		"outcome":                 "success",
+	})
 
 	logger.Info("Login successful",
 		zap.String("mentor_id", mentor.MentorID),

@@ -8,6 +8,7 @@ import (
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
+	"github.com/getmentor/getmentor-api/pkg/analytics"
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
@@ -17,6 +18,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	registrationStatusPending  = "pending"
+	registrationOutcomeSuccess = "success"
+)
+
 // RegistrationService handles mentor registration
 type RegistrationService struct {
 	mentorRepo        *repository.MentorRepository
@@ -24,6 +30,7 @@ type RegistrationService struct {
 	config            *config.Config
 	httpClient        httpclient.Client
 	recaptchaVerifier *recaptcha.Verifier
+	tracker           analytics.Tracker
 }
 
 // NewRegistrationService creates a new registration service instance
@@ -32,7 +39,12 @@ func NewRegistrationService(
 	yandexClient *yandex.StorageClient,
 	cfg *config.Config,
 	httpClient httpclient.Client,
+	tracker analytics.Tracker,
 ) *RegistrationService {
+
+	if tracker == nil {
+		tracker = analytics.NoopTracker{}
+	}
 
 	return &RegistrationService{
 		mentorRepo:        mentorRepo,
@@ -40,14 +52,27 @@ func NewRegistrationService(
 		config:            cfg,
 		httpClient:        httpClient,
 		recaptchaVerifier: recaptcha.NewVerifier(cfg.ReCAPTCHA.SecretKey, httpClient),
+		tracker:           tracker,
 	}
 }
 
 // RegisterMentor handles the complete mentor registration flow
 func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.RegisterMentorRequest) (*models.RegisterMentorResponse, error) {
+	baseProperties := map[string]interface{}{
+		"tags_count":          len(req.Tags),
+		"has_calendar_url":    strings.TrimSpace(req.CalendarURL) != "",
+		"has_profile_picture": req.ProfilePicture.Image != "",
+	}
+
 	// 1. Verify ReCAPTCHA
 	if err := s.recaptchaVerifier.Verify(req.RecaptchaToken); err != nil {
 		metrics.MentorRegistrations.WithLabelValues("captcha_failed").Inc()
+		s.tracker.Track(ctx, analytics.EventMentorRegistrationSubmitted, analytics.SystemDistinctID("api"), map[string]interface{}{
+			"tags_count":          len(req.Tags),
+			"has_calendar_url":    strings.TrimSpace(req.CalendarURL) != "",
+			"has_profile_picture": req.ProfilePicture.Image != "",
+			"outcome":             "captcha_failed",
+		})
 		logger.Warn("ReCAPTCHA verification failed", zap.Error(err))
 		return &models.RegisterMentorResponse{
 			Success: false,
@@ -84,7 +109,7 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 		"about":        req.About,
 		"details":      req.Description,
 		"competencies": req.Competencies,
-		"status":       "pending",
+		"status":       registrationStatusPending,
 	}
 
 	if req.CalendarURL != "" {
@@ -97,6 +122,12 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 	mentorID, legacyID, mentorSlug, err := s.mentorRepo.CreateMentor(ctx, fields)
 	if err != nil {
 		metrics.MentorRegistrations.WithLabelValues("db_error").Inc()
+		s.tracker.Track(ctx, analytics.EventMentorRegistrationSubmitted, analytics.SystemDistinctID("api"), map[string]interface{}{
+			"tags_count":          len(req.Tags),
+			"has_calendar_url":    strings.TrimSpace(req.CalendarURL) != "",
+			"has_profile_picture": req.ProfilePicture.Image != "",
+			"outcome":             "db_error",
+		})
 		logger.Error("Failed to create mentor in database", zap.Error(err))
 		return &models.RegisterMentorResponse{
 			Success: false,
@@ -124,6 +155,15 @@ func (s *RegistrationService) RegisterMentor(ctx context.Context, req *models.Re
 	trigger.CallAsync(s.config.EventTriggers.MentorCreatedTriggerURL, mentorID, s.httpClient)
 
 	metrics.MentorRegistrations.WithLabelValues("success").Inc()
+	successProperties := make(map[string]interface{}, len(baseProperties)+4)
+	for key, value := range baseProperties {
+		successProperties[key] = value
+	}
+	successProperties["mentor_id"] = mentorID
+	successProperties["legacy_mentor_id"] = legacyID
+	successProperties["status"] = registrationStatusPending
+	successProperties["outcome"] = registrationOutcomeSuccess
+	s.tracker.Track(ctx, analytics.EventMentorRegistrationSubmitted, analytics.MentorDistinctID(mentorID), successProperties)
 
 	return &models.RegisterMentorResponse{
 		Success:  true,

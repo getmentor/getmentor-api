@@ -20,6 +20,7 @@ import (
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/internal/repository"
 	"github.com/getmentor/getmentor-api/internal/services"
+	"github.com/getmentor/getmentor-api/pkg/analytics"
 	"github.com/getmentor/getmentor-api/pkg/db"
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/jwt"
@@ -111,6 +112,7 @@ func registerAdminModerationRoutes(
 	adminMentorsHandler *handlers.AdminMentorsHandler,
 	tokenManager *jwt.TokenManager,
 ) {
+
 	if tokenManager == nil {
 		logger.Warn("Admin moderation routes disabled: JWT_SECRET not configured")
 		return
@@ -277,21 +279,29 @@ func main() { //nolint:gocyclo
 
 	// Initialize HTTP client for external API calls
 	httpClient := httpclient.NewStandardClient()
+	analyticsTracker := analytics.NewTracker(&analytics.Config{
+		Enabled:      cfg.Mixpanel.Enabled,
+		Token:        cfg.Mixpanel.Token,
+		Endpoint:     cfg.Mixpanel.Endpoint,
+		SourceSystem: "api",
+		Environment:  cfg.Server.AppEnv,
+		EventVersion: cfg.Mixpanel.EventVersion,
+	})
 
 	// Initialize repositories for reviews
 	reviewRepo := repository.NewReviewRepository(pool)
 
 	// Initialize services
 	mentorService := services.NewMentorService(mentorRepo, cfg)
-	contactService := services.NewContactService(clientRequestRepo, mentorRepo, cfg, httpClient)
-	profileService := services.NewProfileService(mentorRepo, yandexClient, cfg, httpClient)
-	registrationService := services.NewRegistrationService(mentorRepo, yandexClient, cfg, httpClient)
+	contactService := services.NewContactService(clientRequestRepo, mentorRepo, cfg, httpClient, analyticsTracker)
+	profileService := services.NewProfileService(mentorRepo, yandexClient, cfg, httpClient, analyticsTracker)
+	registrationService := services.NewRegistrationService(mentorRepo, yandexClient, cfg, httpClient, analyticsTracker)
 	mcpService := services.NewMCPService(mentorRepo, cfg.Server.BaseURL)
-	mentorAuthService := services.NewMentorAuthService(mentorRepo, cfg, httpClient)
-	adminAuthService := services.NewAdminAuthService(moderatorRepo, cfg, httpClient)
-	mentorRequestsService := services.NewMentorRequestsService(clientRequestRepo, cfg, httpClient)
-	reviewService := services.NewReviewService(reviewRepo, cfg, httpClient)
-	adminMentorsService := services.NewAdminMentorsService(mentorRepo, profileService, cfg, httpClient)
+	mentorAuthService := services.NewMentorAuthService(mentorRepo, cfg, httpClient, analyticsTracker)
+	adminAuthService := services.NewAdminAuthService(moderatorRepo, cfg, httpClient, analyticsTracker)
+	mentorRequestsService := services.NewMentorRequestsService(clientRequestRepo, cfg, httpClient, analyticsTracker)
+	reviewService := services.NewReviewService(reviewRepo, cfg, httpClient, analyticsTracker)
+	adminMentorsService := services.NewAdminMentorsService(mentorRepo, profileService, cfg, httpClient, analyticsTracker)
 
 	// Initialize handlers
 	mentorHandler := handlers.NewMentorHandler(mentorService, cfg.Server.BaseURL)

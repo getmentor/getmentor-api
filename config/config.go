@@ -15,6 +15,7 @@ type Config struct {
 	Database      DatabaseConfig
 	YandexStorage YandexStorageConfig
 	Auth          AuthConfig
+	Mixpanel      MixpanelConfig
 	ReCAPTCHA     ReCAPTCHAConfig
 	EventTriggers EventTriggerFunctionsConfig
 	NextJS        NextJSConfig
@@ -58,6 +59,13 @@ type AuthConfig struct {
 	MCPAllowAll         bool
 	RevalidateSecret    string
 	WebhookSecret       string // Optional: Kept for backwards compatibility, no longer required
+}
+
+type MixpanelConfig struct {
+	Enabled      bool
+	Token        string
+	Endpoint     string
+	EventVersion string
 }
 
 type ReCAPTCHAConfig struct {
@@ -148,6 +156,9 @@ func Load() (*Config, error) {
 	v.SetDefault("MENTOR_CACHE_TTL", 600)        // 10 minutes in seconds
 	v.SetDefault("DISABLE_MENTORS_CACHE", false) // Experimental: disable cache
 	v.SetDefault("MCP_ALLOW_ALL", false)
+	v.SetDefault("MIXPANEL_ENABLED", false)
+	v.SetDefault("MIXPANEL_ENDPOINT", "https://api.mixpanel.com/track?verbose=1")
+	v.SetDefault("MIXPANEL_EVENT_VERSION", "v1")
 
 	// Mentor session defaults
 	v.SetDefault("JWT_ISSUER", "getmentor-api")
@@ -209,6 +220,12 @@ func Load() (*Config, error) {
 			MCPAllowAll:         v.GetBool("MCP_ALLOW_ALL"),
 			RevalidateSecret:    v.GetString("REVALIDATE_SECRET_TOKEN"),
 			WebhookSecret:       v.GetString("WEBHOOK_SECRET"),
+		},
+		Mixpanel: MixpanelConfig{
+			Enabled:      v.GetBool("MIXPANEL_ENABLED"),
+			Token:        v.GetString("MIXPANEL_TOKEN"),
+			Endpoint:     v.GetString("MIXPANEL_ENDPOINT"),
+			EventVersion: v.GetString("MIXPANEL_EVENT_VERSION"),
 		},
 		ReCAPTCHA: ReCAPTCHAConfig{
 			SecretKey: v.GetString("RECAPTCHA_V2_SECRET_KEY"),
@@ -285,6 +302,10 @@ func (c *Config) Validate() error {
 
 	if c.Auth.MCPAuthToken == "" && !c.Auth.MCPAllowAll {
 		return fmt.Errorf("MCP_AUTH_TOKEN is required")
+	}
+
+	if c.Mixpanel.Enabled && c.Mixpanel.Token == "" {
+		return fmt.Errorf("MIXPANEL_TOKEN is required when MIXPANEL_ENABLED=true")
 	}
 
 	// ReCAPTCHA configuration
