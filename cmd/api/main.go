@@ -280,12 +280,18 @@ func main() { //nolint:gocyclo
 	// Initialize HTTP client for external API calls
 	httpClient := httpclient.NewStandardClient()
 	analyticsTracker := analytics.NewTracker(&analytics.Config{
-		Enabled:      cfg.Mixpanel.Enabled,
-		Token:        cfg.Mixpanel.Token,
-		Endpoint:     cfg.Mixpanel.Endpoint,
-		SourceSystem: "api",
-		Environment:  cfg.Server.AppEnv,
-		EventVersion: cfg.Mixpanel.EventVersion,
+		Provider:               cfg.ResolvedAnalyticsProvider(),
+		SourceSystem:           "api",
+		Environment:            cfg.Server.AppEnv,
+		EventVersion:           cfg.ResolvedAnalyticsEventVersion(),
+		MixpanelEnabled:        cfg.Mixpanel.Enabled,
+		MixpanelToken:          cfg.Mixpanel.Token,
+		MixpanelEndpoint:       cfg.Mixpanel.Endpoint,
+		PostHogEnabled:         cfg.PostHog.Enabled,
+		PostHogAPIKey:          cfg.PostHog.APIKey,
+		PostHogHost:            cfg.PostHog.Host,
+		PostHogCaptureEndpoint: cfg.PostHog.CaptureEndpoint,
+		PostHogDisableGeoIP:    cfg.PostHog.DisableGeoIP,
 	})
 
 	// Initialize repositories for reviews

@@ -7,6 +7,14 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	analyticsProviderNone     = "none"
+	analyticsProviderMixpanel = "mixpanel"
+	analyticsProviderPosthog  = "posthog"
+	analyticsProviderDual     = "dual"
+	defaultEventVersion       = "v1"
+)
+
 // Config holds all application configuration
 //
 //nolint:govet // Field alignment optimization would reduce readability
@@ -15,7 +23,9 @@ type Config struct {
 	Database      DatabaseConfig
 	YandexStorage YandexStorageConfig
 	Auth          AuthConfig
+	Analytics     AnalyticsConfig
 	Mixpanel      MixpanelConfig
+	PostHog       PostHogConfig
 	ReCAPTCHA     ReCAPTCHAConfig
 	EventTriggers EventTriggerFunctionsConfig
 	NextJS        NextJSConfig
@@ -66,6 +76,19 @@ type MixpanelConfig struct {
 	Token        string
 	Endpoint     string
 	EventVersion string
+}
+
+type AnalyticsConfig struct {
+	Provider     string
+	EventVersion string
+}
+
+type PostHogConfig struct {
+	Enabled         bool
+	APIKey          string
+	Host            string
+	CaptureEndpoint string
+	DisableGeoIP    bool
 }
 
 type ReCAPTCHAConfig struct {
@@ -156,9 +179,14 @@ func Load() (*Config, error) {
 	v.SetDefault("MENTOR_CACHE_TTL", 600)        // 10 minutes in seconds
 	v.SetDefault("DISABLE_MENTORS_CACHE", false) // Experimental: disable cache
 	v.SetDefault("MCP_ALLOW_ALL", false)
+	v.SetDefault("ANALYTICS_PROVIDER", "")
+	v.SetDefault("ANALYTICS_EVENT_VERSION", defaultEventVersion)
 	v.SetDefault("MIXPANEL_ENABLED", false)
 	v.SetDefault("MIXPANEL_ENDPOINT", "https://api.mixpanel.com/track?verbose=1")
-	v.SetDefault("MIXPANEL_EVENT_VERSION", "v1")
+	v.SetDefault("MIXPANEL_EVENT_VERSION", defaultEventVersion)
+	v.SetDefault("POSTHOG_ENABLED", false)
+	v.SetDefault("POSTHOG_HOST", "https://us.i.posthog.com")
+	v.SetDefault("POSTHOG_DISABLE_GEOIP", true)
 
 	// Mentor session defaults
 	v.SetDefault("JWT_ISSUER", "getmentor-api")
@@ -188,6 +216,12 @@ func Load() (*Config, error) {
 				allowedOrigins = append(allowedOrigins, origin)
 			}
 		}
+	}
+
+	analyticsProvider := strings.ToLower(strings.TrimSpace(v.GetString("ANALYTICS_PROVIDER")))
+	analyticsEventVersion := strings.TrimSpace(v.GetString("ANALYTICS_EVENT_VERSION"))
+	if analyticsEventVersion == "" {
+		analyticsEventVersion = strings.TrimSpace(v.GetString("MIXPANEL_EVENT_VERSION"))
 	}
 
 	cfg := &Config{
@@ -221,11 +255,22 @@ func Load() (*Config, error) {
 			RevalidateSecret:    v.GetString("REVALIDATE_SECRET_TOKEN"),
 			WebhookSecret:       v.GetString("WEBHOOK_SECRET"),
 		},
+		Analytics: AnalyticsConfig{
+			Provider:     analyticsProvider,
+			EventVersion: analyticsEventVersion,
+		},
 		Mixpanel: MixpanelConfig{
 			Enabled:      v.GetBool("MIXPANEL_ENABLED"),
 			Token:        v.GetString("MIXPANEL_TOKEN"),
 			Endpoint:     v.GetString("MIXPANEL_ENDPOINT"),
 			EventVersion: v.GetString("MIXPANEL_EVENT_VERSION"),
+		},
+		PostHog: PostHogConfig{
+			Enabled:         v.GetBool("POSTHOG_ENABLED"),
+			APIKey:          v.GetString("POSTHOG_API_KEY"),
+			Host:            v.GetString("POSTHOG_HOST"),
+			CaptureEndpoint: v.GetString("POSTHOG_CAPTURE_ENDPOINT"),
+			DisableGeoIP:    v.GetBool("POSTHOG_DISABLE_GEOIP"),
 		},
 		ReCAPTCHA: ReCAPTCHAConfig{
 			SecretKey: v.GetString("RECAPTCHA_V2_SECRET_KEY"),
@@ -287,33 +332,78 @@ func Load() (*Config, error) {
 
 // Validate checks if required configuration values are set
 func (c *Config) Validate() error {
-	// Database configuration
+	if err := c.validateDatabaseConfig(); err != nil {
+		return err
+	}
+	if err := c.validateAuthConfig(); err != nil {
+		return err
+	}
+	if err := c.validateAnalyticsConfig(); err != nil {
+		return err
+	}
+	if err := c.validateReCAPTCHAConfig(); err != nil {
+		return err
+	}
+	if err := c.validateServerConfig(); err != nil {
+		return err
+	}
+	return c.validateProfilingConfig()
+}
+
+func (c *Config) validateDatabaseConfig() error {
 	if !c.Database.WorkOffline && c.Database.URL == "" {
 		return fmt.Errorf("DATABASE_URL is required when not in offline mode")
 	}
+	return nil
+}
 
-	// Authentication tokens
+func (c *Config) validateAuthConfig() error {
 	if c.Auth.InternalMentorsAPI == "" {
 		return fmt.Errorf("INTERNAL_MENTORS_API is required")
 	}
 	if c.Auth.MentorsAPIToken == "" {
 		return fmt.Errorf("MENTORS_API_LIST_AUTH_TOKEN is required")
 	}
-
 	if c.Auth.MCPAuthToken == "" && !c.Auth.MCPAllowAll {
 		return fmt.Errorf("MCP_AUTH_TOKEN is required")
 	}
+	return nil
+}
 
-	if c.Mixpanel.Enabled && c.Mixpanel.Token == "" {
-		return fmt.Errorf("MIXPANEL_TOKEN is required when MIXPANEL_ENABLED=true")
+func (c *Config) validateAnalyticsConfig() error {
+	provider := c.ResolvedAnalyticsProvider()
+	switch provider {
+	case analyticsProviderNone, analyticsProviderMixpanel, analyticsProviderPosthog, analyticsProviderDual:
+	default:
+		return fmt.Errorf("ANALYTICS_PROVIDER must be one of: none, mixpanel, posthog, dual")
 	}
 
-	// ReCAPTCHA configuration
+	if (provider == analyticsProviderMixpanel || provider == analyticsProviderDual) && strings.TrimSpace(c.Mixpanel.Token) == "" {
+		return fmt.Errorf("MIXPANEL_TOKEN is required when ANALYTICS_PROVIDER=%s", provider)
+	}
+
+	if provider != analyticsProviderPosthog && provider != analyticsProviderDual {
+		return nil
+	}
+
+	if strings.TrimSpace(c.PostHog.APIKey) == "" {
+		return fmt.Errorf("POSTHOG_API_KEY is required when ANALYTICS_PROVIDER=%s", provider)
+	}
+	if strings.TrimSpace(c.PostHog.CaptureEndpoint) == "" && strings.TrimSpace(c.PostHog.Host) == "" {
+		return fmt.Errorf("POSTHOG_HOST or POSTHOG_CAPTURE_ENDPOINT is required when ANALYTICS_PROVIDER=%s", provider)
+	}
+
+	return nil
+}
+
+func (c *Config) validateReCAPTCHAConfig() error {
 	if c.ReCAPTCHA.SecretKey == "" {
 		return fmt.Errorf("RECAPTCHA_V2_SECRET_KEY is required")
 	}
+	return nil
+}
 
-	// Server configuration
+func (c *Config) validateServerConfig() error {
 	if c.Server.Port == "" {
 		return fmt.Errorf("PORT is required")
 	}
@@ -323,12 +413,48 @@ func (c *Config) Validate() error {
 	if len(c.Server.AllowedOrigins) == 0 {
 		return fmt.Errorf("ALLOWED_CORS_ORIGINS is required")
 	}
+	return nil
+}
 
+func (c *Config) validateProfilingConfig() error {
 	if c.Profiling.Enabled && c.Profiling.Endpoint == "" {
 		return fmt.Errorf("O11Y_PROFILING_ENDPOINT is required when profiling is enabled")
 	}
-
 	return nil
+}
+
+// ResolvedAnalyticsProvider returns normalized provider with legacy compatibility.
+func (c *Config) ResolvedAnalyticsProvider() string {
+	provider := strings.ToLower(strings.TrimSpace(c.Analytics.Provider))
+	if provider != "" {
+		return provider
+	}
+
+	switch {
+	case c.Mixpanel.Enabled && c.PostHog.Enabled:
+		return analyticsProviderDual
+	case c.Mixpanel.Enabled:
+		return analyticsProviderMixpanel
+	case c.PostHog.Enabled:
+		return analyticsProviderPosthog
+	default:
+		return analyticsProviderNone
+	}
+}
+
+// ResolvedAnalyticsEventVersion returns analytics event version with legacy fallback.
+func (c *Config) ResolvedAnalyticsEventVersion() string {
+	eventVersion := strings.TrimSpace(c.Analytics.EventVersion)
+	if eventVersion != "" {
+		return eventVersion
+	}
+
+	legacyEventVersion := strings.TrimSpace(c.Mixpanel.EventVersion)
+	if legacyEventVersion != "" {
+		return legacyEventVersion
+	}
+
+	return defaultEventVersion
 }
 
 // IsDevelopment returns true if running in development mode
