@@ -12,9 +12,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type capturedRequest struct {
+	URL  string
+	Body string
+}
+
 type captureTransport struct {
-	mu          sync.Mutex
-	requestBody string
+	mu       sync.Mutex
+	requests []capturedRequest
 }
 
 func (t *captureTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -24,7 +29,10 @@ func (t *captureTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 
 	t.mu.Lock()
-	t.requestBody = string(body)
+	t.requests = append(t.requests, capturedRequest{
+		URL:  req.URL.String(),
+		Body: string(body),
+	})
 	t.mu.Unlock()
 
 	return &http.Response{
@@ -34,10 +42,13 @@ func (t *captureTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}, nil
 }
 
-func (t *captureTransport) Body() string {
+func (t *captureTransport) Requests() []capturedRequest {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.requestBody
+
+	cloned := make([]capturedRequest, len(t.requests))
+	copy(cloned, t.requests)
+	return cloned
 }
 
 type slowTransport struct {
@@ -66,20 +77,20 @@ func (t *slowTransport) Calls() int {
 	return t.calls
 }
 
-func waitForBody(t *testing.T, transport *captureTransport) string {
+func waitForRequests(t *testing.T, transport *captureTransport, targetCount int) []capturedRequest {
 	t.Helper()
 
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		body := transport.Body()
-		if body != "" {
-			return body
+		requests := transport.Requests()
+		if len(requests) >= targetCount {
+			return requests
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	t.Fatal("timed out waiting for Mixpanel payload")
-	return ""
+	t.Fatalf("timed out waiting for %d analytics request(s)", targetCount)
+	return nil
 }
 
 func TestMixpanelTracker_Track_SanitizesAndAddsCommonProps(t *testing.T) {
@@ -104,7 +115,9 @@ func TestMixpanelTracker_Track_SanitizesAndAddsCommonProps(t *testing.T) {
 		"outcome":   "success",
 	})
 
-	body := waitForBody(t, transport)
+	requests := waitForRequests(t, transport, 1)
+	body := requests[0].Body
+
 	assert.Contains(t, body, EventMenteeContactSubmitted)
 	assert.Contains(t, body, `"token":"test-token"`)
 	assert.Contains(t, body, `"distinct_id":"mentor:mentor-123"`)
@@ -117,7 +130,86 @@ func TestMixpanelTracker_Track_SanitizesAndAddsCommonProps(t *testing.T) {
 	assert.NotContains(t, body, "Private Name")
 }
 
-func TestMixpanelTracker_Track_DoesNotBlockOnSlowNetwork(t *testing.T) {
+func TestPostHogTracker_Track_SanitizesAndAddsCommonProps(t *testing.T) {
+	t.Parallel()
+
+	transport := &captureTransport{}
+	client := &http.Client{Transport: transport}
+	tracker := NewTracker(&Config{
+		Provider:            "posthog",
+		PostHogAPIKey:       "ph-test-key",
+		PostHogHost:         "https://us.i.posthog.com",
+		PostHogDisableGeoIP: true,
+		SourceSystem:        "api",
+		Environment:         "staging",
+		EventVersion:        "v9",
+		HTTPClient:          client,
+	})
+
+	tracker.Track(context.Background(), EventMenteeContactSubmitted, MentorDistinctID("mentor-123"), map[string]interface{}{
+		"email":     "private@getmentor.dev",
+		"name":      "Private Name",
+		"mentor_id": "mentor-123",
+		"outcome":   "success",
+	})
+
+	requests := waitForRequests(t, transport, 1)
+	body := requests[0].Body
+	url := requests[0].URL
+
+	assert.Contains(t, url, "https://us.i.posthog.com/capture/")
+	assert.Contains(t, body, `"api_key":"ph-test-key"`)
+	assert.Contains(t, body, `"event":"mentee_contact_submitted"`)
+	assert.Contains(t, body, `"distinct_id":"mentor:mentor-123"`)
+	assert.Contains(t, body, `"source_system":"api"`)
+	assert.Contains(t, body, `"environment":"staging"`)
+	assert.Contains(t, body, `"event_version":"v9"`)
+	assert.Contains(t, body, `"mentor_id":"mentor-123"`)
+	assert.Contains(t, body, `"outcome":"success"`)
+	assert.NotContains(t, body, "private@getmentor.dev")
+	assert.NotContains(t, body, "Private Name")
+}
+
+func TestDualTracker_Track_SendsToBothProviders(t *testing.T) {
+	t.Parallel()
+
+	transport := &captureTransport{}
+	client := &http.Client{Transport: transport}
+	tracker := NewTracker(&Config{
+		Provider:         "dual",
+		MixpanelToken:    "mx-token",
+		MixpanelEndpoint: "https://mixpanel.invalid/track",
+		PostHogAPIKey:    "ph-test-key",
+		PostHogHost:      "https://us.i.posthog.com",
+		SourceSystem:     "api",
+		Environment:      "staging",
+		EventVersion:     "v9",
+		HTTPClient:       client,
+	})
+
+	tracker.Track(context.Background(), EventMenteeContactSubmitted, MentorDistinctID("mentor-123"), map[string]interface{}{
+		"mentor_id": "mentor-123",
+		"outcome":   "success",
+	})
+
+	requests := waitForRequests(t, transport, 2)
+
+	var hasMixpanel bool
+	var hasPostHog bool
+	for _, request := range requests {
+		if strings.Contains(request.URL, "mixpanel.invalid/track") {
+			hasMixpanel = true
+		}
+		if strings.Contains(request.URL, "posthog.com/capture/") {
+			hasPostHog = true
+		}
+	}
+
+	assert.True(t, hasMixpanel, "expected mixpanel request")
+	assert.True(t, hasPostHog, "expected posthog request")
+}
+
+func TestTracker_Track_DoesNotBlockOnSlowNetwork(t *testing.T) {
 	transport := &slowTransport{delay: 300 * time.Millisecond}
 	client := &http.Client{Transport: transport}
 	tracker := NewTracker(&Config{
@@ -146,7 +238,7 @@ func TestMixpanelTracker_Track_DoesNotBlockOnSlowNetwork(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatal("timed out waiting for async Mixpanel worker request")
+	t.Fatal("timed out waiting for async analytics worker request")
 }
 
 func TestNewTracker_DisabledReturnsNoop(t *testing.T) {
