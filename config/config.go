@@ -185,7 +185,7 @@ func Load() (*Config, error) {
 	v.SetDefault("MIXPANEL_ENDPOINT", "https://api.mixpanel.com/track?verbose=1")
 	v.SetDefault("MIXPANEL_EVENT_VERSION", defaultEventVersion)
 	v.SetDefault("POSTHOG_ENABLED", false)
-	v.SetDefault("POSTHOG_HOST", "https://us.i.posthog.com")
+	v.SetDefault("POSTHOG_HOST", "https://eu.i.posthog.com")
 	v.SetDefault("POSTHOG_DISABLE_GEOIP", true)
 
 	// Mentor session defaults
