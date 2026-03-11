@@ -148,7 +148,7 @@ func (r *MentorRepository) fetchMentorByUUIDFromDB(ctx context.Context, mentorId
 		SELECT m.id, m.airtable_id, m.legacy_id, m.slug, m.name, m.job_title, m.workplace,
 			m.about, m.details, m.competencies, m.experience, m.price, m.status,
 			COALESCE(array_to_string(array_agg(t.name), ','), '') as tags,
-			m.telegram_chat_id, m.calendar_url, m.sort_order, m.created_at,
+			m.telegram_chat_id, m.calendar_url, m.sort_order, m.created_at, m.updated_at,
 			COALESCE(
 				(SELECT COUNT(*)
 				 FROM client_requests cr
@@ -340,7 +340,7 @@ func (r *MentorRepository) GetByEmail(ctx context.Context, email string) (*model
 	query := `
 		SELECT id, airtable_id, legacy_id, slug, name, job_title, workplace, about, details,
 			competencies, experience, price, status, '' as tags, telegram_chat_id, calendar_url,
-			sort_order, created_at, 0 as mentee_count
+			sort_order, created_at, updated_at, 0 as mentee_count
 		FROM mentors
 		WHERE email = $1 AND status IN ('active', 'inactive')
 		LIMIT 1
@@ -467,7 +467,7 @@ func (r *MentorRepository) FetchAllMentorsFromDB(ctx context.Context) ([]*models
 		SELECT m.id, m.airtable_id, m.legacy_id, m.slug, m.name, m.job_title, m.workplace,
 			m.about, m.details, m.competencies, m.experience, m.price, m.status,
 			COALESCE(array_to_string(array_agg(t.name), ','), '') as tags,
-			m.telegram_chat_id, m.calendar_url, m.sort_order, m.created_at,
+			m.telegram_chat_id, m.calendar_url, m.sort_order, m.created_at, m.updated_at,
 			COALESCE(
 				(SELECT COUNT(*)
 				 FROM client_requests cr
@@ -497,7 +497,7 @@ func (r *MentorRepository) FetchSingleMentorFromDB(ctx context.Context, mentorSl
 		SELECT m.id, m.airtable_id, m.legacy_id, m.slug, m.name, m.job_title, m.workplace,
 			m.about, m.details, m.competencies, m.experience, m.price, m.status,
 			COALESCE(array_to_string(array_agg(t.name), ','), '') as tags,
-			m.telegram_chat_id, m.calendar_url, m.sort_order, m.created_at,
+			m.telegram_chat_id, m.calendar_url, m.sort_order, m.created_at, m.updated_at,
 			COALESCE(
 				(SELECT COUNT(*)
 				 FROM client_requests cr

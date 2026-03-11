@@ -38,22 +38,24 @@ type Mentor struct {
 	// Internal fields (not exposed in JSON)
 	TelegramChatID *int64    `json:"-"` // Used for IsVisible computation
 	CreatedAt      time.Time `json:"-"` // Used for IsNew computation
+	UpdatedAt      time.Time `json:"-"` // Used for public response
 }
 
 // PublicMentorResponse represents the public API response format
 type PublicMentorResponse struct {
-	ID           int    `json:"id"`
-	Name         string `json:"name"`
-	Title        string `json:"title"`
-	Workplace    string `json:"workplace"`
-	About        string `json:"about"`
-	Description  string `json:"description"`
-	Competencies string `json:"competencies"`
-	Experience   string `json:"experience"`
-	Price        string `json:"price"`
-	DoneSessions int    `json:"doneSessions"`
-	Tags         string `json:"tags"`
-	Link         string `json:"link"`
+	ID           int       `json:"id"`
+	Name         string    `json:"name"`
+	Title        string    `json:"title"`
+	Workplace    string    `json:"workplace"`
+	About        string    `json:"about"`
+	Description  string    `json:"description"`
+	Competencies string    `json:"competencies"`
+	Experience   string    `json:"experience"`
+	Price        string    `json:"price"`
+	DoneSessions int       `json:"doneSessions"`
+	Tags         string    `json:"tags"`
+	Link         string    `json:"link"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 // ToPublicResponse converts a Mentor to PublicMentorResponse
@@ -71,6 +73,7 @@ func (m *Mentor) ToPublicResponse(baseURL string) PublicMentorResponse {
 		DoneSessions: m.MenteeCount,
 		Tags:         strings.Join(m.Tags, ","),
 		Link:         baseURL + "/mentor/" + m.Slug,
+		UpdatedAt:    m.UpdatedAt,
 	}
 }
 
@@ -114,6 +117,7 @@ func ScanMentor(row pgx.Row) (*Mentor, error) {
 		&calendarURL,
 		&m.SortOrder,
 		&m.CreatedAt,
+		&m.UpdatedAt,
 		&m.MenteeCount,
 	)
 	if err != nil {
