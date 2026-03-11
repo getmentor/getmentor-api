@@ -27,7 +27,6 @@ type errorTrackingClient struct {
 
 // Init initializes the singleton PostHog error tracking client.
 // If apiKey is empty, initialization is skipped and a warning is logged.
-// Safe to call multiple times; only the first call has effect.
 func Init(apiKey, host, environment, serviceVersion string) {
 	if apiKey == "" {
 		logger.Warn("PostHog error tracking disabled: POSTHOG_API_KEY not set")
@@ -68,19 +67,26 @@ func Close() {
 	}
 }
 
-// CaptureException reports an error to PostHog error tracking.
-// Extra properties are merged into the event (must not contain PII).
+// CaptureException reports an error to PostHog error tracking with a structured stack trace
+// captured at the call site. Extra properties are merged into the event (must not contain PII).
 // No-ops if the client is not initialized or err is nil.
 func CaptureException(err error, properties map[string]interface{}) {
 	if client == nil || err == nil {
 		return
 	}
 	errType := fmt.Sprintf("%T", err)
-	client.capture(errType, err.Error(), nil, properties)
+
+	// Capture structured stack trace here, before any internal call indirection.
+	// skip=4: runtime.Callers, GetStackTrace, captureWithStack, CaptureException
+	extractor := posthog.DefaultStackTraceExtractor{InAppDecider: posthog.SimpleInAppDecider}
+	stacktrace := extractor.GetStackTrace(4)
+
+	client.captureWithStack(errType, err.Error(), debug.Stack(), stacktrace, properties)
 }
 
 // CapturePanic reports a recovered panic to PostHog error tracking.
-// stack should be the output of debug.Stack() captured at recovery time.
+// stack must be the output of debug.Stack() captured immediately inside the recover() block,
+// before any other calls, so it reflects the original panic origin.
 // No-ops if the client is not initialized.
 func CapturePanic(recovered interface{}, stack []byte) {
 	if client == nil {
@@ -88,18 +94,27 @@ func CapturePanic(recovered interface{}, stack []byte) {
 	}
 	panicType := fmt.Sprintf("%T", recovered)
 	panicMsg := fmt.Sprintf("%v", recovered)
-	client.capture(panicType, panicMsg, stack, map[string]interface{}{"panic": true})
+
+	// For panics, we do NOT use GetStackTrace — it would capture the recovery
+	// middleware frames, not the panic origin. The raw debug.Stack() output
+	// (captured at recovery time) already contains the full panic origin stack,
+	// and PostHog can parse it via $exception_stack_trace_raw.
+	client.captureWithStack(panicType, panicMsg, stack, nil, map[string]interface{}{"panic": true})
 }
 
-// capture is the internal implementation. If rawStack is nil, debug.Stack() is called.
-func (c *errorTrackingClient) capture(errType, errMsg string, rawStack []byte, extraProps map[string]interface{}) {
-	if rawStack == nil {
-		rawStack = debug.Stack()
+// captureWithStack is the internal implementation.
+// structuredStack may be nil (e.g. for panics where the call-site stack is meaningless).
+func (c *errorTrackingClient) captureWithStack(
+	errType, errMsg string,
+	rawStack []byte,
+	structuredStack *posthog.ExceptionStacktrace,
+	extraProps map[string]interface{},
+) {
+	exceptionItem := posthog.ExceptionItem{
+		Type:       errType,
+		Value:      errMsg,
+		Stacktrace: structuredStack, // nil for panics; PostHog falls back to $exception_stack_trace_raw
 	}
-
-	extractor := posthog.DefaultStackTraceExtractor{InAppDecider: posthog.SimpleInAppDecider}
-	// skip=4: runtime.Callers, GetStackTrace, capture, CaptureException/CapturePanic
-	stacktrace := extractor.GetStackTrace(4)
 
 	props := posthog.NewProperties().
 		Set("source_system", "backend").
@@ -108,13 +123,7 @@ func (c *errorTrackingClient) capture(errType, errMsg string, rawStack []byte, e
 		Set("$exception_type", errType).
 		Set("$exception_message", errMsg).
 		Set("$exception_stack_trace_raw", string(rawStack)).
-		Set("$exception_list", []posthog.ExceptionItem{
-			{
-				Type:       errType,
-				Value:      errMsg,
-				Stacktrace: stacktrace,
-			},
-		})
+		Set("$exception_list", []posthog.ExceptionItem{exceptionItem})
 
 	for k, v := range extraProps {
 		props.Set(k, v)
