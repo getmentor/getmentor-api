@@ -720,6 +720,12 @@ func (r *MentorRepository) applySingleMentorFilters(mentor *models.Mentor, opts 
 	return mentor
 }
 
+// TouchUpdatedAt sets updated_at = NOW() for the given mentor without changing any other fields
+func (r *MentorRepository) TouchUpdatedAt(ctx context.Context, mentorID string) error {
+	_, err := r.pool.Exec(ctx, `UPDATE mentors SET updated_at = NOW() WHERE id = $1`, mentorID)
+	return err
+}
+
 // InvalidateCache forces cache invalidation
 func (r *MentorRepository) InvalidateCache() {
 	r.mentorCache.Clear()
