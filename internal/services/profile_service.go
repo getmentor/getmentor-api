@@ -167,6 +167,12 @@ func (s *ProfileService) UploadPictureByMentorId(ctx context.Context, mentorID s
 	//	 _ = trigger.CallAsync                              // Keep for future use
 	// }()
 
+	if err := s.mentorRepo.TouchUpdatedAt(ctx, mentorID); err != nil {
+		logger.Error("Failed to touch updated_at after picture upload",
+			zap.Error(err),
+			zap.String("mentor_id", mentorID))
+	}
+
 	metrics.ProfilePictureUploads.WithLabelValues("success").Inc()
 	s.tracker.Track(ctx, analytics.EventMentorProfilePictureUploaded, analytics.MentorDistinctID(mentorID), map[string]interface{}{
 		"mentor_id":    mentorID,

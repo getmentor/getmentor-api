@@ -9,25 +9,26 @@ import (
 
 // Mentor represents a mentor in the system
 type Mentor struct {
-	MentorID     string   `json:"mentorId"` // UUID primary key
-	LegacyID     int      `json:"id"`       // Old integer ID (maps to legacy_id column)
-	AirtableID   *string  `json:"-"`        // Internal only - not exposed in API
-	Slug         string   `json:"slug"`
-	Name         string   `json:"name"`
-	Job          string   `json:"job"`
-	Workplace    string   `json:"workplace"`
-	Description  string   `json:"description"`
-	About        string   `json:"about"`
-	Competencies string   `json:"competencies"`
-	Experience   string   `json:"experience"`
-	Price        string   `json:"price"`
-	MenteeCount  int      `json:"menteeCount"`
-	Tags         []string `json:"tags"`
-	SortOrder    int      `json:"sortOrder"`
-	IsVisible    bool     `json:"isVisible"` // Computed: status = 'active' AND telegram_chat_id IS NOT NULL
-	Sponsors     string   `json:"sponsors"`
-	CalendarType string   `json:"calendarType"`
-	IsNew        bool     `json:"isNew"` // Computed: created_at > NOW() - 14 days
+	MentorID     string    `json:"mentorId"` // UUID primary key
+	LegacyID     int       `json:"id"`       // Old integer ID (maps to legacy_id column)
+	AirtableID   *string   `json:"-"`        // Internal only - not exposed in API
+	Slug         string    `json:"slug"`
+	Name         string    `json:"name"`
+	Job          string    `json:"job"`
+	Workplace    string    `json:"workplace"`
+	Description  string    `json:"description"`
+	About        string    `json:"about"`
+	Competencies string    `json:"competencies"`
+	Experience   string    `json:"experience"`
+	Price        string    `json:"price"`
+	MenteeCount  int       `json:"menteeCount"`
+	Tags         []string  `json:"tags"`
+	SortOrder    int       `json:"sortOrder"`
+	IsVisible    bool      `json:"isVisible"` // Computed: status = 'active' AND telegram_chat_id IS NOT NULL
+	Sponsors     string    `json:"sponsors"`
+	CalendarType string    `json:"calendarType"`
+	IsNew        bool      `json:"isNew"`     // Computed: created_at > NOW() - 14 days
+	UpdatedAt    time.Time `json:"updatedAt"` // Used for profile image cache invalidation
 
 	// Status field for login eligibility checks
 	Status string `json:"status"`
@@ -42,18 +43,19 @@ type Mentor struct {
 
 // PublicMentorResponse represents the public API response format
 type PublicMentorResponse struct {
-	ID           int    `json:"id"`
-	Name         string `json:"name"`
-	Title        string `json:"title"`
-	Workplace    string `json:"workplace"`
-	About        string `json:"about"`
-	Description  string `json:"description"`
-	Competencies string `json:"competencies"`
-	Experience   string `json:"experience"`
-	Price        string `json:"price"`
-	DoneSessions int    `json:"doneSessions"`
-	Tags         string `json:"tags"`
-	Link         string `json:"link"`
+	ID           int       `json:"id"`
+	Name         string    `json:"name"`
+	Title        string    `json:"title"`
+	Workplace    string    `json:"workplace"`
+	About        string    `json:"about"`
+	Description  string    `json:"description"`
+	Competencies string    `json:"competencies"`
+	Experience   string    `json:"experience"`
+	Price        string    `json:"price"`
+	DoneSessions int       `json:"doneSessions"`
+	Tags         string    `json:"tags"`
+	Link         string    `json:"link"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 // ToPublicResponse converts a Mentor to PublicMentorResponse
@@ -71,6 +73,7 @@ func (m *Mentor) ToPublicResponse(baseURL string) PublicMentorResponse {
 		DoneSessions: m.MenteeCount,
 		Tags:         strings.Join(m.Tags, ","),
 		Link:         baseURL + "/mentor/" + m.Slug,
+		UpdatedAt:    m.UpdatedAt,
 	}
 }
 
@@ -114,6 +117,7 @@ func ScanMentor(row pgx.Row) (*Mentor, error) {
 		&calendarURL,
 		&m.SortOrder,
 		&m.CreatedAt,
+		&m.UpdatedAt,
 		&m.MenteeCount,
 	)
 	if err != nil {
