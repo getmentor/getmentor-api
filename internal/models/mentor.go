@@ -9,25 +9,26 @@ import (
 
 // Mentor represents a mentor in the system
 type Mentor struct {
-	MentorID     string   `json:"mentorId"` // UUID primary key
-	LegacyID     int      `json:"id"`       // Old integer ID (maps to legacy_id column)
-	AirtableID   *string  `json:"-"`        // Internal only - not exposed in API
-	Slug         string   `json:"slug"`
-	Name         string   `json:"name"`
-	Job          string   `json:"job"`
-	Workplace    string   `json:"workplace"`
-	Description  string   `json:"description"`
-	About        string   `json:"about"`
-	Competencies string   `json:"competencies"`
-	Experience   string   `json:"experience"`
-	Price        string   `json:"price"`
-	MenteeCount  int      `json:"menteeCount"`
-	Tags         []string `json:"tags"`
-	SortOrder    int      `json:"sortOrder"`
-	IsVisible    bool     `json:"isVisible"` // Computed: status = 'active' AND telegram_chat_id IS NOT NULL
-	Sponsors     string   `json:"sponsors"`
-	CalendarType string   `json:"calendarType"`
-	IsNew        bool     `json:"isNew"` // Computed: created_at > NOW() - 14 days
+	MentorID     string    `json:"mentorId"` // UUID primary key
+	LegacyID     int       `json:"id"`       // Old integer ID (maps to legacy_id column)
+	AirtableID   *string   `json:"-"`        // Internal only - not exposed in API
+	Slug         string    `json:"slug"`
+	Name         string    `json:"name"`
+	Job          string    `json:"job"`
+	Workplace    string    `json:"workplace"`
+	Description  string    `json:"description"`
+	About        string    `json:"about"`
+	Competencies string    `json:"competencies"`
+	Experience   string    `json:"experience"`
+	Price        string    `json:"price"`
+	MenteeCount  int       `json:"menteeCount"`
+	Tags         []string  `json:"tags"`
+	SortOrder    int       `json:"sortOrder"`
+	IsVisible    bool      `json:"isVisible"` // Computed: status = 'active' AND telegram_chat_id IS NOT NULL
+	Sponsors     string    `json:"sponsors"`
+	CalendarType string    `json:"calendarType"`
+	IsNew        bool      `json:"isNew"`     // Computed: created_at > NOW() - 14 days
+	UpdatedAt    time.Time `json:"updatedAt"` // Used for profile image cache invalidation
 
 	// Status field for login eligibility checks
 	Status string `json:"status"`
@@ -38,7 +39,6 @@ type Mentor struct {
 	// Internal fields (not exposed in JSON)
 	TelegramChatID *int64    `json:"-"` // Used for IsVisible computation
 	CreatedAt      time.Time `json:"-"` // Used for IsNew computation
-	UpdatedAt      time.Time `json:"-"` // Used for public response
 }
 
 // PublicMentorResponse represents the public API response format
