@@ -22,6 +22,7 @@ import (
 	"github.com/getmentor/getmentor-api/internal/services"
 	"github.com/getmentor/getmentor-api/pkg/analytics"
 	"github.com/getmentor/getmentor-api/pkg/db"
+	"github.com/getmentor/getmentor-api/pkg/errortracking"
 	"github.com/getmentor/getmentor-api/pkg/httpclient"
 	"github.com/getmentor/getmentor-api/pkg/jwt"
 	"github.com/getmentor/getmentor-api/pkg/logger"
@@ -195,6 +196,15 @@ func main() { //nolint:gocyclo
 	}
 	defer profilerStop()
 
+	// Initialize PostHog error tracking (uses same PostHog project as the frontend)
+	errortracking.Init(
+		cfg.PostHog.APIKey,
+		cfg.PostHog.Host,
+		cfg.Server.AppEnv,
+		cfg.Observability.ServiceVersion,
+	)
+	defer errortracking.Close()
+
 	// Initialize metrics with service name from config
 	metrics.Init(cfg.Observability.ServiceName)
 
@@ -333,7 +343,7 @@ func main() { //nolint:gocyclo
 	router := gin.New()
 
 	// Global middleware
-	router.Use(gin.Recovery())
+	router.Use(middleware.RecoveryMiddleware())
 	router.Use(otelgin.Middleware(cfg.Observability.ServiceName)) // OpenTelemetry tracing
 	router.Use(middleware.ObservabilityMiddleware())
 	router.Use(middleware.SecurityHeadersMiddleware())
