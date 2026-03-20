@@ -110,6 +110,7 @@ func (c *errorTrackingClient) captureWithStack(
 	structuredStack *posthog.ExceptionStacktrace,
 	extraProps map[string]interface{},
 ) {
+
 	exceptionItem := posthog.ExceptionItem{
 		Type:       errType,
 		Value:      errMsg,
