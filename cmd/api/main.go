@@ -201,6 +201,7 @@ func main() { //nolint:gocyclo
 		cfg.PostHog.APIKey,
 		cfg.PostHog.Host,
 		cfg.Server.AppEnv,
+		cfg.Observability.ServiceName,
 		cfg.Observability.ServiceVersion,
 	)
 	defer errortracking.Close()
