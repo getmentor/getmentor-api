@@ -30,6 +30,10 @@ type Mentor struct {
 	IsNew        bool      `json:"isNew"`     // Computed: created_at > NOW() - 14 days
 	UpdatedAt    time.Time `json:"updatedAt"` // Used for profile image cache invalidation
 
+	// OpenmentorSlug is the matching openmentor.io profile slug, when one is mapped.
+	// Empty (and omitted from JSON) for mentors without an openmentor.io counterpart.
+	OpenmentorSlug string `json:"openmentorSlug,omitempty"`
+
 	// Status field for login eligibility checks
 	Status string `json:"status"`
 
@@ -97,6 +101,7 @@ func ScanMentor(row pgx.Row) (*Mentor, error) {
 	var about *string
 	var description *string
 	var competencies *string
+	var openmentorSlug *string
 
 	err := row.Scan(
 		&m.MentorID,
@@ -119,6 +124,7 @@ func ScanMentor(row pgx.Row) (*Mentor, error) {
 		&m.CreatedAt,
 		&m.UpdatedAt,
 		&m.MenteeCount,
+		&openmentorSlug,
 	)
 	if err != nil {
 		return nil, err
@@ -144,6 +150,9 @@ func ScanMentor(row pgx.Row) (*Mentor, error) {
 	}
 	if competencies != nil {
 		m.Competencies = *competencies
+	}
+	if openmentorSlug != nil {
+		m.OpenmentorSlug = *openmentorSlug
 	}
 
 	// Parse tags from comma-separated string

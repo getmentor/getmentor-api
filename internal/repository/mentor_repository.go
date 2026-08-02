@@ -155,7 +155,13 @@ func (r *MentorRepository) fetchMentorByUUIDFromDB(ctx context.Context, mentorId
 				 WHERE cr.mentor_id = m.id
 				 AND cr.status = 'done'),
 				0
-			) AS mentee_count
+			) AS mentee_count,
+			COALESCE(
+				(SELECT op.openmentor_slug
+				 FROM openmentor_profiles op
+				 WHERE op.getmentor_slug = m.slug),
+				''
+			) AS openmentor_slug
 		FROM mentors m
 		LEFT JOIN mentor_tags mt ON mt.mentor_id = m.id
 		LEFT JOIN tags t ON t.id = mt.tag_id
@@ -336,11 +342,13 @@ func (r *MentorRepository) GetAllTags(ctx context.Context) (map[string]string, e
 }
 
 // GetByEmail retrieves a mentor by email address
+// Note: this is the auth lookup, not the public read path, so tags, mentee_count and
+// openmentor_slug are selected as placeholders to keep ScanMentor's positional order valid.
 func (r *MentorRepository) GetByEmail(ctx context.Context, email string) (*models.Mentor, error) {
 	query := `
 		SELECT id, airtable_id, legacy_id, slug, name, job_title, workplace, about, details,
 			competencies, experience, price, status, '' as tags, telegram_chat_id, calendar_url,
-			sort_order, created_at, updated_at, 0 as mentee_count
+			sort_order, created_at, updated_at, 0 as mentee_count, '' as openmentor_slug
 		FROM mentors
 		WHERE email = $1 AND status IN ('active', 'inactive')
 		LIMIT 1
@@ -474,7 +482,13 @@ func (r *MentorRepository) FetchAllMentorsFromDB(ctx context.Context) ([]*models
 				 WHERE cr.mentor_id = m.id
 				 AND cr.status = 'done'),
 				0
-			) AS mentee_count
+			) AS mentee_count,
+			COALESCE(
+				(SELECT op.openmentor_slug
+				 FROM openmentor_profiles op
+				 WHERE op.getmentor_slug = m.slug),
+				''
+			) AS openmentor_slug
 		FROM mentors m
 		LEFT JOIN mentor_tags mt ON mt.mentor_id = m.id
 		LEFT JOIN tags t ON t.id = mt.tag_id
@@ -504,7 +518,13 @@ func (r *MentorRepository) FetchSingleMentorFromDB(ctx context.Context, mentorSl
 				 WHERE cr.mentor_id = m.id
 				 AND cr.status = 'done'),
 				0
-			) AS mentee_count
+			) AS mentee_count,
+			COALESCE(
+				(SELECT op.openmentor_slug
+				 FROM openmentor_profiles op
+				 WHERE op.getmentor_slug = m.slug),
+				''
+			) AS openmentor_slug
 		FROM mentors m
 		LEFT JOIN mentor_tags mt ON mt.mentor_id = m.id
 		LEFT JOIN tags t ON t.id = mt.tag_id

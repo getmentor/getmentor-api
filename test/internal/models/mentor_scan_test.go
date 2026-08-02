@@ -1,11 +1,14 @@
 package models_test
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/assert"
 )
 
 // mockRow implements pgx.Row interface for testing
@@ -84,8 +87,13 @@ func TestScanMentor(t *testing.T) {
 	calendarURL := "https://calendly.com/ivan"
 	sortOrder := 1
 	createdAt := time.Now().AddDate(0, 0, -7) // 7 days ago (should be IsNew)
+	updatedAt := time.Now().AddDate(0, 0, -1)
+	menteeCount := 12
+	openmentorSlug := "ivan-ivanov"
 
-	// Create mock row
+	// Create mock row.
+	// Column order must match the SELECT list used by FetchAllMentorsFromDB,
+	// FetchSingleMentorFromDB and fetchMentorByUUIDFromDB.
 	row := &mockRow{
 		values: []interface{}{
 			mentorID,
@@ -106,6 +114,9 @@ func TestScanMentor(t *testing.T) {
 			calendarURL,
 			sortOrder,
 			createdAt,
+			updatedAt,
+			menteeCount,
+			openmentorSlug, // Will be scanned as *string
 		},
 	}
 
@@ -130,6 +141,18 @@ func TestScanMentor(t *testing.T) {
 
 	if mentor.Name != name {
 		t.Errorf("expected Name %s, got %s", name, mentor.Name)
+	}
+
+	if !mentor.UpdatedAt.Equal(updatedAt) {
+		t.Errorf("expected UpdatedAt %v, got %v", updatedAt, mentor.UpdatedAt)
+	}
+
+	if mentor.MenteeCount != menteeCount {
+		t.Errorf("expected MenteeCount %d, got %d", menteeCount, mentor.MenteeCount)
+	}
+
+	if mentor.OpenmentorSlug != openmentorSlug {
+		t.Errorf("expected OpenmentorSlug %s, got %s", openmentorSlug, mentor.OpenmentorSlug)
 	}
 
 	// Verify computed IsVisible: status = 'active' AND telegram_chat_id IS NOT NULL
@@ -184,6 +207,9 @@ func TestScanMentor_InactiveMentor(t *testing.T) {
 			"",            // calendar_url
 			0,             // sort_order
 			createdAt,     // created_at
+			createdAt,     // updated_at
+			0,             // mentee_count
+			nil,           // openmentor_slug (null - no openmentor.io profile)
 		},
 	}
 
@@ -200,6 +226,106 @@ func TestScanMentor_InactiveMentor(t *testing.T) {
 	// IsNew should be false (created 20 days ago)
 	if mentor.IsNew {
 		t.Errorf("expected IsNew to be false for mentor created 20 days ago")
+	}
+
+	// OpenmentorSlug should stay empty when the mapping row is missing
+	if mentor.OpenmentorSlug != "" {
+		t.Errorf("expected empty OpenmentorSlug, got %s", mentor.OpenmentorSlug)
+	}
+}
+
+// mentorRowValues builds a full mentor row in the exact column order produced by the
+// mentor SELECTs, with the trailing openmentor_slug column parameterized.
+func mentorRowValues(openmentorSlug interface{}) []interface{} {
+	return []interface{}{
+		"550e8400-e29b-41d4-a716-446655440000", // mentor_id
+		nil,                                    // airtable_id
+		1,                                      // legacy_id
+		"test-mentor-1",                        // slug
+		"Test Mentor",                          // name
+		"Engineer",                             // job_title
+		"Company",                              // workplace
+		"About",                                // about
+		"Description",                          // details
+		"Skills",                               // competencies
+		"3-5",                                  // experience
+		"free",                                 // price
+		"active",                               // status
+		"Golang",                               // tags
+		int64(123456789),                       // telegram_chat_id
+		"https://calendly.com/test",            // calendar_url
+		0,                                      // sort_order
+		time.Now().AddDate(0, 0, -1),           // created_at
+		time.Now(),                             // updated_at
+		0,                                      // mentee_count
+		openmentorSlug,                         // openmentor_slug
+	}
+}
+
+// TestScanMentor_OpenmentorSlug verifies the openmentor.io cross-link slug is scanned
+// from the last SELECT column and defaults to empty when no mapping exists.
+func TestScanMentor_OpenmentorSlug(t *testing.T) {
+	tests := []struct {
+		name           string
+		openmentorSlug interface{}
+		expected       string
+	}{
+		{
+			name:           "mapped mentor exposes openmentor slug",
+			openmentorSlug: "ivan-ivanov",
+			expected:       "ivan-ivanov",
+		},
+		{
+			name:           "unmapped mentor coalesced to empty string",
+			openmentorSlug: "",
+			expected:       "",
+		},
+		{
+			name:           "null openmentor slug treated as empty",
+			openmentorSlug: nil,
+			expected:       "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mentor, err := models.ScanMentor(&mockRow{values: mentorRowValues(tt.openmentorSlug)})
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, mentor.OpenmentorSlug)
+		})
+	}
+}
+
+// TestScanMentor_OpenmentorSlugJSON verifies the cross-link field is present in the API
+// response only when a mapping exists (json tag uses omitempty).
+func TestScanMentor_OpenmentorSlugJSON(t *testing.T) {
+	tests := []struct {
+		name           string
+		openmentorSlug interface{}
+		shouldContain  bool
+	}{
+		{
+			name:           "mapped mentor serializes openmentorSlug",
+			openmentorSlug: "ivan-ivanov",
+			shouldContain:  true,
+		},
+		{
+			name:           "unmapped mentor omits openmentorSlug",
+			openmentorSlug: nil,
+			shouldContain:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mentor, err := models.ScanMentor(&mockRow{values: mentorRowValues(tt.openmentorSlug)})
+			assert.NoError(t, err)
+
+			payload, err := json.Marshal(mentor)
+			assert.NoError(t, err)
+
+			assert.Equal(t, tt.shouldContain, strings.Contains(string(payload), `"openmentorSlug"`))
+		})
 	}
 }
 
