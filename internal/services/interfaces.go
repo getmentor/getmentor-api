@@ -65,6 +65,13 @@ type ReviewServiceInterface interface {
 	SubmitReview(ctx context.Context, requestID string, req *models.SubmitReviewRequest) (*models.SubmitReviewResponse, error)
 }
 
+// AdminRequestsServiceInterface defines admin access to client requests.
+type AdminRequestsServiceInterface interface {
+	ListRequests(ctx context.Context, session *models.AdminSession, filter *models.AdminRequestsFilter) (*models.AdminRequestsListResponse, error)
+	GetRequest(ctx context.Context, session *models.AdminSession, requestID string) (*models.AdminRequestDetails, error)
+	UpdateRequestStatus(ctx context.Context, session *models.AdminSession, requestID string, status models.RequestStatus) (*models.AdminRequestDetails, error)
+}
+
 type AdminMentorsServiceInterface interface {
 	ListMentors(ctx context.Context, session *models.AdminSession, filter models.MentorModerationFilter) ([]models.AdminMentorListItem, error)
 	GetMentor(ctx context.Context, session *models.AdminSession, mentorID string) (*models.AdminMentorDetails, error)
@@ -85,3 +92,4 @@ var _ AdminAuthServiceInterface = (*AdminAuthService)(nil)
 var _ MentorRequestsServiceInterface = (*MentorRequestsService)(nil)
 var _ ReviewServiceInterface = (*ReviewService)(nil)
 var _ AdminMentorsServiceInterface = (*AdminMentorsService)(nil)
+var _ AdminRequestsServiceInterface = (*AdminRequestsService)(nil)

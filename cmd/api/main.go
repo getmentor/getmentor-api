@@ -111,6 +111,7 @@ func registerAdminModerationRoutes(
 	profileRateLimiter *middleware.RateLimiter,
 	adminAuthHandler *handlers.AdminAuthHandler,
 	adminMentorsHandler *handlers.AdminMentorsHandler,
+	adminRequestsHandler *handlers.AdminRequestsHandler,
 	tokenManager *jwt.TokenManager,
 ) {
 
@@ -134,6 +135,9 @@ func registerAdminModerationRoutes(
 	admin.POST("/mentors/:id/decline", adminMentorsHandler.DeclineMentor)
 	admin.POST("/mentors/:id/status", adminMentorsHandler.UpdateMentorStatus)
 	admin.POST("/mentors/:id/picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), adminMentorsHandler.UploadMentorPicture)
+	admin.GET("/requests", adminRequestsHandler.ListRequests)
+	admin.GET("/requests/:id", adminRequestsHandler.GetRequest)
+	admin.POST("/requests/:id/status", adminRequestsHandler.UpdateRequestStatus)
 }
 
 func main() { //nolint:gocyclo
@@ -319,6 +323,7 @@ func main() { //nolint:gocyclo
 	mentorRequestsService := services.NewMentorRequestsService(clientRequestRepo, cfg, httpClient, analyticsTracker)
 	reviewService := services.NewReviewService(reviewRepo, cfg, httpClient, analyticsTracker)
 	adminMentorsService := services.NewAdminMentorsService(mentorRepo, profileService, cfg, httpClient, analyticsTracker)
+	adminRequestsService := services.NewAdminRequestsService(clientRequestRepo, analyticsTracker)
 
 	// Initialize handlers
 	mentorHandler := handlers.NewMentorHandler(mentorService, cfg.Server.BaseURL)
@@ -338,6 +343,7 @@ func main() { //nolint:gocyclo
 	mentorRequestsHandler := handlers.NewMentorRequestsHandler(mentorRequestsService)
 	mentorProfileHandler := handlers.NewMentorProfileHandler(mentorService, profileService)
 	adminMentorsHandler := handlers.NewAdminMentorsHandler(adminMentorsService)
+	adminRequestsHandler := handlers.NewAdminRequestsHandler(adminRequestsService)
 
 	// Set up Gin router
 	gin.SetMode(cfg.Server.GinMode)
@@ -393,7 +399,7 @@ func main() { //nolint:gocyclo
 	registerMentorAdminRoutes(router, cfg, mentorAuthRateLimiter, profileRateLimiter, mentorAuthHandler, mentorRequestsHandler, mentorProfileHandler, mentorAuthService.GetTokenManager())
 
 	// Moderator/Admin web moderation routes
-	registerAdminModerationRoutes(router, cfg, adminAuthRateLimiter, profileRateLimiter, adminAuthHandler, adminMentorsHandler, adminAuthService.GetTokenManager())
+	registerAdminModerationRoutes(router, cfg, adminAuthRateLimiter, profileRateLimiter, adminAuthHandler, adminMentorsHandler, adminRequestsHandler, adminAuthService.GetTokenManager())
 
 	// Create HTTP server
 	// SECURITY: Bind to all interfaces for Docker Compose networking
