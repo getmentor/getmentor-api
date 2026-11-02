@@ -64,14 +64,15 @@ func (h *LogsHandler) writeLogsToFile(logs []LogEntry) error {
 
 	// Ensure log directory exists
 	//nolint:gosec // G301: 0755 is appropriate for log directory to allow group/other read
-	if err := os.MkdirAll(h.logDir, 0755); err != nil {
-		return fmt.Errorf("failed to create log directory: %w", err)
+	mkdirErr := os.MkdirAll(h.logDir, 0755) // #nosec G301 -- log dir must be readable by log aggregators
+	if mkdirErr != nil {
+		return fmt.Errorf("failed to create log directory: %w", mkdirErr)
 	}
 
 	// Open frontend log file in append mode
 	logPath := filepath.Join(h.logDir, "frontend.log")
 	//nolint:gosec // G302: 0644 is appropriate for log files (group/other read for log aggregators)
-	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644) // #nosec G302 G304 -- path is logDir from config + fixed filename; 0644 for log aggregators
 	if err != nil {
 		return fmt.Errorf("failed to open frontend log file: %w", err)
 	}

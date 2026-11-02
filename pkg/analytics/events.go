@@ -20,4 +20,5 @@ const (
 	EventAdminMentorStatusUpdated    = "admin_mentor_status_updated"
 	EventAdminMentorProfileUpdated   = "admin_mentor_profile_updated"
 	EventAdminMentorPictureUploaded  = "admin_mentor_picture_uploaded"
+	EventAdminRequestStatusUpdated   = "admin_request_status_updated"
 )

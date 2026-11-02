@@ -27,7 +27,7 @@ func configureTLS(databaseURL string) (*tls.Config, error) {
 
 	// Load CA certificate from certs directory
 	certPath := filepath.Join("certs", "yandex-ca.crt")
-	caPEM, err := os.ReadFile(certPath)
+	caPEM, err := os.ReadFile(certPath) // #nosec G304 -- fixed path built from constants
 	if err != nil {
 		return nil, fmt.Errorf("failed to read CA certificate from %s: %w", certPath, err)
 	}
