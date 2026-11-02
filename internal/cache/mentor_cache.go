@@ -328,7 +328,7 @@ func (mc *MentorCache) refreshWithRetry() error {
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
 			//nolint:gosec // G115: attempt bounded by maxRetries (3), max shift is 2, no overflow possible
-			waitTime := initialRetryWait * time.Duration(1<<uint(attempt-1)) // Exponential backoff
+			waitTime := initialRetryWait * time.Duration(1<<uint(attempt-1)) // #nosec G115 -- attempt is bounded by maxRetries; exponential backoff
 			logger.Info("Retrying cache refresh",
 				zap.Int("attempt", attempt+1),
 				zap.Int("max_attempts", maxRetries),

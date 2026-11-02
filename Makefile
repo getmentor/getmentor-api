@@ -129,7 +129,7 @@ staticcheck:
 	@if command -v staticcheck >/dev/null 2>&1; then \
 		staticcheck ./...; \
 	else \
-		echo "staticcheck not installed. Install with: go install honnef.co/go/tools/cmd/staticcheck@latest"; \
+		echo "staticcheck not installed. Install with: go install honnef.co/go/tools/cmd/staticcheck@v0.7.0"; \
 		exit 1; \
 	fi
 
@@ -147,7 +147,7 @@ install-tools:
 	@echo "Installing development tools..."
 	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	@go install github.com/securego/gosec/v2/cmd/gosec@latest
-	@go install honnef.co/go/tools/cmd/staticcheck@latest
+	@go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
 	@echo "✅ All tools installed!"
 
 # Build migration binary
