@@ -832,10 +832,34 @@ func (r *MentorRepository) SoftDeleteMentor(ctx context.Context, mentorID, decli
 	return mentorSlug, declinedIDs, nil
 }
 
+// MentorEmailConflictError is returned when restoring a mentor whose email is
+// already used by another profile that is not deleted.
+type MentorEmailConflictError struct {
+	MentorID string
+	Name     string
+	Slug     string
+	Status   string
+}
+
+func (e *MentorEmailConflictError) Error() string {
+	return fmt.Sprintf("another mentor profile with this email exists: %s", e.MentorID)
+}
+
 // RestoreMentor clears deleted_at and sets the mentor status to inactive.
+// It fails with *MentorEmailConflictError when another non-deleted profile
+// has the same email (for example, the mentor registered again after the delete).
 func (r *MentorRepository) RestoreMentor(ctx context.Context, mentorID string) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx) //nolint:errcheck
+	}()
+
 	var deletedAt *time.Time
-	err := r.pool.QueryRow(ctx, `SELECT deleted_at FROM mentors WHERE id = $1`, mentorID).Scan(&deletedAt)
+	var email *string
+	err = tx.QueryRow(ctx, `SELECT deleted_at, email::text FROM mentors WHERE id = $1 FOR UPDATE`, mentorID).Scan(&deletedAt, &email)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("mentor with ID %s not found", mentorID)
 	}
@@ -846,16 +870,34 @@ func (r *MentorRepository) RestoreMentor(ctx context.Context, mentorID string) e
 		return ErrMentorNotDeleted
 	}
 
-	commandTag, err := r.pool.Exec(ctx, `
+	if email != nil && *email != "" {
+		// email is CITEXT, so this comparison ignores case
+		var conflict MentorEmailConflictError
+		err = tx.QueryRow(ctx, `
+			SELECT id, name, slug, status
+			FROM mentors
+			WHERE email = $1 AND id <> $2 AND deleted_at IS NULL
+			ORDER BY created_at DESC
+			LIMIT 1
+		`, *email, mentorID).Scan(&conflict.MentorID, &conflict.Name, &conflict.Slug, &conflict.Status)
+		if err == nil {
+			return &conflict
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("failed to check email conflicts: %w", err)
+		}
+	}
+
+	if _, err = tx.Exec(ctx, `
 		UPDATE mentors
 		SET deleted_at = NULL, status = 'inactive', updated_at = NOW()
-		WHERE id = $1 AND deleted_at IS NOT NULL
-	`, mentorID)
-	if err != nil {
+		WHERE id = $1
+	`, mentorID); err != nil {
 		return fmt.Errorf("failed to restore mentor: %w", err)
 	}
-	if commandTag.RowsAffected() == 0 {
-		return ErrMentorNotDeleted
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 	return nil
 }

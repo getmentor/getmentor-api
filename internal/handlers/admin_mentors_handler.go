@@ -219,6 +219,17 @@ func (h *AdminMentorsHandler) respondServiceError(c *gin.Context, err error) {
 		respondError(c, http.StatusConflict, "Mentor is already deleted", err)
 		return
 	}
+	var emailConflict *repository.MentorEmailConflictError
+	if errors.As(err, &emailConflict) {
+		respondErrorWithDetails(c, http.StatusConflict, "Another mentor profile with this email already exists", models.AdminMentorEmailConflictDetails{
+			Code:     "email_conflict",
+			MentorID: emailConflict.MentorID,
+			Name:     emailConflict.Name,
+			Slug:     emailConflict.Slug,
+			Status:   emailConflict.Status,
+		}, err)
+		return
+	}
 	if errors.Is(err, repository.ErrMentorNotDeleted) {
 		respondError(c, http.StatusConflict, "Mentor is not deleted", err)
 		return

@@ -171,3 +171,12 @@ type MentorLifecycleTriggerPayload struct {
 	ModeratorID           string `json:"moderator_id,omitempty"`
 	DeclinedRequestsCount int    `json:"declined_requests_count"`
 }
+
+// AdminMentorEmailConflictDetails describes the existing profile that blocks a restore.
+type AdminMentorEmailConflictDetails struct {
+	Code     string `json:"code"`
+	MentorID string `json:"mentorId"`
+	Name     string `json:"name"`
+	Slug     string `json:"slug"`
+	Status   string `json:"status"`
+}

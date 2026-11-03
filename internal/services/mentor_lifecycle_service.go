@@ -133,7 +133,10 @@ func (s *MentorLifecycleService) RestoreMentor(ctx context.Context, mentorID str
 
 	if err := s.mentorRepo.RestoreMentor(ctx, mentorID); err != nil {
 		outcome := "restore_failed"
-		if errors.Is(err, repository.ErrMentorNotDeleted) {
+		var conflict *repository.MentorEmailConflictError
+		if errors.As(err, &conflict) {
+			outcome = "email_conflict"
+		} else if errors.Is(err, repository.ErrMentorNotDeleted) {
 			outcome = "not_deleted"
 		} else if strings.Contains(strings.ToLower(err.Error()), "not found") {
 			outcome = "mentor_not_found"
