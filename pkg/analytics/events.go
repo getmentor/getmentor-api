@@ -15,6 +15,8 @@ const (
 	EventMentorProfilePictureUploaded = "mentor_profile_picture_uploaded"
 	EventMentorRequestStatusUpdated   = "mentor_request_status_updated"
 	EventMentorRequestDeclined        = "mentor_request_declined"
+	EventMentorProfileDeleted         = "mentor_profile_deleted"
+	EventMentorProfileRestored        = "mentor_profile_restored"
 
 	EventAdminMentorModerationAction = "admin_mentor_moderation_action"
 	EventAdminMentorStatusUpdated    = "admin_mentor_status_updated"

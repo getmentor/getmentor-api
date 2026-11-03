@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/getmentor/getmentor-api/internal/models"
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/slug"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
@@ -165,7 +167,7 @@ func (r *MentorRepository) fetchMentorByUUIDFromDB(ctx context.Context, mentorId
 		FROM mentors m
 		LEFT JOIN mentor_tags mt ON mt.mentor_id = m.id
 		LEFT JOIN tags t ON t.id = mt.tag_id
-		WHERE m.id = $1
+		WHERE m.id = $1 AND m.deleted_at IS NULL
 		GROUP BY m.id
 	`
 
@@ -216,12 +218,15 @@ func (r *MentorRepository) Update(ctx context.Context, mentorId string, updates 
 		argPos++
 	}
 
-	query += fmt.Sprintf(", updated_at = NOW() WHERE id = $%d", argPos)
+	query += fmt.Sprintf(", updated_at = NOW() WHERE id = $%d AND deleted_at IS NULL", argPos)
 	args = append(args, mentorId)
 
-	_, err := r.pool.Exec(ctx, query, args...)
+	commandTag, err := r.pool.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("failed to update mentor: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("mentor with ID %s not found", mentorId)
 	}
 
 	// Note: Cache will auto-refresh after TTL expires
@@ -350,7 +355,7 @@ func (r *MentorRepository) GetByEmail(ctx context.Context, email string) (*model
 			competencies, experience, price, status, '' as tags, telegram_chat_id, calendar_url,
 			sort_order, created_at, updated_at, 0 as mentee_count, '' as openmentor_slug
 		FROM mentors
-		WHERE email = $1 AND status IN ('active', 'inactive')
+		WHERE email = $1 AND status IN ('active', 'inactive') AND deleted_at IS NULL
 		LIMIT 1
 	`
 
@@ -368,7 +373,7 @@ func (r *MentorRepository) GetByLoginToken(ctx context.Context, token string) (*
 			competencies, experience, price, status, '' as tags, telegram_chat_id, calendar_url,
 			sort_order, created_at, 0 as mentee_count, login_token_expires_at
 		FROM mentors
-		WHERE login_token = $1
+		WHERE login_token = $1 AND deleted_at IS NULL
 		LIMIT 1
 	`
 
@@ -492,7 +497,7 @@ func (r *MentorRepository) FetchAllMentorsFromDB(ctx context.Context) ([]*models
 		FROM mentors m
 		LEFT JOIN mentor_tags mt ON mt.mentor_id = m.id
 		LEFT JOIN tags t ON t.id = mt.tag_id
-		WHERE m.status = 'active'
+		WHERE m.status = 'active' AND m.deleted_at IS NULL
 		GROUP BY m.id
 		ORDER BY m.sort_order
 	`
@@ -528,7 +533,7 @@ func (r *MentorRepository) FetchSingleMentorFromDB(ctx context.Context, mentorSl
 		FROM mentors m
 		LEFT JOIN mentor_tags mt ON mt.mentor_id = m.id
 		LEFT JOIN tags t ON t.id = mt.tag_id
-		WHERE m.slug = $1
+		WHERE m.slug = $1 AND m.deleted_at IS NULL
 		GROUP BY m.id
 	`
 
@@ -562,9 +567,23 @@ func (r *MentorRepository) FetchAllTagsFromDB(ctx context.Context) (map[string]s
 	return tags, nil
 }
 
-// ListForModeration retrieves mentors for moderation tabs, sorted by created_at DESC.
+// ListForModeration retrieves non-deleted mentors for moderation tabs, sorted by created_at DESC.
 func (r *MentorRepository) ListForModeration(ctx context.Context, statuses []string) ([]models.AdminMentorListItem, error) {
-	query := `
+	return r.listForModeration(ctx, listForModerationQuery+`
+		WHERE m.status = ANY($1) AND m.deleted_at IS NULL
+		ORDER BY m.created_at DESC
+	`, statuses)
+}
+
+// ListDeletedForModeration retrieves soft-deleted mentors, most recently deleted first.
+func (r *MentorRepository) ListDeletedForModeration(ctx context.Context) ([]models.AdminMentorListItem, error) {
+	return r.listForModeration(ctx, listForModerationQuery+`
+		WHERE m.deleted_at IS NOT NULL
+		ORDER BY m.deleted_at DESC
+	`)
+}
+
+const listForModerationQuery = `
 		SELECT
 			m.id,
 			m.legacy_id,
@@ -575,13 +594,12 @@ func (r *MentorRepository) ListForModeration(ctx context.Context, statuses []str
 			COALESCE(m.workplace, ''),
 			COALESCE(m.price, ''),
 			m.status,
-			m.created_at
-		FROM mentors m
-		WHERE m.status = ANY($1)
-		ORDER BY m.created_at DESC
-	`
+			m.created_at,
+			m.deleted_at
+		FROM mentors m`
 
-	rows, err := r.pool.Query(ctx, query, statuses)
+func (r *MentorRepository) listForModeration(ctx context.Context, query string, args ...interface{}) ([]models.AdminMentorListItem, error) {
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list mentors for moderation: %w", err)
 	}
@@ -601,6 +619,7 @@ func (r *MentorRepository) ListForModeration(ctx context.Context, statuses []str
 			&item.Price,
 			&item.Status,
 			&item.CreatedAt,
+			&item.DeletedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan moderation mentor row: %w", err)
 		}
@@ -637,7 +656,8 @@ func (r *MentorRepository) GetForModerationByID(ctx context.Context, mentorID st
 			COALESCE(m.sort_order, 0),
 			m.telegram_chat_id,
 			m.created_at,
-			m.updated_at
+			m.updated_at,
+			m.deleted_at
 		FROM mentors m
 		LEFT JOIN mentor_tags mt ON mt.mentor_id = m.id
 		LEFT JOIN tags t ON t.id = mt.tag_id
@@ -668,6 +688,7 @@ func (r *MentorRepository) GetForModerationByID(ctx context.Context, mentorID st
 		&mentor.TelegramChatID,
 		&mentor.CreatedAt,
 		&mentor.UpdatedAt,
+		&mentor.DeletedAt,
 	); err != nil {
 		return nil, fmt.Errorf("failed to fetch mentor for moderation: %w", err)
 	}
@@ -680,7 +701,7 @@ func (r *MentorRepository) SetMentorStatus(ctx context.Context, mentorID, status
 	query := `
 		UPDATE mentors
 		SET status = $1, updated_at = NOW()
-		WHERE id = $2
+		WHERE id = $2 AND deleted_at IS NULL
 	`
 	commandTag, err := r.pool.Exec(ctx, query, status, mentorID)
 	if err != nil {
@@ -740,6 +761,119 @@ func (r *MentorRepository) applySingleMentorFilters(mentor *models.Mentor, opts 
 	return mentor
 }
 
+// ErrMentorAlreadyDeleted is returned when soft-deleting a mentor that is already deleted.
+var ErrMentorAlreadyDeleted = errors.New("mentor is already deleted")
+
+// ErrMentorNotDeleted is returned when restoring a mentor that is not deleted.
+var ErrMentorNotDeleted = errors.New("mentor is not deleted")
+
+// SoftDeleteMentor marks a mentor as deleted and declines all of their active requests
+// in one transaction. It also clears any pending login token so magic links stop working.
+// Returns the mentor's slug and the IDs of the requests that were declined.
+func (r *MentorRepository) SoftDeleteMentor(ctx context.Context, mentorID, declineComment string) (string, []string, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx) //nolint:errcheck
+	}()
+
+	var mentorSlug string
+	var deletedAt *time.Time
+	err = tx.QueryRow(ctx, `SELECT slug, deleted_at FROM mentors WHERE id = $1 FOR UPDATE`, mentorID).Scan(&mentorSlug, &deletedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil, fmt.Errorf("mentor with ID %s not found", mentorID)
+	}
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to load mentor: %w", err)
+	}
+	if deletedAt != nil {
+		return "", nil, ErrMentorAlreadyDeleted
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE mentors
+		SET deleted_at = NOW(), login_token = NULL, login_token_expires_at = NULL, updated_at = NOW()
+		WHERE id = $1
+	`, mentorID)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to soft delete mentor: %w", err)
+	}
+
+	rows, err := tx.Query(ctx, `
+		UPDATE client_requests
+		SET status = 'declined', decline_reason = $2, decline_comment = $3,
+			status_changed_at = NOW(), updated_at = NOW()
+		WHERE mentor_id = $1 AND status IN ('pending', 'contacted', 'working', 'reschedule')
+		RETURNING id
+	`, mentorID, models.DeclineOther, declineComment)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to decline active requests: %w", err)
+	}
+	declinedIDs := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if scanErr := rows.Scan(&id); scanErr != nil {
+			rows.Close()
+			return "", nil, fmt.Errorf("failed to scan declined request id: %w", scanErr)
+		}
+		declinedIDs = append(declinedIDs, id)
+	}
+	rows.Close()
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return "", nil, fmt.Errorf("error iterating declined requests: %w", rowsErr)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return "", nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return mentorSlug, declinedIDs, nil
+}
+
+// RestoreMentor clears deleted_at and sets the mentor status to inactive.
+func (r *MentorRepository) RestoreMentor(ctx context.Context, mentorID string) error {
+	var deletedAt *time.Time
+	err := r.pool.QueryRow(ctx, `SELECT deleted_at FROM mentors WHERE id = $1`, mentorID).Scan(&deletedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("mentor with ID %s not found", mentorID)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to load mentor: %w", err)
+	}
+	if deletedAt == nil {
+		return ErrMentorNotDeleted
+	}
+
+	commandTag, err := r.pool.Exec(ctx, `
+		UPDATE mentors
+		SET deleted_at = NULL, status = 'inactive', updated_at = NOW()
+		WHERE id = $1 AND deleted_at IS NOT NULL
+	`, mentorID)
+	if err != nil {
+		return fmt.Errorf("failed to restore mentor: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ErrMentorNotDeleted
+	}
+	return nil
+}
+
+// IsMentorAccessible reports whether a mentor exists and is not deleted.
+// Used by the mentor session middleware so sessions of deleted mentors stop working.
+func (r *MentorRepository) IsMentorAccessible(ctx context.Context, mentorID string) (bool, error) {
+	var accessible bool
+	err := r.pool.QueryRow(ctx, `SELECT deleted_at IS NULL FROM mentors WHERE id = $1`, mentorID).Scan(&accessible)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return accessible, nil
+}
+
 // TouchUpdatedAt sets updated_at = NOW() for the given mentor without changing any other fields
 func (r *MentorRepository) TouchUpdatedAt(ctx context.Context, mentorID string) error {
 	_, err := r.pool.Exec(ctx, `UPDATE mentors SET updated_at = NOW() WHERE id = $1`, mentorID)
@@ -760,6 +894,9 @@ func (r *MentorRepository) UpdateSingleMentorCache(mentorSlug string) error {
 // RemoveMentorFromCache removes a mentor from cache
 // Called when a mentor is deleted
 func (r *MentorRepository) RemoveMentorFromCache(mentorSlug string) error {
+	if r.disableMentorCache {
+		return nil
+	}
 	return r.mentorCache.RemoveMentor(mentorSlug)
 }
 

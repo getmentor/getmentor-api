@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,8 +24,16 @@ var (
 	ErrInvalidSession  = errors.New("invalid session type")
 )
 
-// MentorSessionMiddleware validates JWT session cookie and adds session to context
-func MentorSessionMiddleware(tokenManager *jwt.TokenManager, cookieDomain string, cookieSecure bool) gin.HandlerFunc {
+// MentorAccessChecker reports whether a mentor may still use their session
+// (the mentor exists and is not deleted).
+type MentorAccessChecker interface {
+	IsMentorAccessible(ctx context.Context, mentorID string) (bool, error)
+}
+
+// MentorSessionMiddleware validates JWT session cookie and adds session to context.
+// When accessChecker is set, sessions of deleted mentors are rejected, so deleting
+// a profile ends every session the mentor has open.
+func MentorSessionMiddleware(tokenManager *jwt.TokenManager, cookieDomain string, cookieSecure bool, accessChecker MentorAccessChecker) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get session cookie
 		cookie, err := c.Cookie(MentorSessionCookieName)
@@ -50,6 +59,23 @@ func MentorSessionMiddleware(tokenManager *jwt.TokenManager, cookieDomain string
 			}
 			c.Abort()
 			return
+		}
+
+		if accessChecker != nil {
+			accessible, checkErr := accessChecker.IsMentorAccessible(c.Request.Context(), claims.MentorUUID)
+			if checkErr != nil {
+				_ = c.Error(fmt.Errorf("failed to check mentor access: %w", checkErr)) //nolint:errcheck
+				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Service temporarily unavailable"})
+				c.Abort()
+				return
+			}
+			if !accessible {
+				_ = c.Error(fmt.Errorf("session for deleted or missing mentor %s", claims.MentorUUID)) //nolint:errcheck
+				clearSessionCookie(c, cookieDomain, cookieSecure)
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+				c.Abort()
+				return
+			}
 		}
 
 		// Create session from claims

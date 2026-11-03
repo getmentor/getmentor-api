@@ -32,6 +32,7 @@ var (
 type AdminMentorsService struct {
 	mentorRepo     *repository.MentorRepository
 	profileService ProfileServiceInterface
+	lifecycle      MentorLifecycleServiceInterface
 	config         *config.Config
 	httpClient     httpclient.Client
 	tracker        analytics.Tracker
@@ -40,6 +41,7 @@ type AdminMentorsService struct {
 func NewAdminMentorsService(
 	mentorRepo *repository.MentorRepository,
 	profileService ProfileServiceInterface,
+	lifecycle MentorLifecycleServiceInterface,
 	cfg *config.Config,
 	httpClient httpclient.Client,
 	tracker analytics.Tracker,
@@ -52,6 +54,7 @@ func NewAdminMentorsService(
 	return &AdminMentorsService{
 		mentorRepo:     mentorRepo,
 		profileService: profileService,
+		lifecycle:      lifecycle,
 		config:         cfg,
 		httpClient:     httpClient,
 		tracker:        tracker,
@@ -69,7 +72,12 @@ func (s *AdminMentorsService) ListMentors(
 		return nil, err
 	}
 
-	mentors, err := s.mentorRepo.ListForModeration(ctx, statuses)
+	var mentors []models.AdminMentorListItem
+	if filter == models.MentorModerationFilterDeleted {
+		mentors, err = s.mentorRepo.ListDeletedForModeration(ctx)
+	} else {
+		mentors, err = s.mentorRepo.ListForModeration(ctx, statuses)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -87,10 +95,43 @@ func (s *AdminMentorsService) GetMentor(
 	if err != nil {
 		return nil, err
 	}
-	if session.Role == models.ModeratorRoleModerator && mentor.Status != mentorStatusPending {
+	if session.Role == models.ModeratorRoleModerator && (mentor.Status != mentorStatusPending || mentor.DeletedAt != nil) {
 		return nil, ErrAdminForbiddenAction
 	}
 	return mentor, nil
+}
+
+// DeleteMentor soft-deletes a mentor (admin only). confirmSlug must match the mentor's slug.
+func (s *AdminMentorsService) DeleteMentor(
+	ctx context.Context,
+	session *models.AdminSession,
+	mentorID string,
+	confirmSlug string,
+) (*models.AdminMentorDetails, error) {
+
+	if session.Role != models.ModeratorRoleAdmin {
+		return nil, ErrAdminForbiddenAction
+	}
+	if err := s.lifecycle.DeleteMentor(ctx, mentorID, confirmSlug, MentorLifecycleInitiatorAdmin, session.ModeratorID); err != nil {
+		return nil, err
+	}
+	return s.mentorRepo.GetForModerationByID(ctx, mentorID)
+}
+
+// RestoreMentor restores a soft-deleted mentor as inactive (admin only).
+func (s *AdminMentorsService) RestoreMentor(
+	ctx context.Context,
+	session *models.AdminSession,
+	mentorID string,
+) (*models.AdminMentorDetails, error) {
+
+	if session.Role != models.ModeratorRoleAdmin {
+		return nil, ErrAdminForbiddenAction
+	}
+	if err := s.lifecycle.RestoreMentor(ctx, mentorID, session.ModeratorID); err != nil {
+		return nil, err
+	}
+	return s.mentorRepo.GetForModerationByID(ctx, mentorID)
 }
 
 func (s *AdminMentorsService) UpdateMentorProfile(
@@ -104,6 +145,10 @@ func (s *AdminMentorsService) UpdateMentorProfile(
 	if err != nil {
 		s.trackAdminProfileUpdate(ctx, session, mentorID, "mentor_not_found_or_forbidden", nil)
 		return nil, err
+	}
+	if mentor.DeletedAt != nil {
+		s.trackAdminProfileUpdate(ctx, session, mentorID, "mentor_deleted", nil)
+		return nil, ErrMentorDeleted
 	}
 
 	if permissionErr := validateProfileUpdatePermissions(session, mentor, req); permissionErr != nil {
@@ -196,6 +241,9 @@ func (s *AdminMentorsService) UpdateMentorStatus(
 		})
 		return nil, err
 	}
+	if mentor.DeletedAt != nil {
+		return nil, ErrMentorDeleted
+	}
 	if mentor.Status != mentorStatusActive && mentor.Status != mentorStatusInactive {
 		s.tracker.Track(ctx, analytics.EventAdminMentorStatusUpdated, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
 			"moderator_id":     session.ModeratorID,
@@ -257,6 +305,9 @@ func (s *AdminMentorsService) UploadMentorPicture(
 		})
 		return "", err
 	}
+	if mentor.DeletedAt != nil {
+		return "", ErrMentorDeleted
+	}
 	uploadURL, err := s.profileService.UploadPictureByMentorId(ctx, mentorID, mentor.Slug, req)
 	if err != nil {
 		s.tracker.Track(ctx, analytics.EventAdminMentorPictureUploaded, analytics.ModeratorDistinctID(session.ModeratorID), map[string]interface{}{
@@ -290,6 +341,10 @@ func (s *AdminMentorsService) setModerationStatus(
 	if err != nil {
 		s.trackModerationAction(ctx, session, mentorID, action, "mentor_not_found_or_forbidden")
 		return nil, err
+	}
+	if mentor.DeletedAt != nil {
+		s.trackModerationAction(ctx, session, mentorID, action, "mentor_deleted")
+		return nil, ErrMentorDeleted
 	}
 	if session.Role == models.ModeratorRoleModerator && mentor.Status != mentorStatusPending {
 		s.trackModerationAction(ctx, session, mentorID, action, "forbidden")
@@ -451,6 +506,9 @@ func resolveStatuses(filter models.MentorModerationFilter, role models.Moderator
 		return []string{mentorStatusActive, mentorStatusInactive}, nil
 	case models.MentorModerationFilterDeclined:
 		return []string{mentorStatusDeclined}, nil
+	case models.MentorModerationFilterDeleted:
+		// Deleted mentors are listed regardless of status
+		return nil, nil
 	default:
 		return nil, fmt.Errorf("unsupported filter: %s", filter)
 	}

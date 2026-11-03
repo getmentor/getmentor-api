@@ -36,7 +36,7 @@ func (r *ReviewRepository) CheckCanSubmitReview(ctx context.Context, requestID s
 			EXISTS(SELECT 1 FROM reviews rv WHERE rv.client_request_id = cr.id) as has_review
 		FROM client_requests cr
 		JOIN mentors m ON m.id = cr.mentor_id
-		WHERE cr.id = $1
+		WHERE cr.id = $1 AND m.deleted_at IS NULL
 	`
 
 	var status string
