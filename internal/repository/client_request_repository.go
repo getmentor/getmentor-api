@@ -2,9 +2,11 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/getmentor/getmentor-api/internal/models"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -20,9 +22,37 @@ func NewClientRequestRepository(pool *pgxpool.Pool) *ClientRequestRepository {
 	}
 }
 
+// ErrMentorUnavailable is returned when a request is created for a mentor
+// that doesn't exist or is soft-deleted.
+var ErrMentorUnavailable = errors.New("mentor not found or deleted")
+
 // Create creates a new client request in PostgreSQL
 // Returns: requestID (UUID), error
+//
+// The mentor row is locked FOR SHARE and must not be deleted. Soft delete locks the
+// same row FOR UPDATE, so a request either commits before the delete (and is then
+// declined by its sweep) or sees the delete and fails with ErrMentorUnavailable.
 func (r *ClientRequestRepository) Create(ctx context.Context, req *models.ClientRequest) (string, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx) //nolint:errcheck
+	}()
+
+	var mentorID string
+	err = tx.QueryRow(ctx,
+		`SELECT id FROM mentors WHERE id = $1 AND deleted_at IS NULL FOR SHARE`,
+		req.MentorID,
+	).Scan(&mentorID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrMentorUnavailable
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to check mentor: %w", err)
+	}
+
 	query := `
 		INSERT INTO client_requests (mentor_id, email, name, telegram, description, level, status)
 		VALUES ($1, $2, $3, $4, $5, $6, 'pending')
@@ -30,17 +60,20 @@ func (r *ClientRequestRepository) Create(ctx context.Context, req *models.Client
 	`
 
 	var requestID string
-	err := r.pool.QueryRow(ctx, query,
-		req.MentorID,
+	err = tx.QueryRow(ctx, query,
+		mentorID,
 		req.Email,
 		req.Name,
 		req.Telegram,
 		req.Description,
 		req.Level,
 	).Scan(&requestID)
-
 	if err != nil {
 		return "", fmt.Errorf("failed to create client request: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return "", fmt.Errorf("failed to commit client request: %w", err)
 	}
 
 	return requestID, nil

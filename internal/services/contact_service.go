@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -86,6 +87,22 @@ func (s *ContactService) SubmitContactForm(ctx context.Context, req *models.Cont
 	}
 
 	requestID, err := s.clientRequestRepo.Create(ctx, clientReq)
+	if errors.Is(err, repository.ErrMentorUnavailable) {
+		// The mentor was deleted (e.g. while the mentee had the form open)
+		metrics.ContactFormSubmissions.WithLabelValues("mentor_unavailable").Inc()
+		s.tracker.Track(ctx, analytics.EventMenteeContactSubmitted, analytics.MentorDistinctID(req.MentorID), map[string]interface{}{
+			"mentor_id":              req.MentorID,
+			"experience":             req.Experience,
+			"has_telegram_username":  strings.TrimSpace(req.TelegramUsername) != "",
+			"calendar_url_requested": true,
+			"outcome":                "mentor_unavailable",
+		})
+		logger.Warn("Contact request for unavailable mentor", zap.String("mentor_id", req.MentorID))
+		return &models.ContactMentorResponse{
+			Success: false,
+			Error:   "Mentor is no longer available",
+		}, fmt.Errorf("contact request rejected: %w", err)
+	}
 	if err != nil {
 		metrics.ContactFormSubmissions.WithLabelValues("error").Inc()
 		s.tracker.Track(ctx, analytics.EventMenteeContactSubmitted, analytics.MentorDistinctID(req.MentorID), map[string]interface{}{

@@ -73,6 +73,7 @@ func registerMentorAdminRoutes(
 	mentorRequestsHandler *handlers.MentorRequestsHandler,
 	mentorProfileHandler *handlers.MentorProfileHandler,
 	tokenManager *jwt.TokenManager,
+	mentorAccessChecker middleware.MentorAccessChecker,
 ) {
 	// Skip mentor admin routes if JWT is not configured
 	if tokenManager == nil {
@@ -85,11 +86,11 @@ func registerMentorAdminRoutes(
 	auth.POST("/request-login", authRateLimiter.Middleware(), mentorAuthHandler.RequestLogin)
 	auth.POST("/verify", mentorAuthHandler.VerifyLogin)
 	auth.POST("/logout", mentorAuthHandler.Logout)
-	auth.GET("/session", middleware.MentorSessionMiddleware(tokenManager, cfg.MentorSession.CookieDomain, cfg.MentorSession.CookieSecure), mentorAuthHandler.GetSession)
+	auth.GET("/session", middleware.MentorSessionMiddleware(tokenManager, cfg.MentorSession.CookieDomain, cfg.MentorSession.CookieSecure, mentorAccessChecker), mentorAuthHandler.GetSession)
 
 	// Mentor admin routes (protected)
 	mentor := router.Group("/api/v1/mentor")
-	mentor.Use(middleware.MentorSessionMiddleware(tokenManager, cfg.MentorSession.CookieDomain, cfg.MentorSession.CookieSecure))
+	mentor.Use(middleware.MentorSessionMiddleware(tokenManager, cfg.MentorSession.CookieDomain, cfg.MentorSession.CookieSecure, mentorAccessChecker))
 
 	// Request management routes
 	mentor.GET("/requests", mentorRequestsHandler.GetRequests)
@@ -101,6 +102,7 @@ func registerMentorAdminRoutes(
 	mentor.GET("/profile", mentorProfileHandler.GetProfile)
 	mentor.POST("/profile", profileRateLimiter.Middleware(), mentorProfileHandler.UpdateProfile)
 	mentor.POST("/profile/picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), mentorProfileHandler.UploadPicture)
+	mentor.POST("/profile/delete", profileRateLimiter.Middleware(), mentorProfileHandler.DeleteProfile)
 }
 
 // registerAdminModerationRoutes registers moderator/admin web routes.
@@ -134,6 +136,8 @@ func registerAdminModerationRoutes(
 	admin.POST("/mentors/:id/approve", adminMentorsHandler.ApproveMentor)
 	admin.POST("/mentors/:id/decline", adminMentorsHandler.DeclineMentor)
 	admin.POST("/mentors/:id/status", adminMentorsHandler.UpdateMentorStatus)
+	admin.POST("/mentors/:id/delete", adminMentorsHandler.DeleteMentor)
+	admin.POST("/mentors/:id/restore", adminMentorsHandler.RestoreMentor)
 	admin.POST("/mentors/:id/picture", profileRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024*1024), adminMentorsHandler.UploadMentorPicture)
 	admin.GET("/requests", adminRequestsHandler.ListRequests)
 	admin.GET("/requests/:id", adminRequestsHandler.GetRequest)
@@ -322,7 +326,8 @@ func main() { //nolint:gocyclo
 	adminAuthService := services.NewAdminAuthService(moderatorRepo, cfg, httpClient, analyticsTracker)
 	mentorRequestsService := services.NewMentorRequestsService(clientRequestRepo, cfg, httpClient, analyticsTracker)
 	reviewService := services.NewReviewService(reviewRepo, cfg, httpClient, analyticsTracker)
-	adminMentorsService := services.NewAdminMentorsService(mentorRepo, profileService, cfg, httpClient, analyticsTracker)
+	mentorLifecycleService := services.NewMentorLifecycleService(mentorRepo, cfg, httpClient, analyticsTracker)
+	adminMentorsService := services.NewAdminMentorsService(mentorRepo, profileService, mentorLifecycleService, cfg, httpClient, analyticsTracker)
 	adminRequestsService := services.NewAdminRequestsService(clientRequestRepo, analyticsTracker)
 
 	// Initialize handlers
@@ -341,7 +346,7 @@ func main() { //nolint:gocyclo
 	mentorAuthHandler := handlers.NewMentorAuthHandler(mentorAuthService)
 	adminAuthHandler := handlers.NewAdminAuthHandler(adminAuthService)
 	mentorRequestsHandler := handlers.NewMentorRequestsHandler(mentorRequestsService)
-	mentorProfileHandler := handlers.NewMentorProfileHandler(mentorService, profileService)
+	mentorProfileHandler := handlers.NewMentorProfileHandler(mentorService, profileService, mentorLifecycleService, cfg.MentorSession.CookieDomain, cfg.MentorSession.CookieSecure)
 	adminMentorsHandler := handlers.NewAdminMentorsHandler(adminMentorsService)
 	adminRequestsHandler := handlers.NewAdminRequestsHandler(adminRequestsService)
 
@@ -396,7 +401,7 @@ func main() { //nolint:gocyclo
 		mentorHandler, contactHandler, logsHandler, registrationHandler, reviewHandler)
 
 	// Mentor admin routes (authentication, request management, and profile)
-	registerMentorAdminRoutes(router, cfg, mentorAuthRateLimiter, profileRateLimiter, mentorAuthHandler, mentorRequestsHandler, mentorProfileHandler, mentorAuthService.GetTokenManager())
+	registerMentorAdminRoutes(router, cfg, mentorAuthRateLimiter, profileRateLimiter, mentorAuthHandler, mentorRequestsHandler, mentorProfileHandler, mentorAuthService.GetTokenManager(), mentorRepo)
 
 	// Moderator/Admin web moderation routes
 	registerAdminModerationRoutes(router, cfg, adminAuthRateLimiter, profileRateLimiter, adminAuthHandler, adminMentorsHandler, adminRequestsHandler, adminAuthService.GetTokenManager())

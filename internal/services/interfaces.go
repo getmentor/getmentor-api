@@ -80,6 +80,14 @@ type AdminMentorsServiceInterface interface {
 	DeclineMentor(ctx context.Context, session *models.AdminSession, mentorID string) (*models.AdminMentorDetails, error)
 	UpdateMentorStatus(ctx context.Context, session *models.AdminSession, mentorID string, status string) (*models.AdminMentorDetails, error)
 	UploadMentorPicture(ctx context.Context, session *models.AdminSession, mentorID string, req *models.UploadProfilePictureRequest) (string, error)
+	DeleteMentor(ctx context.Context, session *models.AdminSession, mentorID string, confirmSlug string) (*models.AdminMentorDetails, error)
+	RestoreMentor(ctx context.Context, session *models.AdminSession, mentorID string) (*models.AdminMentorDetails, error)
+}
+
+// MentorLifecycleServiceInterface soft-deletes and restores mentor profiles
+type MentorLifecycleServiceInterface interface {
+	DeleteMentor(ctx context.Context, mentorID string, confirmSlug string, initiator string, moderatorID string) error
+	RestoreMentor(ctx context.Context, mentorID string, moderatorID string) error
 }
 
 // Ensure services implement their interfaces
@@ -93,3 +101,4 @@ var _ MentorRequestsServiceInterface = (*MentorRequestsService)(nil)
 var _ ReviewServiceInterface = (*ReviewService)(nil)
 var _ AdminMentorsServiceInterface = (*AdminMentorsService)(nil)
 var _ AdminRequestsServiceInterface = (*AdminRequestsService)(nil)
+var _ MentorLifecycleServiceInterface = (*MentorLifecycleService)(nil)

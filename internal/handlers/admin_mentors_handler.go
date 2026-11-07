@@ -8,6 +8,7 @@ import (
 
 	"github.com/getmentor/getmentor-api/internal/middleware"
 	"github.com/getmentor/getmentor-api/internal/models"
+	"github.com/getmentor/getmentor-api/internal/repository"
 	"github.com/getmentor/getmentor-api/internal/services"
 	"github.com/gin-gonic/gin"
 )
@@ -29,7 +30,7 @@ func (h *AdminMentorsHandler) ListMentors(c *gin.Context) {
 
 	filter := models.MentorModerationFilter(c.DefaultQuery("status", string(models.MentorModerationFilterPending)))
 	if !filter.IsValid() {
-		respondError(c, http.StatusBadRequest, "Invalid status filter", errors.New("status must be pending, approved, or declined"))
+		respondError(c, http.StatusBadRequest, "Invalid status filter", errors.New("status must be pending, approved, declined, or deleted"))
 		return
 	}
 
@@ -85,6 +86,29 @@ func (h *AdminMentorsHandler) DeclineMentor(c *gin.Context) {
 	h.withAdminMentor(c, h.service.DeclineMentor)
 }
 
+// DeleteMentor handles POST /api/v1/admin/mentors/:id/delete
+// Body: {"slug": "<current mentor slug>"} to confirm the action.
+func (h *AdminMentorsHandler) DeleteMentor(c *gin.Context) {
+	var req models.MentorDeleteRequest
+	session, mentorID, ok := h.parseAdminMentorRequest(c, &req)
+	if !ok {
+		return
+	}
+
+	mentor, err := h.service.DeleteMentor(c.Request.Context(), session, mentorID, req.Slug)
+	if err != nil {
+		h.respondServiceError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, models.AdminMentorResponse{Mentor: mentor})
+}
+
+// RestoreMentor handles POST /api/v1/admin/mentors/:id/restore
+func (h *AdminMentorsHandler) RestoreMentor(c *gin.Context) {
+	h.withAdminMentor(c, h.service.RestoreMentor)
+}
+
 func (h *AdminMentorsHandler) withAdminMentor(
 	c *gin.Context,
 	action func(context.Context, *models.AdminSession, string) (*models.AdminMentorDetails, error),
@@ -112,21 +136,9 @@ func (h *AdminMentorsHandler) withAdminMentor(
 }
 
 func (h *AdminMentorsHandler) UpdateMentorStatus(c *gin.Context) {
-	session, err := middleware.GetAdminSession(c)
-	if err != nil {
-		respondError(c, http.StatusUnauthorized, "Unauthorized", err)
-		return
-	}
-
-	mentorID := c.Param("id")
-	if mentorID == "" {
-		respondError(c, http.StatusBadRequest, "Invalid mentor ID", errors.New("missing route param: id"))
-		return
-	}
-
 	var req models.AdminMentorStatusUpdateRequest
-	if bindErr := c.ShouldBindJSON(&req); bindErr != nil {
-		respondErrorWithDetails(c, http.StatusBadRequest, "Invalid request body", gin.H{"message": bindErr.Error()}, bindErr)
+	session, mentorID, ok := h.parseAdminMentorRequest(c, &req)
+	if !ok {
 		return
 	}
 
@@ -137,6 +149,29 @@ func (h *AdminMentorsHandler) UpdateMentorStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, models.AdminMentorResponse{Mentor: mentor})
+}
+
+// parseAdminMentorRequest reads the admin session, the :id route param and the JSON body.
+// On failure it writes the error response and returns ok=false.
+func (h *AdminMentorsHandler) parseAdminMentorRequest(c *gin.Context, body interface{}) (*models.AdminSession, string, bool) {
+	session, err := middleware.GetAdminSession(c)
+	if err != nil {
+		respondError(c, http.StatusUnauthorized, "Unauthorized", err)
+		return nil, "", false
+	}
+
+	mentorID := c.Param("id")
+	if mentorID == "" {
+		respondError(c, http.StatusBadRequest, "Invalid mentor ID", errors.New("missing route param: id"))
+		return nil, "", false
+	}
+
+	if bindErr := c.ShouldBindJSON(body); bindErr != nil {
+		respondErrorWithDetails(c, http.StatusBadRequest, "Invalid request body", gin.H{"message": bindErr.Error()}, bindErr)
+		return nil, "", false
+	}
+
+	return session, mentorID, true
 }
 
 func (h *AdminMentorsHandler) UploadMentorPicture(c *gin.Context) {
@@ -174,6 +209,33 @@ func (h *AdminMentorsHandler) UploadMentorPicture(c *gin.Context) {
 func (h *AdminMentorsHandler) respondServiceError(c *gin.Context, err error) {
 	if errors.Is(err, services.ErrAdminForbiddenAction) {
 		respondError(c, http.StatusForbidden, "Access denied", err)
+		return
+	}
+	if errors.Is(err, services.ErrMentorDeleted) {
+		respondError(c, http.StatusConflict, "Mentor is deleted", err)
+		return
+	}
+	if errors.Is(err, repository.ErrMentorAlreadyDeleted) {
+		respondError(c, http.StatusConflict, "Mentor is already deleted", err)
+		return
+	}
+	var emailConflict *repository.MentorEmailConflictError
+	if errors.As(err, &emailConflict) {
+		respondErrorWithDetails(c, http.StatusConflict, "Another mentor profile with this email already exists", models.AdminMentorEmailConflictDetails{
+			Code:     "email_conflict",
+			MentorID: emailConflict.MentorID,
+			Name:     emailConflict.Name,
+			Slug:     emailConflict.Slug,
+			Status:   emailConflict.Status,
+		}, err)
+		return
+	}
+	if errors.Is(err, repository.ErrMentorNotDeleted) {
+		respondError(c, http.StatusConflict, "Mentor is not deleted", err)
+		return
+	}
+	if errors.Is(err, services.ErrDeleteConfirmationMismatch) {
+		respondError(c, http.StatusBadRequest, "Slug does not match", err)
 		return
 	}
 

@@ -63,48 +63,52 @@ const (
 	MentorModerationFilterPending  MentorModerationFilter = "pending"
 	MentorModerationFilterApproved MentorModerationFilter = "approved"
 	MentorModerationFilterDeclined MentorModerationFilter = "declined"
+	MentorModerationFilterDeleted  MentorModerationFilter = "deleted"
 )
 
 func (f MentorModerationFilter) IsValid() bool {
 	return f == MentorModerationFilterPending ||
 		f == MentorModerationFilterApproved ||
-		f == MentorModerationFilterDeclined
+		f == MentorModerationFilterDeclined ||
+		f == MentorModerationFilterDeleted
 }
 
 type AdminMentorListItem struct {
-	MentorID  string    `json:"mentorId"`
-	LegacyID  int       `json:"id"`
-	Name      string    `json:"name"`
-	Email     string    `json:"email"`
-	Telegram  string    `json:"telegram"`
-	Job       string    `json:"job"`
-	Workplace string    `json:"workplace"`
-	Price     string    `json:"price"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"createdAt"`
+	MentorID  string     `json:"mentorId"`
+	LegacyID  int        `json:"id"`
+	Name      string     `json:"name"`
+	Email     string     `json:"email"`
+	Telegram  string     `json:"telegram"`
+	Job       string     `json:"job"`
+	Workplace string     `json:"workplace"`
+	Price     string     `json:"price"`
+	Status    string     `json:"status"`
+	CreatedAt time.Time  `json:"createdAt"`
+	DeletedAt *time.Time `json:"deletedAt"`
 }
 
 type AdminMentorDetails struct {
-	MentorID       string    `json:"mentorId"`
-	LegacyID       int       `json:"id"`
-	Slug           string    `json:"slug"`
-	Name           string    `json:"name"`
-	Email          string    `json:"email"`
-	Telegram       string    `json:"telegram"`
-	Job            string    `json:"job"`
-	Workplace      string    `json:"workplace"`
-	Experience     string    `json:"experience"`
-	Price          string    `json:"price"`
-	Tags           []string  `json:"tags"`
-	About          string    `json:"about"`
-	Description    string    `json:"description"`
-	Competencies   string    `json:"competencies"`
-	CalendarURL    string    `json:"calendarUrl"`
-	Status         string    `json:"status"`
-	SortOrder      int       `json:"sortOrder"`
-	TelegramChatID *int64    `json:"telegramChatId"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
+	MentorID       string     `json:"mentorId"`
+	LegacyID       int        `json:"id"`
+	Slug           string     `json:"slug"`
+	Name           string     `json:"name"`
+	Email          string     `json:"email"`
+	Telegram       string     `json:"telegram"`
+	Job            string     `json:"job"`
+	Workplace      string     `json:"workplace"`
+	Experience     string     `json:"experience"`
+	Price          string     `json:"price"`
+	Tags           []string   `json:"tags"`
+	About          string     `json:"about"`
+	Description    string     `json:"description"`
+	Competencies   string     `json:"competencies"`
+	CalendarURL    string     `json:"calendarUrl"`
+	Status         string     `json:"status"`
+	SortOrder      int        `json:"sortOrder"`
+	TelegramChatID *int64     `json:"telegramChatId"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	UpdatedAt      time.Time  `json:"updatedAt"`
+	DeletedAt      *time.Time `json:"deletedAt"`
 }
 
 type AdminMentorsListResponse struct {
@@ -145,4 +149,34 @@ type AdminModerationTriggerPayload struct {
 	Action      string `json:"action"`
 	ModeratorID string `json:"moderator_id"`
 	Role        string `json:"role"`
+}
+
+// MentorDeleteRequest confirms a profile delete by repeating the mentor's current slug.
+type MentorDeleteRequest struct {
+	Slug string `json:"slug" binding:"required,max=200"`
+}
+
+// MentorDeleteResponse is returned after a mentor deletes their own profile.
+type MentorDeleteResponse struct {
+	Success bool `json:"success"`
+}
+
+// MentorLifecycleTriggerPayload is sent to the mentor-profile-lifecycle function,
+// which notifies the mentor (email + Telegram) and moderators.
+type MentorLifecycleTriggerPayload struct {
+	Type                  string `json:"type"`
+	Action                string `json:"action"` // "deleted" or "restored"
+	MentorID              string `json:"mentor_id"`
+	Initiator             string `json:"initiator"` // "mentor" or "admin"
+	ModeratorID           string `json:"moderator_id,omitempty"`
+	DeclinedRequestsCount int    `json:"declined_requests_count"`
+}
+
+// AdminMentorEmailConflictDetails describes the existing profile that blocks a restore.
+type AdminMentorEmailConflictDetails struct {
+	Code     string `json:"code"`
+	MentorID string `json:"mentorId"`
+	Name     string `json:"name"`
+	Slug     string `json:"slug"`
+	Status   string `json:"status"`
 }
