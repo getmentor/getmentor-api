@@ -101,6 +101,7 @@ type EventTriggerFunctionsConfig struct {
 	MentorUpdatedTriggerURL          string
 	MentorRequestCreatedTriggerURL   string
 	MentorLoginEmailTriggerURL       string
+	MenteeLoginEmailTriggerURL       string // Derived from MentorLoginEmailTriggerURL unless MENTEE_LOGIN_EMAIL_TRIGGER_URL is set
 	ModeratorLoginEmailTriggerURL    string
 	MentorModerationTriggerURL       string
 	MentorLifecycleTriggerURL        string
@@ -282,6 +283,7 @@ func Load() (*Config, error) {
 			MentorUpdatedTriggerURL:          v.GetString("MENTOR_UPDATED_TRIGGER_URL"),
 			MentorRequestCreatedTriggerURL:   v.GetString("MENTOR_REQUEST_CREATED_TRIGGER_URL"),
 			MentorLoginEmailTriggerURL:       v.GetString("MENTOR_LOGIN_EMAIL_TRIGGER_URL"),
+			MenteeLoginEmailTriggerURL:       resolveMenteeLoginEmailTriggerURL(v.GetString("MENTEE_LOGIN_EMAIL_TRIGGER_URL"), v.GetString("MENTOR_LOGIN_EMAIL_TRIGGER_URL")),
 			ModeratorLoginEmailTriggerURL:    v.GetString("MODERATOR_LOGIN_EMAIL_TRIGGER_URL"),
 			MentorModerationTriggerURL:       v.GetString("MENTOR_MODERATION_TRIGGER_URL"),
 			MentorLifecycleTriggerURL:        v.GetString("MENTOR_LIFECYCLE_TRIGGER_URL"),
@@ -467,4 +469,19 @@ func (c *Config) IsDevelopment() bool {
 // IsProduction returns true if running in production mode
 func (c *Config) IsProduction() bool {
 	return c.Server.AppEnv == "production"
+}
+
+// resolveMenteeLoginEmailTriggerURL returns the mentee login email job URL.
+// An explicit MENTEE_LOGIN_EMAIL_TRIGGER_URL wins; otherwise the URL is derived from
+// the mentor one by swapping the Azure Function name, so no new env var is needed
+// when both functions accept the same key (an Azure host key).
+func resolveMenteeLoginEmailTriggerURL(explicit, mentorURL string) string {
+	if explicit = strings.TrimSpace(explicit); explicit != "" {
+		return explicit
+	}
+	const mentorFn, menteeFn = "/mentor-login-email", "/mentee-login-email"
+	if !strings.Contains(mentorURL, mentorFn) {
+		return ""
+	}
+	return strings.Replace(mentorURL, mentorFn, menteeFn, 1)
 }

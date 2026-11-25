@@ -6,6 +6,7 @@ import (
 
 	"github.com/getmentor/getmentor-api/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfig_IsDevelopment(t *testing.T) {
@@ -514,4 +515,37 @@ func TestLoad_ValidationFailure(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, cfg)
+}
+
+func TestLoad_MenteeLoginEmailTriggerURL(t *testing.T) {
+	t.Setenv("DB_WORK_OFFLINE", "true")
+	t.Setenv("INTERNAL_MENTORS_API", "test-token")
+	t.Setenv("MENTORS_API_LIST_AUTH_TOKEN", "public-token")
+	t.Setenv("WEBHOOK_SECRET", "webhook-secret")
+	t.Setenv("MCP_AUTH_TOKEN", "mcp-token")
+	t.Setenv("RECAPTCHA_V2_SECRET_KEY", "recaptcha-secret")
+
+	t.Run("derived from the mentor login function URL", func(t *testing.T) {
+		t.Setenv("MENTOR_LOGIN_EMAIL_TRIGGER_URL", "https://fn.example/api/mentor-login-email?code=abc")
+		t.Setenv("MENTEE_LOGIN_EMAIL_TRIGGER_URL", "")
+		cfg, err := config.Load()
+		require.NoError(t, err)
+		assert.Equal(t, "https://fn.example/api/mentee-login-email?code=abc", cfg.EventTriggers.MenteeLoginEmailTriggerURL)
+	})
+
+	t.Run("explicit value wins", func(t *testing.T) {
+		t.Setenv("MENTOR_LOGIN_EMAIL_TRIGGER_URL", "https://fn.example/api/mentor-login-email?code=abc")
+		t.Setenv("MENTEE_LOGIN_EMAIL_TRIGGER_URL", "https://fn.example/api/mentee-login-email?code=own")
+		cfg, err := config.Load()
+		require.NoError(t, err)
+		assert.Equal(t, "https://fn.example/api/mentee-login-email?code=own", cfg.EventTriggers.MenteeLoginEmailTriggerURL)
+	})
+
+	t.Run("unset when the mentor URL can't be mapped", func(t *testing.T) {
+		t.Setenv("MENTOR_LOGIN_EMAIL_TRIGGER_URL", "https://fn.example/api/something-else")
+		t.Setenv("MENTEE_LOGIN_EMAIL_TRIGGER_URL", "")
+		cfg, err := config.Load()
+		require.NoError(t, err)
+		assert.Equal(t, "", cfg.EventTriggers.MenteeLoginEmailTriggerURL)
+	})
 }

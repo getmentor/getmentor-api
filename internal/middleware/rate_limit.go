@@ -65,6 +65,12 @@ func (rl *RateLimiter) cleanupVisitors() {
 	}
 }
 
+// AllowKey reports whether a request for an arbitrary key (for example a hashed
+// email) is within the limit. It shares the visitor map and cleanup with Middleware.
+func (rl *RateLimiter) AllowKey(key string) bool {
+	return rl.getVisitor(key).Allow()
+}
+
 // Middleware returns a Gin middleware function for rate limiting
 func (rl *RateLimiter) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {

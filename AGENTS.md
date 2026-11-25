@@ -39,3 +39,11 @@
 ## Security & Configuration Tips
 - Copy `.env.example` to `.env` and keep secrets out of Git.
 - Public endpoints require auth tokens; verify local config before testing.
+
+## Auth Realms & Gotchas
+- Three cookie realms: `mentor_session`, `admin_session`, `mentee_session`. Mentor and admin tokens are signed with `JWT_SECRET` and the mentor realm accepts tokens without any realm claim, so a new realm must not sign with `JWT_SECRET` directly. The mentee realm (`pkg/jwt/mentee.go`) signs with a key derived from it and requires `aud`, `token_type`, `sub`, `sv` and `exp`.
+- Mentee sessions carry a `session_version` (`sv`) that the middleware re-checks against `mentees.session_version` on every request; logout increments it, so copied cookies stop working at once.
+- Per-IP rate limiters see the Next.js server's address for all proxied traffic, so a per-IP limit there is effectively global. Limit per person by key (`RateLimiter.AllowKey`), as mentee login does per email hash.
+- A request id is a capability: the emailed review link `/reviews/new?request_id=...` accepts a review for it. Keep request ids out of URLs, logs and analytics in new code (the mentee dashboard sends them only in POST bodies).
+- `client_requests` has many nullable columns (`email`, `name`, `description`, `mentor_id`, ...). Scan them into pointers; one NULL scanned into a `string` breaks the whole list query.
+- DB-backed tests in `test/internal/repository` run only with `TEST_DATABASE_URL` set to a migrated database, for example a local Postgres: `TEST_DATABASE_URL=postgres://...?sslmode=disable go test -race ./...`.

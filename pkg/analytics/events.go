@@ -10,6 +10,10 @@ const (
 	EventMentorAuthLoginVerified  = "mentor_auth_login_verified"
 	EventAdminAuthLoginRequested  = "admin_auth_login_requested"
 	EventAdminAuthLoginVerified   = "admin_auth_login_verified"
+	EventMenteeAuthLoginRequested = "mentee_auth_login_requested"
+	EventMenteeAuthLoginVerified  = "mentee_auth_login_verified"
+	EventMenteeAuthLogout         = "mentee_auth_logout"
+	EventMenteeDashboardViewed    = "mentee_dashboard_viewed"
 
 	EventMentorProfileUpdated         = "mentor_profile_updated"
 	EventMentorProfilePictureUploaded = "mentor_profile_picture_uploaded"
