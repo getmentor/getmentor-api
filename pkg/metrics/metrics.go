@@ -38,10 +38,15 @@ var (
 	MentorRegistrations    *prometheus.CounterVec
 
 	// Mentor Auth Metrics
-	MentorAuthLoginRequests     *prometheus.CounterVec
-	MentorAuthLoginDuration     prometheus.Histogram
-	MentorAuthVerifyRequests    *prometheus.CounterVec
-	MentorAuthVerifyDuration    prometheus.Histogram
+	MentorAuthLoginRequests  *prometheus.CounterVec
+	MentorAuthLoginDuration  prometheus.Histogram
+	MentorAuthVerifyRequests *prometheus.CounterVec
+	MentorAuthVerifyDuration prometheus.Histogram
+
+	// Mentee Auth Metrics (separate series: the mentor ones are named for mentors and
+	// a new realm label would regroup existing panels)
+	MenteeAuthLoginRequests     *prometheus.CounterVec
+	MenteeAuthVerifyRequests    *prometheus.CounterVec
 	MentorRequestsListTotal     *prometheus.CounterVec
 	MentorRequestsListDuration  prometheus.Histogram
 	MentorRequestsStatusUpdates *prometheus.CounterVec
@@ -240,6 +245,22 @@ func Init(serviceName string) {
 			Help:    "Mentor token verification duration in seconds",
 			Buckets: prometheus.DefBuckets,
 		},
+	)
+
+	MenteeAuthLoginRequests = factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "getmentor_mentee_auth_login_requests_total",
+			Help: "Total mentee login link requests",
+		},
+		[]string{"status"},
+	)
+
+	MenteeAuthVerifyRequests = factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "getmentor_mentee_auth_verify_requests_total",
+			Help: "Total mentee login token verifications",
+		},
+		[]string{"status"},
 	)
 
 	MentorRequestsListTotal = factory.NewCounterVec(

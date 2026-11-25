@@ -28,6 +28,7 @@ import (
 	"github.com/getmentor/getmentor-api/pkg/logger"
 	"github.com/getmentor/getmentor-api/pkg/metrics"
 	"github.com/getmentor/getmentor-api/pkg/profiling"
+	"github.com/getmentor/getmentor-api/pkg/recaptcha"
 	"github.com/getmentor/getmentor-api/pkg/tracing"
 	"github.com/getmentor/getmentor-api/pkg/yandex"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
@@ -142,6 +143,35 @@ func registerAdminModerationRoutes(
 	admin.GET("/requests", adminRequestsHandler.ListRequests)
 	admin.GET("/requests/:id", adminRequestsHandler.GetRequest)
 	admin.POST("/requests/:id/status", adminRequestsHandler.UpdateRequestStatus)
+}
+
+// registerMenteeRoutes registers mentee login and the read-only mentee dashboard.
+// The mentee realm has its own cookie, JWT key/audience and middleware.
+func registerMenteeRoutes(
+	router *gin.Engine,
+	cfg *config.Config,
+	authRateLimiter *middleware.RateLimiter,
+	reviewRateLimiter *middleware.RateLimiter,
+	menteeService *services.MenteeService,
+	menteeHandler *handlers.MenteeHandler,
+) {
+
+	if !menteeService.IsConfigured() {
+		logger.Warn("Mentee dashboard routes disabled: JWT_SECRET not configured")
+		return
+	}
+	session := middleware.MenteeSessionMiddleware(menteeService, cfg.MentorSession.CookieDomain, cfg.MentorSession.CookieSecure)
+
+	auth := router.Group("/api/v1/auth/mentee")
+	auth.POST("/request-login", authRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024), menteeHandler.RequestLogin)
+	auth.POST("/verify", authRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(10*1024), menteeHandler.VerifyLogin)
+	auth.POST("/logout", menteeHandler.Logout)
+	auth.GET("/session", session, menteeHandler.GetSession)
+
+	mentee := router.Group("/api/v1/mentee")
+	mentee.Use(session)
+	mentee.GET("/requests", menteeHandler.ListRequests)
+	mentee.POST("/reviews", reviewRateLimiter.Middleware(), middleware.BodySizeLimitMiddleware(100*1024), menteeHandler.SubmitReview)
 }
 
 func main() { //nolint:gocyclo
@@ -329,6 +359,17 @@ func main() { //nolint:gocyclo
 	mentorLifecycleService := services.NewMentorLifecycleService(mentorRepo, cfg, httpClient, analyticsTracker)
 	adminMentorsService := services.NewAdminMentorsService(mentorRepo, profileService, mentorLifecycleService, cfg, httpClient, analyticsTracker)
 	adminRequestsService := services.NewAdminRequestsService(clientRequestRepo, analyticsTracker)
+	// Per-email limit for mentee login links, same rate as the mentor/admin per-IP login limit.
+	// (Behind the Next.js proxy every request has the same client IP, so per-IP alone can't do this.)
+	menteeEmailRateLimiter := middleware.NewRateLimiter(0.00667, 2)
+	menteeService := services.NewMenteeService(
+		repository.NewMenteeRepository(pool),
+		cfg,
+		menteeEmailRateLimiter,
+		recaptcha.NewVerifier(cfg.ReCAPTCHA.SecretKey, httpClient),
+		httpClient,
+		analyticsTracker,
+	)
 
 	// Initialize handlers
 	mentorHandler := handlers.NewMentorHandler(mentorService, cfg.Server.BaseURL)
@@ -349,6 +390,7 @@ func main() { //nolint:gocyclo
 	mentorProfileHandler := handlers.NewMentorProfileHandler(mentorService, profileService, mentorLifecycleService, cfg.MentorSession.CookieDomain, cfg.MentorSession.CookieSecure)
 	adminMentorsHandler := handlers.NewAdminMentorsHandler(adminMentorsService)
 	adminRequestsHandler := handlers.NewAdminRequestsHandler(adminRequestsService)
+	menteeHandler := handlers.NewMenteeHandler(menteeService)
 
 	// Set up Gin router
 	gin.SetMode(cfg.Server.GinMode)
@@ -385,6 +427,9 @@ func main() { //nolint:gocyclo
 	mcpRateLimiter := middleware.NewRateLimiter(20, 40)              // 20 req/sec, burst of 40 (for AI tool usage)
 	mentorAuthRateLimiter := middleware.NewRateLimiter(0.00667, 2)   // 2 req/5min (0.00667 req/sec), burst of 2 (login abuse prevention)
 	adminAuthRateLimiter := middleware.NewRateLimiter(0.00667, 2)    // 2 req/5min (0.00667 req/sec), burst of 2 (login abuse prevention)
+	// Mentee login: an overall ceiling per client IP (all traffic arrives from the Next.js
+	// server); the real per-person limit is the per-email limiter in MenteeService.
+	menteeAuthRateLimiter := middleware.NewRateLimiter(2, 20)
 
 	// API routes
 	api := router.Group("/api")
@@ -404,6 +449,9 @@ func main() { //nolint:gocyclo
 	registerMentorAdminRoutes(router, cfg, mentorAuthRateLimiter, profileRateLimiter, mentorAuthHandler, mentorRequestsHandler, mentorProfileHandler, mentorAuthService.GetTokenManager(), mentorRepo)
 
 	// Moderator/Admin web moderation routes
+	// Mentee login and read-only dashboard
+	registerMenteeRoutes(router, cfg, menteeAuthRateLimiter, contactRateLimiter, menteeService, menteeHandler)
+
 	registerAdminModerationRoutes(router, cfg, adminAuthRateLimiter, profileRateLimiter, adminAuthHandler, adminMentorsHandler, adminRequestsHandler, adminAuthService.GetTokenManager())
 
 	// Create HTTP server

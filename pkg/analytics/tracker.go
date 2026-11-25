@@ -428,6 +428,11 @@ func MentorDistinctID(mentorID string) string {
 	return prefixedDistinctID("mentor", mentorID)
 }
 
+// MenteeDistinctID is derived from the mentees row id, never from the email.
+func MenteeDistinctID(menteeID string) string {
+	return prefixedDistinctID("mentee", menteeID)
+}
+
 func ModeratorDistinctID(moderatorID string) string {
 	return prefixedDistinctID("moderator", moderatorID)
 }
